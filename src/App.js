@@ -153,12 +153,12 @@ const CAT_COLORS = {
 };
 
 const NAV = [
-  { id:"dashboard",   icon:"◈",  label:"Дашборд",        desc:"Аналитика и финансы" },
-  { id:"pos",         icon:"🧾", label:"Касса",           desc:"Продажи и списания" },
-  { id:"production",  icon:"⚗️", label:"Производство",   desc:"Сырьё → Кухня" },
-  { id:"warehouse",   icon:"▣",  label:"Склад",           desc:"Закупки и остатки" },
-  { id:"inventory",   icon:"☰",  label:"Инвентаризация",  desc:"Пересчёт остатков" },
-  { id:"writeoff",    icon:"✕",  label:"Списания",        desc:"Коррекционные карты" },
+  { id:"dashboard",   icon:"📈", label:"Дашборд",        desc:"Аналитика и финансы" },
+  { id:"pos",         icon:"🛒", label:"Касса",           desc:"Продажи и списания" },
+  { id:"production",  icon:"🍓", label:"Производство",   desc:"Сырьё → Кухня" },
+  { id:"warehouse",   icon:"📦", label:"Склад",           desc:"Закупки и остатки" },
+  { id:"inventory",   icon:"📋", label:"Инвентаризация",  desc:"Пересчёт остатков" },
+  { id:"writeoff",    icon:"🗑️", label:"Списания",        desc:"Коррекционные карты" },
   { id:"expenses",    icon:"💰", label:"Расходы",         desc:"Аренда, зарплата, реклама" },
   { id:"reports",     icon:"📊", label:"Отчёты",          desc:"Cash Flow, P&L" },
   { id:"settings",    icon:"⚙️", label:"Настройки",       desc:"Техкарты и Маржа" },
@@ -1206,7 +1206,8 @@ export default function App(){
   const [users,     setUsers]      = useState(INIT_USERS);
   const [toast,showToast]          = useToast();
 
-  // Загрузка из Supabase при старте
+  // Название вкладки браузера
+  useEffect(()=>{ document.title = "VkusBuket"; }, []);
   useEffect(()=>{
     const load = async () => {
       try {
