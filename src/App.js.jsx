@@ -13,20 +13,21 @@ const C = {
 };
 
 const POINT_COLORS = ["#E8A0B4","#3498DB","#2ECC71","#9B59B6"];
-const POINTS = ["Точка №1","Точка №2","Точка №3","Точка №4"];
+const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
 
 const ROLES = {
-  owner:       { label:"Владелец",    icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
-  manager:     { label:"Управляющий", icon:"🏪", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff"] },
-  cashier:     { label:"Кассир",      icon:"🧾", color:C.green,   nav:["pos"] },
-  storekeeper: { label:"Кладовщик",   icon:"📦", color:C.yellow,  nav:["warehouse","production","inventory","writeoff"] }
+  owner:    { label:"Владелец",  icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  director: { label:"Директор",  icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  cashier:  { label:"Кассир",    icon:"🧾", color:C.green,   nav:["pos"] },
 };
 
 const INIT_USERS = [
-  { id:1, name:"Вы (Владелец)",  role:"owner",       point:null },
-  { id:2, name:"Айгерим — Т.1", role:"cashier",     point:"Точка №1" },
-  { id:3, name:"Данияр — Склад",role:"storekeeper", point:"Центральный склад" },
-  { id:4, name:"Сауле — Т.2",   role:"manager",     point:"Точка №2" }
+  { id:1, name:"Владелец",        role:"owner",    point:null,          pin:"7663" },
+  { id:2, name:"Директор",        role:"director", point:null,          pin:"8888" },
+  { id:3, name:"Кассир Мастерская", role:"cashier", point:"Мастерская", pin:"1111" },
+  { id:4, name:"Кассир Фуд Трак",   role:"cashier", point:"Фуд Трак",   pin:"2222" },
+  { id:5, name:"Кассир Жара",       role:"cashier", point:"Жара",       pin:"3333" },
+  { id:6, name:"Кассир Парк",       role:"cashier", point:"Парк",       pin:"4444" },
 ];
 
 // ─── СЫРЬЁ ───────────────────────────────────────────────────────────────────
@@ -1168,6 +1169,86 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
   );
 }
 
+// ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
+function PinScreen({users, onLogin, onClose}){
+  const [selected, setSelected] = useState(null);
+  const [pin, setPin]           = useState("");
+  const [error, setError]       = useState("");
+
+  const handleDigit = (d) => {
+    if(pin.length >= 4) return;
+    const next = pin + d;
+    setPin(next);
+    setError("");
+    if(next.length === 4){
+      setTimeout(()=>{
+        if(next === selected.pin){
+          onLogin(selected);
+          setPin("");
+          setSelected(null);
+        } else {
+          setError("Неверный PIN");
+          setPin("");
+        }
+      }, 200);
+    }
+  };
+
+  const handleBack = () => { setPin(p=>p.slice(0,-1)); setError(""); };
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(15,15,19,0.97)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,flexDirection:"column",gap:24}}>
+      {onClose && <button onClick={onClose} style={{position:"absolute",top:20,right:24,background:"transparent",border:"none",color:"#7A7A94",fontSize:24,cursor:"pointer"}}>✕</button>}
+      <div style={{fontSize:28,fontWeight:900,letterSpacing:-1,color:"#E8A0B4"}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
+
+      {!selected ? (
+        <div style={{display:"flex",flexDirection:"column",gap:12,width:280}}>
+          <div style={{color:"#7A7A94",fontSize:13,textAlign:"center",marginBottom:4}}>Выберите профиль</div>
+          {users.map(u=>{
+            const r = ROLES[u.role];
+            return(
+              <button key={u.id} onClick={()=>{setSelected(u);setPin("");setError("");}}
+                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left",transition:"border-color .2s"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor="#E8A0B4"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor="#2A2A38"}>
+                <div style={{width:40,height:40,borderRadius:20,background:r.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{r.icon}</div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
+                  <div style={{fontSize:12,color:"#7A7A94"}}>{r.label}{u.point?" · "+u.point:""}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:20,width:280}}>
+          <button onClick={()=>{setSelected(null);setPin("");setError("");}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:40,height:40,borderRadius:20,background:ROLES[selected.role].color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{ROLES[selected.role].icon}</div>
+            <div style={{fontWeight:700}}>{selected.name}</div>
+          </div>
+          <div style={{color:"#7A7A94",fontSize:13}}>Введите PIN-код</div>
+          <div style={{display:"flex",gap:14}}>
+            {[0,1,2,3].map(i=>(
+              <div key={i} style={{width:16,height:16,borderRadius:8,background:pin.length>i?"#E8A0B4":"#2A2A38",transition:"background .15s"}}/>
+            ))}
+          </div>
+          {error&&<div style={{color:"#E74C3C",fontSize:13,fontWeight:600}}>{error}</div>}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
+            {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
+              <button key={i} onClick={()=> d==="⌫"?handleBack():d!==""?handleDigit(String(d)):null}
+                disabled={d===""}
+                style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background: d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = process.env.REACT_APP_SUPABASE_URL||"";
 const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
@@ -1192,7 +1273,7 @@ const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON
 
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 export default function App(){
-  const [currentUser,setCurrentUser] = useState(INIT_USERS[0]);
+  const [currentUser,setCurrentUser] = useState(null);
   const [page,setPage]               = useState("dashboard");
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
@@ -1291,11 +1372,15 @@ export default function App(){
   };
 
   if(loading) return(
+  if(loading) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
       <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
       <div style={{fontSize:14,color:"#7A7A94"}}>⟳ Загрузка данных из облака...</div>
     </div>
   );
+
+  // PIN-экран при старте (если не вошли)
+  if(!currentUser) return <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setPage(ROLES[u.role].nav[0]);}} />;
 
   const role       = ROLES[currentUser.role];
   const allowedNav = NAV.filter(n=>role.nav.includes(n.id));
@@ -1306,6 +1391,7 @@ export default function App(){
   return(
     <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",color:C.text,overflow:"hidden"}}>
       <Toast toast={toast}/>
+      {showUserMenu && <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setUserMenu(false);setPage(ROLES[u.role].nav[0]);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
       {/* САЙДБАР */}
       <div style={{width:sidebarOpen?220:58,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width .2s",overflow:"hidden"}}>
@@ -1329,19 +1415,13 @@ export default function App(){
         </div>
 
         {/* Пользователь */}
-        <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`,position:"relative"}}>
-          {showUserMenu&&(
-            <div style={{position:"absolute",bottom:70,left:8,right:8,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:8,zIndex:200}}>
-              {users.map(u=>(
-                <button key={u.id} onClick={()=>{setCurrentUser(u);setUserMenu(false);setPage(ROLES[u.role].nav[0]);showToast(`Вошли как: ${u.name}`);}} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 10px",borderRadius:8,border:"none",background:currentUser.id===u.id?C.accentSoft:"transparent",color:currentUser.id===u.id?C.accent:C.text,cursor:"pointer",width:"100%",textAlign:"left",fontSize:13,fontWeight:currentUser.id===u.id?700:400}}>
-                  <span>{ROLES[u.role].icon}</span>{sidebarOpen&&u.name}
-                </button>
-              ))}
-            </div>
-          )}
-          <button onClick={()=>setUserMenu(v=>!v)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
+        <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
+          <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
             <div style={{width:32,height:32,borderRadius:16,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{role.icon}</div>
-            {sidebarOpen&&<div><div style={{fontSize:12,fontWeight:700}}>{currentUser.name}</div><div style={{fontSize:10,color:C.muted}}>{role.label}</div></div>}
+            {sidebarOpen&&<div>
+              <div style={{fontSize:12,fontWeight:700}}>{currentUser.name}</div>
+              <div style={{fontSize:10,color:C.muted}}>{role.label}{currentUser.point?" · "+currentUser.point:""}</div>
+            </div>}
           </button>
         </div>
       </div>
