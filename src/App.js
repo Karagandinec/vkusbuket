@@ -30,36 +30,44 @@ const INIT_USERS = [
 ];
 
 // ─── СЫРЬЁ ───────────────────────────────────────────────────────────────────
+// ✅ Остатки загружены из Инвентаризации_Июнь_26.xlsx (01.06.2026)
 const initRawStock = [
-  { id:"r1",  name:"Клубника свежая",              unit:"кг",  price:2500,  qty:120 },
-  { id:"r2",  name:"Шоколад молочный",             unit:"кг",  price:8950,  qty:20  },
-  { id:"r3",  name:"Шоколад белый",                unit:"кг",  price:7950,  qty:15  },
-  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"кг",  price:4800,  qty:10  },
-  { id:"r5",  name:"Дубайская паста",              unit:"кг",  price:16500, qty:5   },
-  { id:"r6",  name:"Мороженное",                   unit:"кг",  price:2000,  qty:10  },
-  { id:"r7",  name:"Краситель пищевой",            unit:"кг",  price:19000, qty:1   },
-  { id:"r8",  name:"Кандурин",                     unit:"кг",  price:100000,qty:0.5 },
-  { id:"r9",  name:"Скотч двухсторонний",          unit:"рул", price:100,   qty:20  },
-  { id:"r10", name:"Лента декоративная 1см",       unit:"рул", price:400,   qty:10  },
-  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",  price:1140,  qty:5   },
-  { id:"r12", name:"Упаковочные коробки",          unit:"шт",  price:300,   qty:200 },
-  { id:"r13", name:"Тишью бумага",                 unit:"лист",price:0.4,   qty:500 },
-  { id:"r14", name:"Шпажки / палочки (70шт)",      unit:"уп",  price:180,   qty:20  },
-  { id:"r15", name:"Слюда (упак. плёнка)",         unit:"м",   price:8.5,   qty:100 },
-  { id:"r16", name:"Упаковочная бумага",           unit:"лист",price:50,    qty:200 },
-  { id:"r17", name:"Бичовка / верёвка",            unit:"м",   price:5,     qty:50  },
-  { id:"r18", name:"Открытка",                     unit:"шт",  price:35,    qty:100 },
-  { id:"r19", name:"Эмблема / бирка",              unit:"шт",  price:5,     qty:200 },
-  { id:"r20", name:"Пакет крафт малый",            unit:"шт",  price:80,    qty:100 },
-  { id:"r21", name:"Пакет крафт средний",          unit:"шт",  price:85,    qty:100 },
-  { id:"r22", name:"Пакет крафт большой",          unit:"шт",  price:120,   qty:50  },
-  { id:"r23", name:"Скотч обычный",                unit:"рул", price:430,   qty:10  },
-  { id:"r24", name:"Лента декоративная 2см",       unit:"рул", price:400,   qty:10  },
-  { id:"r25", name:"Креманка",                     unit:"шт",  price:57,    qty:200 },
-  { id:"r26", name:"Вилка одноразовая",            unit:"шт",  price:13,    qty:500 },
-  { id:"r27", name:"Салфетка",                     unit:"шт",  price:13,    qty:500 },
-  { id:"r28", name:"Посыпка кондитерская",         unit:"г",   price:0.025, qty:1000},
-  { id:"r29", name:"Макси стакан",                 unit:"шт",  price:39.6,  qty:100 },
+  { id:"r1",  name:"Клубника свежая",              unit:"кг",  price:2500,   qty:0    },
+  { id:"r2",  name:"Шоколад молочный",             unit:"кг",  price:8950,   qty:0    },
+  { id:"r3",  name:"Шоколад белый",                unit:"кг",  price:7950,   qty:0    },
+  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"кг",  price:4800,   qty:0    },
+  { id:"r5",  name:"Дубайская паста",              unit:"кг",  price:16500,  qty:0    },
+  { id:"r6",  name:"Мороженное",                   unit:"кг",  price:2000,   qty:0    },
+  { id:"r7",  name:"Краситель пищевой",            unit:"кг",  price:19000,  qty:0    },
+  { id:"r8",  name:"Кандурин",                     unit:"кг",  price:100000, qty:0    },
+  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",  price:100,    qty:6    },
+  { id:"r10", name:"Лента декоративная 1см",       unit:"рул", price:400,    qty:29   },
+  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",  price:1140,   qty:5    },
+  { id:"r12", name:"Тишью бумага",                 unit:"лист",price:0.4,    qty:292  },
+  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",  price:180,    qty:11   },
+  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",   price:8.5,    qty:100  },
+  { id:"r15", name:"Упаковочная бумага",           unit:"лист",price:50,     qty:200  },
+  { id:"r16", name:"Бичовка / верёвка",            unit:"рул", price:5,      qty:8    },
+  { id:"r17", name:"Открытка",                     unit:"шт",  price:35,     qty:100  },
+  { id:"r18", name:"Эмблема / бирка",              unit:"рул", price:5,      qty:20   },
+  { id:"r19", name:"Пакет крафт малый",            unit:"шт",  price:80,     qty:79   },
+  { id:"r20", name:"Пакет крафт средний",          unit:"шт",  price:85,     qty:43   },
+  { id:"r21", name:"Пакет крафт большой",          unit:"шт",  price:120,    qty:75   },
+  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",  price:430,    qty:191  },
+  { id:"r23", name:"Лента декоративная 2см",       unit:"рул", price:400,    qty:5    },
+  { id:"r24", name:"Креманка",                     unit:"шт",  price:57,     qty:960  },
+  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",  price:13,     qty:4    },
+  { id:"r26", name:"Салфетка",                     unit:"шт",  price:13,     qty:500  },
+  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",   price:0.025,  qty:2476 },
+  { id:"r28", name:"Макси стакан",                 unit:"шт",  price:39.6,   qty:163  },
+  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",  price:220,    qty:2114 },
+  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",  price:200,    qty:524  },
+  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",  price:330,    qty:174  },
+  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",  price:410,    qty:173  },
+  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",  price:430,    qty:154  },
+  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",  price:430,    qty:69   },
+  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",  price:185,    qty:75   },
+  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",  price:700,    qty:8    },
 ];
 
 // ─── ПОЛУФАБРИКАТЫ ───────────────────────────────────────────────────────────
@@ -1160,29 +1168,133 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
   );
 }
 
-// ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+const SUPA_URL = process.env.REACT_APP_SUPABASE_URL||"";
+const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
+
+const supaFetch = async (method, table, body=null, params="") => {
+  const url = `${SUPA_URL}/rest/v1/${table}${params}`;
+  const res = await fetch(url,{
+    method,
+    headers:{
+      "apikey":SUPA_KEY,
+      "Authorization":`Bearer ${SUPA_KEY}`,
+      "Content-Type":"application/json",
+      "Prefer": method==="POST"?"resolution=merge-duplicates":"return=minimal",
+    },
+    body: body?JSON.stringify(body):null,
+  });
+  if(method==="GET") return res.json();
+  return res.ok;
+};
+
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
 
+// ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 export default function App(){
   const [currentUser,setCurrentUser] = useState(INIT_USERS[0]);
   const [page,setPage]               = useState("dashboard");
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
+  const [loading,setLoading]         = useState(true);
 
-  const [rawStock,  setRawStock]   = useState(()=>LS("vb_raw",  initRawStock));
-  const [semiStock, setSemiStock]  = useState(()=>LS("vb_semi", initSemiStock));
-  const [techCards, setTechCards]  = useState(()=>LS("vb_tc",   INIT_TECH_CARDS));
-  const [sales,     setSales]      = useState(()=>LS("vb_sales",[]));
-  const [expenses,  setExpenses]   = useState(()=>LS("vb_exp",  []));
-  const [users,     setUsers]      = useState(()=>LS("vb_users",INIT_USERS));
+  const [rawStock,  setRawStock]   = useState(initRawStock);
+  const [semiStock, setSemiStock]  = useState(initSemiStock);
+  const [techCards, setTechCards]  = useState(INIT_TECH_CARDS);
+  const [sales,     setSales]      = useState([]);
+  const [expenses,  setExpenses]   = useState([]);
+  const [users,     setUsers]      = useState(INIT_USERS);
   const [toast,showToast]          = useToast();
 
-  useEffect(()=>{ localStorage.setItem("vb_raw",   JSON.stringify(rawStock));   },[rawStock]);
-  useEffect(()=>{ localStorage.setItem("vb_semi",  JSON.stringify(semiStock));  },[semiStock]);
-  useEffect(()=>{ localStorage.setItem("vb_tc",    JSON.stringify(techCards));  },[techCards]);
-  useEffect(()=>{ localStorage.setItem("vb_sales", JSON.stringify(sales));      },[sales]);
-  useEffect(()=>{ localStorage.setItem("vb_exp",   JSON.stringify(expenses));   },[expenses]);
-  useEffect(()=>{ localStorage.setItem("vb_users", JSON.stringify(users));      },[users]);
+  // Загрузка из Supabase при старте
+  useEffect(()=>{
+    const load = async () => {
+      try {
+        const [raw,semi,tc,sl,exp] = await Promise.all([
+          supaFetch("GET","raw_stock"),
+          supaFetch("GET","semi_stock"),
+          supaFetch("GET","tech_cards"),
+          supaFetch("GET","sales","",`?order=created_at.desc&limit=500`),
+          supaFetch("GET","expenses"),
+        ]);
+        if(Array.isArray(raw)&&raw.length)  setRawStock(raw);
+        if(Array.isArray(semi)&&semi.length) setSemiStock(semi);
+        if(Array.isArray(tc)&&tc.length)    setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
+        if(Array.isArray(sl)&&sl.length)    setSales(sl.map(s=>({...s,items:s.items||[],payMode:s.pay_mode,time:s.sale_time,cogs:s.cogs||0})));
+        if(Array.isArray(exp)&&exp.length)  setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
+        // Первый запуск — заливаем начальные данные
+        if(!Array.isArray(raw)||!raw.length)  await supaFetch("POST","raw_stock",initRawStock);
+        if(!Array.isArray(semi)||!semi.length) await supaFetch("POST","semi_stock",initSemiStock);
+        if(!Array.isArray(tc)||!tc.length)    await supaFetch("POST","tech_cards",INIT_TECH_CARDS);
+      } catch(e) {
+        console.warn("Supabase недоступен, работаем локально:",e);
+        setRawStock(LS("vb_raw",initRawStock));
+        setSemiStock(LS("vb_semi",initSemiStock));
+        setTechCards(LS("vb_tc",INIT_TECH_CARDS));
+        setSales(LS("vb_sales",[]));
+        setExpenses(LS("vb_exp",[]));
+      }
+      setLoading(false);
+    };
+    load();
+  },[]);
+
+  // Синхронизация склада → Supabase
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_raw",JSON.stringify(rawStock));
+    rawStock.forEach(r=>supaFetch("POST","raw_stock",r).catch(()=>{}));
+  },[rawStock,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_semi",JSON.stringify(semiStock));
+    semiStock.forEach(s=>supaFetch("POST","semi_stock",s).catch(()=>{}));
+  },[semiStock,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_tc",JSON.stringify(techCards));
+    techCards.forEach(t=>supaFetch("POST","tech_cards",t).catch(()=>{}));
+  },[techCards,loading]);
+
+  // Обёртки setSales / setExpenses с сохранением в Supabase
+  const setSalesWithSync = (updater) => {
+    setSales(prev=>{
+      const next = typeof updater==="function"?updater(prev):updater;
+      localStorage.setItem("vb_sales",JSON.stringify(next));
+      const newSale = next[next.length-1];
+      if(newSale) supaFetch("POST","sales",{
+        no:newSale.no, point:newSale.point, items:newSale.items,
+        total:newSale.total, subtotal:newSale.subtotal||newSale.total,
+        disc_amt:newSale.discAmt||0, discount:newSale.discount||0,
+        cogs:newSale.cogs||0, pay_mode:newSale.payMode,
+        cash_given:newSale.cashGiven||0, change_amt:newSale.change||0,
+        sale_time:newSale.time,
+      }).catch(()=>{});
+      return next;
+    });
+  };
+
+  const setExpensesWithSync = (updater) => {
+    setExpenses(prev=>{
+      const next = typeof updater==="function"?updater(prev):updater;
+      localStorage.setItem("vb_exp",JSON.stringify(next));
+      const added = next.filter(n=>!prev.find(p=>p.id===n.id));
+      added.forEach(e=>supaFetch("POST","expenses",{
+        cat:e.cat, note:e.desc||e.note, amount:e.amount,
+        point:e.point, paid:e.paid, expense_date:e.date,
+      }).catch(()=>{}));
+      return next;
+    });
+  };
+
+  if(loading) return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
+      <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
+      <div style={{fontSize:14,color:"#7A7A94"}}>⟳ Загрузка данных из облака...</div>
+    </div>
+  );
 
   const role       = ROLES[currentUser.role];
   const allowedNav = NAV.filter(n=>role.nav.includes(n.id));
@@ -1251,12 +1363,12 @@ export default function App(){
         {/* Страницы */}
         <div style={{flex:1,overflowY:"auto"}}>
           {page==="dashboard"  && <Dashboard   sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses}/>}
-          {page==="pos"        && <POS         semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} sales={sales} setSales={setSales} currentUser={currentUser} techCards={techCards}/>}
+          {page==="pos"        && <POS         semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
           {page==="production" && <Production  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
           {page==="warehouse"  && <Warehouse   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock}/>}
           {page==="inventory"  && <Inventory   semiStock={semiStock} sales={sales}/>}
           {page==="writeoff"   && <WriteOff    rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="expenses"   && <Expenses    expenses={expenses} setExpenses={setExpenses}/>}
+          {page==="expenses"   && <Expenses    expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports     sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock}/>}
           {page==="settings"   && <Settings    techCards={techCards} setTechCards={setTechCards} rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} users={users} setUsers={setUsers}/>}
         </div>
