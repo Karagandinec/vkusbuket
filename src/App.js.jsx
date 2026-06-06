@@ -1394,7 +1394,7 @@ export default function App(){
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setUserMenu(false);setPage(ROLES[u.role].nav[0]);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
       {/* САЙДБАР */}
-      <div style={{width:sidebarOpen?220:58,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width .2s",overflow:"hidden"}}>
+      <div style={{width:sidebarOpen?220:58,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width .2s",overflow:"hidden",height:"100vh",position:"sticky",top:0}}>
         {/* Лого */}
         <div style={{padding:"18px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           {sidebarOpen&&<span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>}
