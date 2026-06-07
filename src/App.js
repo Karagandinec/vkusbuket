@@ -22,68 +22,66 @@ const ROLES = {
 };
 
 const INIT_USERS = [
-  { id:1, name:"Владелец",        role:"owner",    point:null,          pin:"7663" },
-  { id:2, name:"Директор",        role:"director", point:null,          pin:"8888" },
-  { id:3, name:"Кассир Мастерская", role:"cashier", point:"Мастерская", pin:"1111" },
-  { id:4, name:"Кассир Фуд Трак",   role:"cashier", point:"Фуд Трак",   pin:"2222" },
-  { id:5, name:"Кассир Жара",       role:"cashier", point:"Жара",       pin:"3333" },
-  { id:6, name:"Кассир Парк",       role:"cashier", point:"Парк",       pin:"4444" },
+  { id:1, name:"Владелец",          role:"owner",    point:null,          pin:"7663" },
+  { id:2, name:"Директор",          role:"director", point:null,          pin:"8888" },
+  { id:3, name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"1111" },
+  { id:4, name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"2222" },
+  { id:5, name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"3333" },
+  { id:6, name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"4444" },
 ];
 
 // ─── СЫРЬЁ ───────────────────────────────────────────────────────────────────
-// ✅ Остатки загружены из Инвентаризации_Июнь_26.xlsx (01.06.2026)
 const initRawStock = [
-  { id:"r1",  name:"Клубника свежая",              unit:"кг",  price:2500,   qty:0    },
-  { id:"r2",  name:"Шоколад молочный",             unit:"кг",  price:8950,   qty:0    },
-  { id:"r3",  name:"Шоколад белый",                unit:"кг",  price:7950,   qty:0    },
-  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"кг",  price:4800,   qty:0    },
-  { id:"r5",  name:"Дубайская паста",              unit:"кг",  price:16500,  qty:0    },
-  { id:"r6",  name:"Мороженное",                   unit:"кг",  price:2000,   qty:0    },
-  { id:"r7",  name:"Краситель пищевой",            unit:"кг",  price:19000,  qty:0    },
-  { id:"r8",  name:"Кандурин",                     unit:"кг",  price:100000, qty:0    },
-  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",  price:100,    qty:6    },
-  { id:"r10", name:"Лента декоративная 1см",       unit:"рул", price:400,    qty:29   },
-  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",  price:1140,   qty:5    },
-  { id:"r12", name:"Тишью бумага",                 unit:"лист",price:0.4,    qty:292  },
-  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",  price:180,    qty:11   },
-  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",   price:8.5,    qty:100  },
-  { id:"r15", name:"Упаковочная бумага",           unit:"лист",price:50,     qty:200  },
-  { id:"r16", name:"Бичовка / верёвка",            unit:"рул", price:5,      qty:8    },
-  { id:"r17", name:"Открытка",                     unit:"шт",  price:35,     qty:100  },
-  { id:"r18", name:"Эмблема / бирка",              unit:"рул", price:5,      qty:20   },
-  { id:"r19", name:"Пакет крафт малый",            unit:"шт",  price:80,     qty:79   },
-  { id:"r20", name:"Пакет крафт средний",          unit:"шт",  price:85,     qty:43   },
-  { id:"r21", name:"Пакет крафт большой",          unit:"шт",  price:120,    qty:75   },
-  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",  price:430,    qty:191  },
-  { id:"r23", name:"Лента декоративная 2см",       unit:"рул", price:400,    qty:5    },
-  { id:"r24", name:"Креманка",                     unit:"шт",  price:57,     qty:960  },
-  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",  price:13,     qty:4    },
-  { id:"r26", name:"Салфетка",                     unit:"шт",  price:13,     qty:500  },
-  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",   price:0.025,  qty:2476 },
-  { id:"r28", name:"Макси стакан",                 unit:"шт",  price:39.6,   qty:163  },
-  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",  price:220,    qty:2114 },
-  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",  price:200,    qty:524  },
-  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",  price:330,    qty:174  },
-  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",  price:410,    qty:173  },
-  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",  price:430,    qty:154  },
-  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",  price:430,    qty:69   },
-  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",  price:185,    qty:75   },
-  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",  price:700,    qty:8    },
+  { id:"r1",  name:"Клубника свежая",              unit:"кг",   price:2500,   qty:0    },
+  { id:"r2",  name:"Шоколад молочный",             unit:"кг",   price:8950,   qty:0    },
+  { id:"r3",  name:"Шоколад белый",                unit:"кг",   price:7950,   qty:0    },
+  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"кг",   price:4800,   qty:0    },
+  { id:"r5",  name:"Дубайская паста",              unit:"кг",   price:16500,  qty:0    },
+  { id:"r6",  name:"Мороженное",                   unit:"кг",   price:2000,   qty:0    },
+  { id:"r7",  name:"Краситель пищевой",            unit:"кг",   price:19000,  qty:0    },
+  { id:"r8",  name:"Кандурин",                     unit:"кг",   price:100000, qty:0    },
+  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",   price:100,    qty:6    },
+  { id:"r10", name:"Лента декоративная 1см",       unit:"рул",  price:400,    qty:29   },
+  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",   price:1140,   qty:5    },
+  { id:"r12", name:"Тишью бумага",                 unit:"лист", price:0.4,    qty:292  },
+  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",   price:180,    qty:11   },
+  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",    price:8.5,    qty:100  },
+  { id:"r15", name:"Упаковочная бумага",           unit:"лист", price:50,     qty:200  },
+  { id:"r16", name:"Бичовка / верёвка",            unit:"рул",  price:5,      qty:8    },
+  { id:"r17", name:"Открытка",                     unit:"шт",   price:35,     qty:100  },
+  { id:"r18", name:"Эмблема / бирка",              unit:"рул",  price:5,      qty:20   },
+  { id:"r19", name:"Пакет крафт малый",            unit:"шт",   price:80,     qty:79   },
+  { id:"r20", name:"Пакет крафт средний",          unit:"шт",   price:85,     qty:43   },
+  { id:"r21", name:"Пакет крафт большой",          unit:"шт",   price:120,    qty:75   },
+  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",   price:430,    qty:191  },
+  { id:"r23", name:"Лента декоративная 2см",       unit:"рул",  price:400,    qty:5    },
+  { id:"r24", name:"Креманка",                     unit:"шт",   price:57,     qty:960  },
+  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",   price:13,     qty:4    },
+  { id:"r26", name:"Салфетка",                     unit:"шт",   price:13,     qty:500  },
+  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",    price:0.025,  qty:2476 },
+  { id:"r28", name:"Макси стакан",                 unit:"шт",   price:39.6,   qty:163  },
+  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",   price:220,    qty:2114 },
+  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",   price:200,    qty:524  },
+  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",   price:330,    qty:174  },
+  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",   price:410,    qty:173  },
+  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",   price:430,    qty:154  },
+  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",   price:430,    qty:69   },
+  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",   price:185,    qty:75   },
+  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",   price:700,    qty:8    },
 ];
 
 // ─── ПОЛУФАБРИКАТЫ ───────────────────────────────────────────────────────────
 const initSemiStock = [
-  { id:"s1", name:"Клубника подготовленная",    unit:"кг",  qty:30,  rawId:"r1"  },
-  { id:"s2", name:"Шоколад молочный (глазурь)", unit:"кг",  qty:8,   rawId:"r2"  },
-  { id:"s3", name:"Шоколад белый (глазурь)",    unit:"кг",  qty:5,   rawId:"r3"  },
-  { id:"s4", name:"Шоколад тёмный (глазурь)",   unit:"кг",  qty:3,   rawId:"r4"  },
-  { id:"s5", name:"Дубайская паста (готовая)",  unit:"кг",  qty:2,   rawId:"r5"  },
-  { id:"s6", name:"Мороженное (порции)",        unit:"кг",  qty:5,   rawId:"r6"  },
+  { id:"s1", name:"Клубника подготовленная",    unit:"кг", qty:30, rawId:"r1" },
+  { id:"s2", name:"Шоколад молочный (глазурь)", unit:"кг", qty:8,  rawId:"r2" },
+  { id:"s3", name:"Шоколад белый (глазурь)",    unit:"кг", qty:5,  rawId:"r3" },
+  { id:"s4", name:"Шоколад тёмный (глазурь)",   unit:"кг", qty:3,  rawId:"r4" },
+  { id:"s5", name:"Дубайская паста (готовая)",  unit:"кг", qty:2,  rawId:"r5" },
+  { id:"s6", name:"Мороженное (порции)",        unit:"кг", qty:5,  rawId:"r6" },
 ];
 
-// ─── ТЕХ. КАРТЫ (ВСЕ ПРОДУКТЫ) ───────────────────────────────────────────────
+// ─── ТЕХ. КАРТЫ ───────────────────────────────────────────────────────────────
 const INIT_TECH_CARDS = [
-  // НАБОРЫ
   { id:"tc1",  product:"Набор 8 шт",   cat:"Наборы",       price:7500,
     ings:[{sid:"s1",qty:0.20,loss:10},{sid:"s2",qty:0.040,loss:5},{sid:"s3",qty:0.040,loss:5}] },
   { id:"tc2",  product:"Набор 10 шт",  cat:"Наборы",       price:8300,
@@ -102,8 +100,6 @@ const INIT_TECH_CARDS = [
     ings:[{sid:"s1",qty:1.008,loss:10},{sid:"s2",qty:0.240,loss:5},{sid:"s3",qty:0.240,loss:5}] },
   { id:"tc9",  product:"Набор 64 шт",  cat:"Наборы",       price:46400,
     ings:[{sid:"s1",qty:1.280,loss:10},{sid:"s2",qty:0.240,loss:5},{sid:"s3",qty:0.320,loss:5}] },
-
-  // БУКЕТЫ
   { id:"tc10", product:"Букет XXS (9 ягод)",   cat:"Букеты", price:9900,
     ings:[{sid:"s1",qty:0.252,loss:10},{sid:"s2",qty:0.090,loss:5}] },
   { id:"tc11", product:"Букет XS (15 ягод)",   cat:"Букеты", price:13400,
@@ -122,8 +118,6 @@ const INIT_TECH_CARDS = [
     ings:[{sid:"s1",qty:1.400,loss:10},{sid:"s2",qty:0.450,loss:5},{sid:"s3",qty:0.250,loss:5}] },
   { id:"tc18", product:"Букет XL (87-90 ягод)", cat:"Букеты", price:65900,
     ings:[{sid:"s1",qty:1.755,loss:10},{sid:"s2",qty:0.650,loss:5},{sid:"s3",qty:0.250,loss:5}] },
-
-  // КРЕМАНКИ
   { id:"tc19", product:"Креманка классик",            cat:"Креманки", price:2500,
     ings:[{sid:"s1",qty:0.150,loss:10},{sid:"s2",qty:0.030,loss:5}] },
   { id:"tc20", product:"Креманка классик + мор",      cat:"Креманки", price:2500,
@@ -136,8 +130,6 @@ const INIT_TECH_CARDS = [
     ings:[{sid:"s1",qty:0.150,loss:10},{sid:"s2",qty:0.030,loss:5},{sid:"s5",qty:0.030,loss:5}] },
   { id:"tc24", product:"Креманка дубай + мор",        cat:"Креманки", price:4500,
     ings:[{sid:"s1",qty:0.100,loss:10},{sid:"s2",qty:0.030,loss:5},{sid:"s5",qty:0.030,loss:5},{sid:"s6",qty:0.050,loss:10}] },
-
-  // МАКСИ СТАКАНЫ
   { id:"tc25", product:"Макси классик",               cat:"Макси стаканы", price:4500,
     ings:[{sid:"s1",qty:0.300,loss:10},{sid:"s2",qty:0.060,loss:5}] },
   { id:"tc26", product:"Макси классик + мор",         cat:"Макси стаканы", price:4500,
@@ -154,22 +146,21 @@ const CAT_COLORS = {
 };
 
 const NAV = [
-  { id:"dashboard",   icon:"📈", label:"Дашборд",        desc:"Аналитика и финансы" },
-  { id:"pos",         icon:"🛒", label:"Касса",           desc:"Продажи и списания" },
-  { id:"production",  icon:"🍓", label:"Производство",   desc:"Сырьё → Кухня" },
-  { id:"warehouse",   icon:"📦", label:"Склад",           desc:"Закупки и остатки" },
-  { id:"inventory",   icon:"📋", label:"Инвентаризация",  desc:"Пересчёт остатков" },
-  { id:"writeoff",    icon:"🗑️", label:"Списания",        desc:"Коррекционные карты" },
-  { id:"expenses",    icon:"💰", label:"Расходы",         desc:"Аренда, зарплата, реклама" },
-  { id:"reports",     icon:"📊", label:"Отчёты",          desc:"Cash Flow, P&L" },
-  { id:"settings",    icon:"⚙️", label:"Настройки",       desc:"Техкарты и Маржа" },
+  { id:"dashboard",   icon:"📈", label:"Дашборд",       desc:"Аналитика и финансы" },
+  { id:"pos",         icon:"🛒", label:"Касса",          desc:"Продажи и списания" },
+  { id:"production",  icon:"🍓", label:"Производство",  desc:"Сырьё → Кухня" },
+  { id:"warehouse",   icon:"📦", label:"Склад",          desc:"Закупки и остатки" },
+  { id:"inventory",   icon:"📋", label:"Инвентаризация", desc:"Пересчёт остатков" },
+  { id:"writeoff",    icon:"🗑️", label:"Списания",       desc:"Коррекционные карты" },
+  { id:"expenses",    icon:"💰", label:"Расходы",        desc:"Аренда, зарплата, реклама" },
+  { id:"reports",     icon:"📊", label:"Отчёты",         desc:"Cash Flow, P&L" },
+  { id:"settings",    icon:"⚙️", label:"Настройки",      desc:"Техкарты и Маржа" },
 ];
 
 const fmtM = (n) => Math.round(n||0).toLocaleString("ru-RU") + " ₸";
 const fmtS = (n) => { n=n||0; if(n>=1e6) return (n/1e6).toFixed(1)+"M ₸"; if(n>=1e3) return (n/1e3).toFixed(0)+"K ₸"; return n+" ₸"; };
 const fmt  = (n,d=2) => typeof n==="number" ? n.toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:d}) : String(n||0);
 
-// Себестоимость по закупочным ценам
 const calcCost = (ings, semiStock, rawStock) =>
   ings.reduce((sum,ing)=>{
     const semi = semiStock.find(s=>s.id===ing.sid);
@@ -211,10 +202,10 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
   const lowRaw  = rawStock.filter(r=>r.qty<10);
 
   const KPI = [
-    {label:"ВЫРУЧКА",       val:fmtS(totalRev),  color:C.accent },
-    {label:"COGS (себест.)",val:fmtS(totalCOGS), color:C.yellow },
-    {label:"ВАЛОВАЯ ПРИБЫЛЬ",val:fmtS(grossP),   color:grossP>=0?C.green:C.red },
-    {label:"ЧИСТАЯ ПРИБЫЛЬ", val:fmtS(netP),     color:netP>=0?C.green:C.red },
+    {label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
+    {label:"COGS (себест.)", val:fmtS(totalCOGS), color:C.yellow },
+    {label:"ВАЛОВАЯ ПРИБЫЛЬ",val:fmtS(grossP),    color:grossP>=0?C.green:C.red },
+    {label:"ЧИСТАЯ ПРИБЫЛЬ", val:fmtS(netP),      color:netP>=0?C.green:C.red },
   ];
 
   return (
@@ -291,16 +282,16 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
 function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCards}){
-  const [cart,setCart]         = useState([]);
-  const [payMode,setPayMode]   = useState(null);
-  const [cashInput,setCashInput]=useState("");
-  const [selPoint,setSelPoint] = useState(currentUser.point||POINTS[0]);
-  const [discount,setDiscount] = useState(0);
-  const [done,setDone]         = useState(false);
-  const [lastReceipt,setLast]  = useState(null);
-  const [catFilter,setCatFilter]=useState("Все");
-  const [search,setSearch]     = useState("");
-  const [toast,showToast]      = useToast();
+  const [cart,setCart]          = useState([]);
+  const [payMode,setPayMode]    = useState(null);
+  const [cashInput,setCashInput] = useState("");
+  const [selPoint,setSelPoint]  = useState(currentUser.point||POINTS[0]);
+  const [discount,setDiscount]  = useState(0);
+  const [done,setDone]          = useState(false);
+  const [lastReceipt,setLast]   = useState(null);
+  const [catFilter,setCatFilter] = useState("Все");
+  const [search,setSearch]      = useState("");
+  const [toast,showToast]       = useToast();
 
   const cats = ["Все",...new Set(techCards.map(t=>t.cat))];
   const filtered = techCards.filter(t=>
@@ -318,7 +309,6 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
 
   const handlePay=()=>{
     if(payMode==="cash"&&cashGiven<total){showToast("Недостаточно наличных",true);return;}
-    // Физическое списание
     const newSemi=[...semiStock];
     for(const item of cart){
       for(const ing of item.ings){
@@ -328,7 +318,6 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
       }
     }
     setSemiStock(newSemi);
-    // COGS
     const cogs=cart.reduce((s,i)=>s+calcCost(i.ings,semiStock,rawStock)*i.qty,0);
     const receipt={
       no:1001+sales.length, point:selPoint,
@@ -348,11 +337,9 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
   return(
     <div style={{display:"flex",height:"calc(100vh - 57px)"}}>
       <Toast toast={toast}/>
-      {/* ТОВАРЫ */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {/* Фильтры */}
         <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,background:C.surface,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          {(currentUser.role==="owner"||currentUser.role==="manager")&&(
+          {(currentUser.role==="owner"||currentUser.role==="director")&&(
             <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",outline:"none",fontSize:13}}>
               {POINTS.map(p=><option key={p}>{p}</option>)}
             </select>
@@ -364,7 +351,6 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
             </button>
           ))}
         </div>
-        {/* Грид */}
         <div style={{flex:1,overflowY:"auto",padding:14,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:10,alignContent:"start"}}>
           {filtered.map(tc=>{
             const inCart=cart.find(i=>i.id===tc.id);
@@ -383,7 +369,6 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
         </div>
       </div>
 
-      {/* КОРЗИНА */}
       <div style={{width:340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontWeight:700,fontSize:15}}>Корзина</span>
@@ -414,7 +399,6 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
 
         {cart.length>0&&!done&&(
           <div style={{padding:"14px 16px",borderTop:`1px solid ${C.border}`}}>
-            {/* Скидка */}
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,color:C.muted,marginBottom:6}}>СКИДКА</div>
               <div style={{display:"flex",gap:6}}>
@@ -512,7 +496,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
                 <div style={{fontWeight:600,fontSize:13}}>{r.name}</div>
                 <div style={{fontSize:12,color:r.qty<10?C.yellow:C.muted}}>{fmt(r.qty)} {r.unit}</div>
               </div>
-              <button onClick={()=>{setModal(r);setForm({targetId:"s1",qty:""}); }} style={{padding:"7px 14px",borderRadius:8,background:C.accentSoft,color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",fontWeight:700,fontSize:12}}>На кухню →</button>
+              <button onClick={()=>{setModal(r);setForm({targetId:"s1",qty:""});}} style={{padding:"7px 14px",borderRadius:8,background:C.accentSoft,color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",fontWeight:700,fontSize:12}}>На кухню →</button>
             </div>
           ))}
         </div>
@@ -641,12 +625,12 @@ function Warehouse({rawStock,setRawStock,semiStock}){
 
 // ─── РАСХОДЫ ─────────────────────────────────────────────────────────────────
 const EXP_CATS = [
-  {id:"rent",     label:"Аренда",    icon:"🏪", color:C.blue},
-  {id:"salary",   label:"Зарплата",  icon:"👤", color:C.purple},
-  {id:"marketing",label:"Реклама",   icon:"📣", color:C.accent},
-  {id:"utility",  label:"Коммунал.", icon:"💡", color:C.yellow},
-  {id:"tax",      label:"Налоги",    icon:"🧾", color:C.red},
-  {id:"other",    label:"Прочее",    icon:"📝", color:C.muted},
+  {id:"rent",      label:"Аренда",    icon:"🏪", color:C.blue},
+  {id:"salary",    label:"Зарплата",  icon:"👤", color:C.purple},
+  {id:"marketing", label:"Реклама",   icon:"📣", color:C.accent},
+  {id:"utility",   label:"Коммунал.", icon:"💡", color:C.yellow},
+  {id:"tax",       label:"Налоги",    icon:"🧾", color:C.red},
+  {id:"other",     label:"Прочее",    icon:"📝", color:C.muted},
 ];
 
 function Expenses({expenses,setExpenses}){
@@ -757,10 +741,10 @@ function Reports({sales,expenses,rawStock,semiStock}){
     <div style={{padding:"24px 28px",overflowY:"auto"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
         {[
-          {label:"Выручка",       val:fmtS(totalRev),  color:C.green},
+          {label:"Выручка",             val:fmtS(totalRev),  color:C.green},
           {label:"Расходы (COGS+накл.)",val:fmtS(totalCOGS+totalExp),color:C.red},
-          {label:"Чистая прибыль",val:fmtS(netP),      color:netP>=0?C.green:C.red},
-          {label:"Маржа",         val:`${margin}%`,    color:margin>=20?C.green:margin>=10?C.yellow:C.red},
+          {label:"Чистая прибыль",      val:fmtS(netP),      color:netP>=0?C.green:C.red},
+          {label:"Маржа",               val:`${margin}%`,    color:margin>=20?C.green:margin>=10?C.yellow:C.red},
         ].map((k,i)=>(
           <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
@@ -770,15 +754,14 @@ function Reports({sales,expenses,rawStock,semiStock}){
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        {/* P&L */}
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 P&L отчёт</div>
           {[
-            {label:"Выручка",                 val:totalRev,   color:C.green,  bold:true},
+            {label:"Выручка",                  val:totalRev,  color:C.green, bold:true},
             {label:"Себестоимость продаж (COGS)",val:-totalCOGS,color:C.red},
-            {label:"Валовая прибыль",          val:grossP,    color:C.blue,   bold:true},
-            {label:"Операционные расходы",     val:-totalExp, color:C.red},
-            {label:"Чистая прибыль",           val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
+            {label:"Валовая прибыль",           val:grossP,    color:C.blue,  bold:true},
+            {label:"Операционные расходы",      val:-totalExp, color:C.red},
+            {label:"Чистая прибыль",            val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
           ].map((r,i)=>(
             <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
               <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
@@ -793,7 +776,6 @@ function Reports({sales,expenses,rawStock,semiStock}){
           </div>
         </div>
 
-        {/* По точкам */}
         <div>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
             <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 По точкам</div>
@@ -853,7 +835,6 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
   return(
     <div style={{padding:"20px 28px",overflowY:"auto"}}>
       <Toast toast={toast}/>
-      {/* Вкладки */}
       <div style={{display:"flex",gap:6,marginBottom:20}}>
         {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"]].map(([id,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{padding:"10px 18px",borderRadius:10,border:"none",background:tab===id?C.accent:C.card,color:tab===id?"#000":C.muted,fontWeight:tab===id?700:400,cursor:"pointer",fontSize:14}}>
@@ -862,7 +843,6 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
         ))}
       </div>
 
-      {/* ТОВАРЫ И ЦЕНЫ */}
       {tab==="products"&&(
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -939,7 +919,6 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
         </div>
       )}
 
-      {/* ТЕХ. КАРТЫ */}
       {tab==="techcards"&&(
         <div>
           <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Технологические карты</div>
@@ -1000,7 +979,6 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
         </div>
       )}
 
-      {/* СЫРЬЁ */}
       {tab==="rawstock"&&(
         <div>
           <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Сырьё и расходники</div>
@@ -1034,7 +1012,6 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
         </div>
       )}
 
-      {/* СОТРУДНИКИ */}
       {tab==="users"&&(
         <div>
           <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Сотрудники и роли</div>
@@ -1056,7 +1033,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
   );
 }
 
-// ─── ИНВЕНТАРИЗАЦИЯ (заглушка) ────────────────────────────────────────────────
+// ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
 function Inventory({semiStock,sales}){
   return(
     <div style={{padding:28}}>
@@ -1098,11 +1075,11 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
   const selItem=allItems.find(i=>i.id===form.itemId);
 
   const reasons=[
-    {id:"spoil",label:"Порча / Истёк срок"},
-    {id:"break",label:"Бой / Повреждение"},
-    {id:"defect",label:"Брак производства"},
-    {id:"promo",label:"Дегустация / Промо"},
-    {id:"other",label:"Прочее"},
+    {id:"spoil",  label:"Порча / Истёк срок"},
+    {id:"break",  label:"Бой / Повреждение"},
+    {id:"defect", label:"Брак производства"},
+    {id:"promo",  label:"Дегустация / Промо"},
+    {id:"other",  label:"Прочее"},
   ];
 
   const handleSubmit=(e)=>{
@@ -1208,7 +1185,7 @@ function PinScreen({users, onLogin, onClose}){
             const r = ROLES[u.role];
             return(
               <button key={u.id} onClick={()=>{setSelected(u);setPin("");setError("");}}
-                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left",transition:"border-color .2s"}}
+                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left"}}
                 onMouseEnter={e=>e.currentTarget.style.borderColor="#E8A0B4"}
                 onMouseLeave={e=>e.currentTarget.style.borderColor="#2A2A38"}>
                 <div style={{width:40,height:40,borderRadius:20,background:r.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{r.icon}</div>
@@ -1238,7 +1215,7 @@ function PinScreen({users, onLogin, onClose}){
             {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
               <button key={i} onClick={()=> d==="⌫"?handleBack():d!==""?handleDigit(String(d)):null}
                 disabled={d===""}
-                style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background: d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
+                style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background:d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
                 {d}
               </button>
             ))}
@@ -1287,8 +1264,8 @@ export default function App(){
   const [users,     setUsers]      = useState(INIT_USERS);
   const [toast,showToast]          = useToast();
 
-  // Название вкладки браузера
   useEffect(()=>{ document.title = "VkusBuket"; }, []);
+
   useEffect(()=>{
     const load = async () => {
       try {
@@ -1299,15 +1276,14 @@ export default function App(){
           supaFetch("GET","sales","",`?order=created_at.desc&limit=500`),
           supaFetch("GET","expenses"),
         ]);
-        if(Array.isArray(raw)&&raw.length)  setRawStock(raw);
-        if(Array.isArray(semi)&&semi.length) setSemiStock(semi);
-        if(Array.isArray(tc)&&tc.length)    setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
-        if(Array.isArray(sl)&&sl.length)    setSales(sl.map(s=>({...s,items:s.items||[],payMode:s.pay_mode,time:s.sale_time,cogs:s.cogs||0})));
-        if(Array.isArray(exp)&&exp.length)  setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
-        // Первый запуск — заливаем начальные данные
+        if(Array.isArray(raw)&&raw.length)   setRawStock(raw);
+        if(Array.isArray(semi)&&semi.length)  setSemiStock(semi);
+        if(Array.isArray(tc)&&tc.length)     setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
+        if(Array.isArray(sl)&&sl.length)     setSales(sl.map(s=>({...s,items:s.items||[],payMode:s.pay_mode,time:s.sale_time,cogs:s.cogs||0})));
+        if(Array.isArray(exp)&&exp.length)   setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
         if(!Array.isArray(raw)||!raw.length)  await supaFetch("POST","raw_stock",initRawStock);
         if(!Array.isArray(semi)||!semi.length) await supaFetch("POST","semi_stock",initSemiStock);
-        if(!Array.isArray(tc)||!tc.length)    await supaFetch("POST","tech_cards",INIT_TECH_CARDS);
+        if(!Array.isArray(tc)||!tc.length)   await supaFetch("POST","tech_cards",INIT_TECH_CARDS);
       } catch(e) {
         console.warn("Supabase недоступен, работаем локально:",e);
         setRawStock(LS("vb_raw",initRawStock));
@@ -1321,7 +1297,6 @@ export default function App(){
     load();
   },[]);
 
-  // Синхронизация склада → Supabase
   useEffect(()=>{
     if(loading) return;
     localStorage.setItem("vb_raw",JSON.stringify(rawStock));
@@ -1340,7 +1315,6 @@ export default function App(){
     techCards.forEach(t=>supaFetch("POST","tech_cards",t).catch(()=>{}));
   },[techCards,loading]);
 
-  // Обёртки setSales / setExpenses с сохранением в Supabase
   const setSalesWithSync = (updater) => {
     setSales(prev=>{
       const next = typeof updater==="function"?updater(prev):updater;
@@ -1371,7 +1345,7 @@ export default function App(){
     });
   };
 
-  if(loading) return(
+  // ── ЭКРАН ЗАГРУЗКИ ──
   if(loading) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
       <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
@@ -1379,7 +1353,7 @@ export default function App(){
     </div>
   );
 
-  // PIN-экран при старте (если не вошли)
+  // ── PIN-ЭКРАН ──
   if(!currentUser) return <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setPage(ROLES[u.role].nav[0]);}} />;
 
   const role       = ROLES[currentUser.role];
@@ -1395,13 +1369,11 @@ export default function App(){
 
       {/* САЙДБАР */}
       <div style={{width:sidebarOpen?220:58,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width .2s",overflow:"hidden",height:"100vh",position:"sticky",top:0}}>
-        {/* Лого */}
         <div style={{padding:"18px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           {sidebarOpen&&<span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>}
           <button onClick={()=>setSidebarOpen(v=>!v)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0}}>{sidebarOpen?"←":"→"}</button>
         </div>
 
-        {/* Навигация */}
         <div style={{flex:1,padding:"10px 6px",overflowY:"auto"}}>
           {allowedNav.map(n=>{
             const active=page===n.id;
@@ -1414,7 +1386,6 @@ export default function App(){
           })}
         </div>
 
-        {/* Пользователь */}
         <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
           <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
             <div style={{width:32,height:32,borderRadius:16,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{role.icon}</div>
@@ -1428,7 +1399,6 @@ export default function App(){
 
       {/* ОСНОВНОЙ КОНТЕНТ */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {/* Топбар */}
         <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"13px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{fontSize:16,fontWeight:800}}>{NAV.find(n=>n.id===page)?.label}</div>
           <div style={{display:"flex",gap:10}}>
@@ -1441,17 +1411,16 @@ export default function App(){
           </div>
         </div>
 
-        {/* Страницы */}
         <div style={{flex:1,overflowY:"auto"}}>
-          {page==="dashboard"  && <Dashboard   sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses}/>}
-          {page==="pos"        && <POS         semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
-          {page==="production" && <Production  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="warehouse"  && <Warehouse   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock}/>}
-          {page==="inventory"  && <Inventory   semiStock={semiStock} sales={sales}/>}
-          {page==="writeoff"   && <WriteOff    rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="expenses"   && <Expenses    expenses={expenses} setExpenses={setExpensesWithSync}/>}
-          {page==="reports"    && <Reports     sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock}/>}
-          {page==="settings"   && <Settings    techCards={techCards} setTechCards={setTechCards} rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} users={users} setUsers={setUsers}/>}
+          {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses}/>}
+          {page==="pos"        && <POS        semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
+          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} sales={sales}/>}
+          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
+          {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
+          {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock}/>}
+          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCards} rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} users={users} setUsers={setUsers}/>}
         </div>
       </div>
     </div>
