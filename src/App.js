@@ -218,7 +218,7 @@ const parseLocalDate = (dateStr) => {
 };
 
 const getPackagingItems = (productName) => {
-  const p = productName.toLowerCase();
+  const p = (productName || "").toLowerCase();
   const items = [];
   
   // 1. Коробки и пакеты для наборов
@@ -285,18 +285,19 @@ const getPackagingItems = (productName) => {
 };
 
 const calcCost = (ings, semiStock, rawStock) =>
-  ings.reduce((sum,ing)=>{
-    const semi = semiStock.find(s=>s.id===ing.sid);
+  (ings||[]).reduce((sum,ing)=>{
+    const semi = (semiStock||[]).find(s=>s.id===ing.sid);
     if(!semi) return sum;
-    const raw  = rawStock.find(r=>r.id===semi.rawId);
+    const raw  = (rawStock||[]).find(r=>r.id===semi.rawId);
     return sum + (ing.qty*(1+(ing.loss||0)/100))*(raw?.price||0);
   },0);
 
 const calcProductCOGS = (item, semiStock, rawStock) => {
+  if (!item) return 0;
   const kitchenCost = calcCost(item.ings, semiStock, rawStock);
-  const packaging = getPackagingItems(item.product);
-  const pkgCost = packaging.reduce((sum, pkg) => {
-    const raw = rawStock.find(r => r.id === pkg.rawId);
+  const packaging = getPackagingItems(item.product || "");
+  const pkgCost = (packaging||[]).reduce((sum, pkg) => {
+    const raw = (rawStock||[]).find(r => r.id === pkg.rawId);
     return sum + pkg.qty * (raw?.price || 0);
   }, 0);
   return kitchenCost + pkgCost;
@@ -1439,7 +1440,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
               <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(editId===tc.id?null:tc.id)}>
                 <div style={{flex:1}}>
                   <span style={{fontWeight:700,fontSize:14}}>{tc.product}</span>
-                  <span style={{fontSize:11,color:C.muted,marginLeft:10}}>{tc.cat} · {tc.ings.map(ing => getIngName(ing.sid)).join(', ')}</span>
+                  <span style={{fontSize:11,color:C.muted,marginLeft:10}}>{tc.cat} · {(tc.ings||[]).map(ing => getIngName(ing.sid)).join(', ')}</span>
                 </div>
                 <span style={{fontWeight:800,color:C.accent,marginRight:12}}>{fmtM(tc.price)}</span>
                 <span style={{fontSize:12,color:C.muted}}>{editId===tc.id?"▲":"▼"}</span>
@@ -1974,12 +1975,30 @@ export default function App(){
       }
       
       // Всегда сливаем с localStorage для гарантированного оффлайн-сохранения
-      setRawStock(prev => LS("vb_raw", prev));
-      setSemiStock(prev => LS("vb_semi", prev));
-      setTechCards(prev => LS("vb_tc", prev));
-      setSales(prev => LS("vb_sales", prev));
-      setExpenses(prev => LS("vb_exp", prev));
-      setUsers(prev => LS("vb_users", prev));
+      setRawStock(prev => {
+        const loaded = LS("vb_raw", prev);
+        return Array.isArray(loaded) ? loaded.map(r => ({ ...r, qty: parseQtyObj(r.qty) })) : prev;
+      });
+      setSemiStock(prev => {
+        const loaded = LS("vb_semi", prev);
+        return Array.isArray(loaded) ? loaded.map(s => ({ ...s, qty: parseSemiQtyObj(s.qty) })) : prev;
+      });
+      setTechCards(prev => {
+        const loaded = LS("vb_tc", prev);
+        return Array.isArray(loaded) ? loaded.map(t => ({ ...t, ings: t.ings || [] })) : prev;
+      });
+      setSales(prev => {
+        const loaded = LS("vb_sales", prev);
+        return Array.isArray(loaded) ? loaded : prev;
+      });
+      setExpenses(prev => {
+        const loaded = LS("vb_exp", prev);
+        return Array.isArray(loaded) ? loaded : prev;
+      });
+      setUsers(prev => {
+        const loaded = LS("vb_users", prev);
+        return Array.isArray(loaded) ? loaded : prev;
+      });
       
       setLoading(false);
     };
