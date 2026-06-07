@@ -12,8 +12,9 @@ const C = {
   text:"#EAEAF0", muted:"#7A7A94", dimmed:"#2A2A38"
 };
 
-const POINT_COLORS = ["#E8A0B4","#3498DB","#2ECC71","#9B59B6"];
+const POINT_COLORS = ["#E8A0B4","#3498DB","#2ECC71","#9B59B6","#95A5A6"];
 const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
+const ALL_LOCATIONS = ["Склад", ...POINTS];
 
 const ROLES = {
   owner:    { label:"Владелец",  icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
@@ -31,53 +32,55 @@ const INIT_USERS = [
 ];
 
 // ─── СЫРЬЁ ───────────────────────────────────────────────────────────────────
+// Инициализируем остатки на "Склад" согласно данным из Excel
 const initRawStock = [
-  { id:"r1",  name:"Клубника свежая",              unit:"кг",   price:2500,   qty:0    },
-  { id:"r2",  name:"Шоколад молочный",             unit:"кг",   price:8950,   qty:0    },
-  { id:"r3",  name:"Шоколад белый",                unit:"кг",   price:7950,   qty:0    },
-  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"кг",   price:4800,   qty:0    },
-  { id:"r5",  name:"Дубайская паста",              unit:"кг",   price:16500,  qty:0    },
-  { id:"r6",  name:"Мороженное",                   unit:"кг",   price:2000,   qty:0    },
-  { id:"r7",  name:"Краситель пищевой",            unit:"кг",   price:19000,  qty:0    },
-  { id:"r8",  name:"Кандурин",                     unit:"кг",   price:100000, qty:0    },
-  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",   price:100,    qty:6    },
-  { id:"r10", name:"Лента декоративная 1см",       unit:"рул",  price:400,    qty:29   },
-  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",   price:1140,   qty:5    },
-  { id:"r12", name:"Тишью бумага",                 unit:"лист", price:0.4,    qty:292  },
-  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",   price:180,    qty:11   },
-  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",    price:8.5,    qty:100  },
-  { id:"r15", name:"Упаковочная бумага",           unit:"лист", price:50,     qty:200  },
-  { id:"r16", name:"Бичовка / верёвка",            unit:"рул",  price:5,      qty:8    },
-  { id:"r17", name:"Открытка",                     unit:"шт",   price:35,     qty:100  },
-  { id:"r18", name:"Эмблема / бирка",              unit:"рул",  price:5,      qty:20   },
-  { id:"r19", name:"Пакет крафт малый",            unit:"шт",   price:80,     qty:79   },
-  { id:"r20", name:"Пакет крафт средний",          unit:"шт",   price:85,     qty:43   },
-  { id:"r21", name:"Пакет крафт большой",          unit:"шт",   price:120,    qty:75   },
-  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",   price:430,    qty:191  },
-  { id:"r23", name:"Лента декоративная 2см",       unit:"рул",  price:400,    qty:5    },
-  { id:"r24", name:"Креманка",                     unit:"шт",   price:57,     qty:960  },
-  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",   price:13,     qty:4    },
-  { id:"r26", name:"Салфетка",                     unit:"шт",   price:13,     qty:500  },
-  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",    price:0.025,  qty:2476 },
-  { id:"r28", name:"Макси стакан",                 unit:"шт",   price:39.6,   qty:163  },
-  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",   price:220,    qty:2114 },
-  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",   price:200,    qty:524  },
-  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",   price:330,    qty:174  },
-  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",   price:410,    qty:173  },
-  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",   price:430,    qty:154  },
-  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",   price:430,    qty:69   },
-  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",   price:185,    qty:75   },
-  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",   price:700,    qty:8    },
+  { id:"r1",  name:"Клубника свежая",              unit:"кг",   price:2500,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r2",  name:"Шоколад молочный",             unit:"кг",   price:8950,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r3",  name:"Шоколад белый",                unit:"кг",   price:7950,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"кг",   price:4800,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r5",  name:"Дубайская паста",              unit:"кг",   price:16500,  qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r6",  name:"Мороженое",                    unit:"кг",   price:2000,   qty: { "Склад": 38, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r7",  name:"Краситель пищевой",            unit:"кг",   price:19000,  qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r8",  name:"Кандурин",                     unit:"кг",   price:100000, qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",   price:100,    qty: { "Склад": 6, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r10", name:"Лента декоративная 1см",       unit:"рул",  price:400,    qty: { "Склад": 29, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",   price:1140,   qty: { "Склад": 5, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r12", name:"Тишью бумага",                 unit:"лист", price:0.4,    qty: { "Склад": 292, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",   price:180,    qty: { "Склад": 11, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",    price:8.5,    qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r15", name:"Упаковочная бумага",           unit:"лист", price:50,     qty: { "Склад": 200, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r16", name:"Бичевка / верёвка",            unit:"рул",  price:5,      qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r17", name:"Открытка",                     unit:"шт",   price:35,     qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r18", name:"Эмблема / бирка",              unit:"рул",  price:5,      qty: { "Склад": 20, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r19", name:"Пакет крафт малый",            unit:"шт",   price:80,     qty: { "Склад": 86, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r20", name:"Пакет крафт средний",          unit:"шт",   price:85,     qty: { "Склад": 52, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r21", name:"Пакет крафт большой",          unit:"шт",   price:120,    qty: { "Склад": 89, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",   price:430,    qty: { "Склад": 191, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r23", name:"Лента декоративная 2см",       unit:"рул",  price:400,    qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r24", name:"Креманка",                     unit:"шт",   price:57,     qty: { "Склад": 1264, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",   price:13,     qty: { "Склад": 12, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r26", name:"Салфетка",                     unit:"шт",   price:13,     qty: { "Склад": 500, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",    price:0.025,  qty: { "Склад": 2476, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r28", name:"Макси стакан",                 unit:"шт",   price:39.6,   qty: { "Склад": 163, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",   price:220,    qty: { "Склад": 2119, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",   price:200,    qty: { "Склад": 530, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",   price:330,    qty: { "Склад": 174, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",   price:410,    qty: { "Склад": 173, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",   price:430,    qty: { "Склад": 154, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",   price:430,    qty: { "Склад": 69, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",   price:185,    qty: { "Склад": 75, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",   price:700,    qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
 ];
 
 // ─── ПОЛУФАБРИКАТЫ ───────────────────────────────────────────────────────────
+// Инициализируем полуфабрикаты на кухнях точек
 const initSemiStock = [
-  { id:"s1", name:"Клубника подготовленная",    unit:"кг", qty:30, rawId:"r1" },
-  { id:"s2", name:"Шоколад молочный (глазурь)", unit:"кг", qty:8,  rawId:"r2" },
-  { id:"s3", name:"Шоколад белый (глазурь)",    unit:"кг", qty:5,  rawId:"r3" },
-  { id:"s4", name:"Шоколад тёмный (глазурь)",   unit:"кг", qty:3,  rawId:"r4" },
-  { id:"s5", name:"Дубайская паста (готовая)",  unit:"кг", qty:2,  rawId:"r5" },
-  { id:"s6", name:"Мороженное (порции)",        unit:"кг", qty:5,  rawId:"r6" },
+  { id:"s1", name:"Клубника подготовленная",    unit:"кг", qty: { "Склад": 0, "Мастерская": 30, "Фуд Трак": 30, "Жара": 30, "Парк": 30 }, rawId:"r1" },
+  { id:"s2", name:"Шоколад молочный (глазурь)", unit:"кг", qty: { "Склад": 0, "Мастерская": 8,  "Фуд Трак": 8,  "Жара": 8,  "Парк": 8  }, rawId:"r2" },
+  { id:"s3", name:"Шоколад белый (глазурь)",    unit:"кг", qty: { "Склад": 0, "Мастерская": 5,  "Фуд Трак": 5,  "Жара": 5,  "Парк": 5  }, rawId:"r3" },
+  { id:"s4", name:"Шоколад тёмный (глазурь)",   unit:"кг", qty: { "Склад": 0, "Мастерская": 3,  "Фуд Трак": 3,  "Жара": 3,  "Парк": 3  }, rawId:"r4" },
+  { id:"s5", name:"Дубайская паста (готовая)",  unit:"кг", qty: { "Склад": 0, "Мастерская": 2,  "Фуд Трак": 2,  "Жара": 2,  "Парк": 2  }, rawId:"r5" },
+  { id:"s6", name:"Мороженое (порции)",         unit:"кг", qty: { "Склад": 0, "Мастерская": 5,  "Фуд Трак": 5,  "Жара": 5,  "Парк": 5  }, rawId:"r6" },
 ];
 
 // ─── ТЕХ. КАРТЫ ───────────────────────────────────────────────────────────────
@@ -148,18 +151,138 @@ const CAT_COLORS = {
 const NAV = [
   { id:"dashboard",   icon:"📈", label:"Дашборд",       desc:"Аналитика и финансы" },
   { id:"pos",         icon:"🛒", label:"Касса",          desc:"Продажи и списания" },
-  { id:"production",  icon:"🍓", label:"Производство",  desc:"Сырьё → Кухня" },
+  { id:"production",  icon:"🍓", label:"Производство",  desc:"Сырье → Кухня" },
   { id:"warehouse",   icon:"📦", label:"Склад",          desc:"Закупки и остатки" },
   { id:"inventory",   icon:"📋", label:"Инвентаризация", desc:"Пересчёт остатков" },
   { id:"writeoff",    icon:"🗑️", label:"Списания",       desc:"Коррекционные карты" },
   { id:"expenses",    icon:"💰", label:"Расходы",        desc:"Аренда, зарплата, реклама" },
-  { id:"reports",     icon:"📊", label:"Отчёты",         desc:"Cash Flow, P&L" },
+  { id:"reports",     icon:"📊", label:"Отчеты",         desc:"Cash Flow, P&L" },
   { id:"settings",    icon:"⚙️", label:"Настройки",      desc:"Техкарты и Маржа" },
 ];
 
 const fmtM = (n) => Math.round(n||0).toLocaleString("ru-RU") + " ₸";
-const fmtS = (n) => { n=n||0; if(n>=1e6) return (n/1e6).toFixed(1)+"M ₸"; if(n>=1e3) return (n/1e3).toFixed(0)+"K ₸"; return n+" ₸"; };
+const fmtS = (n) => { n=n||0; if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+"M ₸"; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+"K ₸"; return n+" ₸"; };
 const fmt  = (n,d=2) => typeof n==="number" ? n.toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:d}) : String(n||0);
+
+// ─── BEHAVIORAL HELPERS ───────────────────────────────────────────────────────
+const parseQtyObj = (qty) => {
+  if (typeof qty === "object" && qty !== null) {
+    return {
+      "Склад": qty["Склад"] || 0,
+      "Мастерская": qty["Мастерская"] || 0,
+      "Фуд Трак": qty["Фуд Трак"] || 0,
+      "Жара": qty["Жара"] || 0,
+      "Парк": qty["Парк"] || 0,
+    };
+  }
+  return {
+    "Склад": Number(qty) || 0,
+    "Мастерская": 0,
+    "Фуд Трак": 0,
+    "Жара": 0,
+    "Парк": 0,
+  };
+};
+
+const parseSemiQtyObj = (qty) => {
+  if (typeof qty === "object" && qty !== null) {
+    return {
+      "Склад": qty["Склад"] || 0,
+      "Мастерская": qty["Мастерская"] || 0,
+      "Фуд Трак": qty["Фуд Трак"] || 0,
+      "Жара": qty["Жара"] || 0,
+      "Парк": qty["Парк"] || 0,
+    };
+  }
+  const val = Number(qty) || 0;
+  return {
+    "Склад": 0,
+    "Мастерская": val,
+    "Фуд Трак": val,
+    "Жара": val,
+    "Парк": val,
+  };
+};
+
+const getQty = (qtyObj, location) => {
+  return parseQtyObj(qtyObj)[location] || 0;
+};
+
+const parseLocalDate = (dateStr) => {
+  if (!dateStr) return new Date();
+  const parts = dateStr.split(".");
+  if (parts.length === 3) {
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+  }
+  return new Date(dateStr);
+};
+
+const getPackagingItems = (productName) => {
+  const p = productName.toLowerCase();
+  const items = [];
+  
+  // 1. Коробки и пакеты для наборов
+  if (p.includes("набор")) {
+    if (p.includes("8")) items.push({ rawId: "r29", qty: 1 });
+    else if (p.includes("10") || p.includes("12")) items.push({ rawId: "r30", qty: 1 });
+    else if (p.includes("15")) items.push({ rawId: "r31", qty: 1 });
+    else if (p.includes("20")) items.push({ rawId: "r32", qty: 1 });
+    else if (p.includes("25")) items.push({ rawId: "r33", qty: 1 });
+    else if (p.includes("35")) items.push({ rawId: "r34", qty: 1 });
+    else if (p.includes("48")) items.push({ rawId: "r35", qty: 1 });
+    else if (p.includes("64")) items.push({ rawId: "r36", qty: 1 });
+    
+    if (p.includes("8") || p.includes("10") || p.includes("12")) {
+      items.push({ rawId: "r19", qty: 1 }); // малый пакет
+    } else if (p.includes("15") || p.includes("20") || p.includes("25")) {
+      items.push({ rawId: "r20", qty: 1 }); // средний пакет
+    } else {
+      items.push({ rawId: "r21", qty: 1 }); // большой пакет
+    }
+    items.push({ rawId: "r17", qty: 1 }); // открытка
+    items.push({ rawId: "r18", qty: 1 }); // эмблема/бирка
+  }
+  
+  // 2. Стаканы и креманки
+  else if (p.includes("креманка")) {
+    items.push({ rawId: "r24", qty: 1 }); // креманка
+    items.push({ rawId: "r25", qty: 0.01 }); // вилка (0.01 от упаковки 100 шт)
+    items.push({ rawId: "r26", qty: 1 }); // салфетка
+  }
+  else if (p.includes("макси")) {
+    items.push({ rawId: "r28", qty: 1 }); // макси стакан
+    items.push({ rawId: "r25", qty: 0.01 }); // вилка
+    items.push({ rawId: "r26", qty: 1 }); // салфетка
+  }
+  
+  // 3. Букеты
+  else if (p.includes("букет")) {
+    let berries = 15;
+    if (p.includes("xxs") || p.includes("9")) berries = 9;
+    else if (p.includes("xs") || p.includes("15")) berries = 15;
+    else if (p.includes("s+") || p.includes("22") || p.includes("23") || p.includes("24") || p.includes("25")) berries = 24;
+    else if (p.includes("s") || p.includes("17") || p.includes("18") || p.includes("19")) berries = 18;
+    else if (p.includes("m+") || p.includes("43") || p.includes("44") || p.includes("45")) berries = 44;
+    else if (p.includes("m") || p.includes("33") || p.includes("34") || p.includes("35") || p.includes("36")) berries = 35;
+    else if (p.includes("l+") || p.includes("68") || p.includes("69") || p.includes("70")) berries = 69;
+    else if (p.includes("l") || p.includes("56") || p.includes("57") || p.includes("58") || p.includes("59") || p.includes("60")) berries = 58;
+    else if (p.includes("xl") || p.includes("87") || p.includes("88") || p.includes("89") || p.includes("90")) berries = 89;
+    
+    items.push({ rawId: "r13", qty: berries / 70 }); // шпажки (упаковки по 70 шт)
+    items.push({ rawId: "r10", qty: 0.02 }); // лента 1см (0.02 рулона = 1 метр)
+    items.push({ rawId: "r12", qty: 2 }); // тишью
+    items.push({ rawId: "r15", qty: 2 }); // упак бумага
+    items.push({ rawId: "r14", qty: 1 }); // слюда
+    items.push({ rawId: "r17", qty: 1 }); // открытка
+    items.push({ rawId: "r18", qty: 1 }); // эмблема/бирка
+    
+    if (berries <= 15) items.push({ rawId: "r19", qty: 1 });
+    else if (berries <= 25) items.push({ rawId: "r20", qty: 1 });
+    else items.push({ rawId: "r21", qty: 1 });
+  }
+  
+  return items;
+};
 
 const calcCost = (ings, semiStock, rawStock) =>
   ings.reduce((sum,ing)=>{
@@ -169,10 +292,20 @@ const calcCost = (ings, semiStock, rawStock) =>
     return sum + (ing.qty*(1+(ing.loss||0)/100))*(raw?.price||0);
   },0);
 
+const calcProductCOGS = (item, semiStock, rawStock) => {
+  const kitchenCost = calcCost(item.ings, semiStock, rawStock);
+  const packaging = getPackagingItems(item.product);
+  const pkgCost = packaging.reduce((sum, pkg) => {
+    const raw = rawStock.find(r => r.id === pkg.rawId);
+    return sum + pkg.qty * (raw?.price || 0);
+  }, 0);
+  return kitchenCost + pkgCost;
+};
+
 // ─── TOAST ───────────────────────────────────────────────────────────────────
 function Toast({toast}){
   if(!toast) return null;
-  return <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:toast.err?C.red:C.green,color:"#000",padding:"12px 22px",borderRadius:12,fontWeight:700,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,0.4)"}}>
+  return <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:toast.err?C.red:C.green,color:"#fff",padding:"12px 22px",borderRadius:12,fontWeight:700,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,0.4)"}}>
     {toast.err?"✕ ":"✓ "}{toast.msg}
   </div>;
 }
@@ -185,9 +318,37 @@ function useToast(){
 
 // ─── ДАШБОРД ─────────────────────────────────────────────────────────────────
 function Dashboard({sales,semiStock,rawStock,expenses}){
-  const totalRev  = sales.reduce((s,i)=>s+i.total,0);
-  const totalCOGS = sales.reduce((s,i)=>s+(i.cogs||0),0);
-  const totalExp  = (expenses||[]).filter(e=>e.paid).reduce((s,e)=>s+e.amount,0);
+  const [pointFilter, setPointFilter] = useState("Все");
+  const [periodFilter, setPeriodFilter] = useState("За все время");
+  const [selPoint, setSelPoint] = useState(POINTS[0]);
+
+  const now = new Date();
+  const todayStr = now.toLocaleDateString("ru-RU");
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString("ru-RU");
+
+  const filteredSales = sales.filter(s => {
+    if (pointFilter !== "Все" && s.point !== pointFilter) return false;
+    
+    const sDate = parseLocalDate(s.date);
+    if (periodFilter === "Сегодня") {
+      return s.date === todayStr;
+    } else if (periodFilter === "Вчера") {
+      return s.date === yesterdayStr;
+    } else if (periodFilter === "Неделя") {
+      const diffTime = Math.abs(now - sDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    } else if (periodFilter === "Месяц") {
+      return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
+    }
+    return true;
+  });
+
+  const totalRev  = filteredSales.reduce((s,i)=>s+i.total,0);
+  const totalCOGS = filteredSales.reduce((s,i)=>s+(i.cogs||0),0);
+  const totalExp  = (expenses||[]).filter(e=>e.paid && (pointFilter === "Все" || e.point === pointFilter || e.point === "Вся компания")).reduce((s,e)=>s+e.amount,0);
   const grossP    = totalRev - totalCOGS;
   const netP      = grossP - totalExp;
 
@@ -198,8 +359,8 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
   }));
   const maxRev = Math.max(...byPoint.map(p=>p.rev),1);
 
-  const lowSemi = semiStock.filter(s=>s.qty<5);
-  const lowRaw  = rawStock.filter(r=>r.qty<10);
+  const lowSemi = semiStock.filter(s=>parseSemiQtyObj(s.qty)[selPoint] < 5);
+  const lowRaw  = rawStock.filter(r=>parseQtyObj(r.qty)[selPoint] < 10);
 
   const KPI = [
     {label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
@@ -209,8 +370,29 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
   ];
 
   return (
-    <div style={{padding:"24px 28px",overflowY:"auto",height:"calc(100vh-57px)"}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",height:"calc(100vh - 57px)",boxSizing:"border-box"}}>
+      {/* ФИЛЬТРЫ */}
+      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",background:C.surface,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <span style={{fontSize:11,color:C.muted}}>ТОЧКА ПРОДАЖ</span>
+          <select value={pointFilter} onChange={e=>setPointFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13}}>
+            <option>Все</option>
+            {POINTS.map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <span style={{fontSize:11,color:C.muted}}>ВРЕМЕННОЙ ПЕРИОД</span>
+          <select value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13}}>
+            <option>За все время</option>
+            <option>Сегодня</option>
+            <option>Вчера</option>
+            <option>Неделя</option>
+            <option>Месяц</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:22}}>
         {KPI.map((k,i)=>(
           <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>{k.label}</div>
@@ -219,9 +401,9 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:16}}>Выручка по точкам</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:16}}>Выручка по точкам (за всё время)</div>
           {byPoint.map((p,i)=>(
             <div key={i} style={{marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
@@ -240,40 +422,47 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
         </div>
 
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🔔 Алерты</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontSize:14,fontWeight:700}}>🔔 Алерты по точке</div>
+            <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
+              {POINTS.map(p=><option key={p}>{p}</option>)}
+            </select>
+          </div>
           {lowSemi.length===0&&lowRaw.length===0
             ? <div style={{color:C.green,fontSize:13}}>✓ Всё в порядке</div>
             : null}
-          {lowSemi.map((s,i)=><div key={i} style={{padding:"10px 12px",borderRadius:10,background:C.yellowSoft,color:C.yellow,marginBottom:8,fontSize:13}}>⚠ Мало на кухне: <b>{s.name}</b> — {fmt(s.qty)} {s.unit}</div>)}
-          {lowRaw.map((r,i)=><div key={i} style={{padding:"10px 12px",borderRadius:10,background:C.redSoft,color:C.red,marginBottom:8,fontSize:13}}>🔴 Критически: <b>{r.name}</b> — {fmt(r.qty)} {r.unit}</div>)}
+          {lowSemi.map((s,i)=><div key={i} style={{padding:"10px 12px",borderRadius:10,background:C.yellowSoft,color:C.yellow,marginBottom:8,fontSize:13}}>⚠ Мало на кухне: <b>{s.name}</b> — {fmt(parseSemiQtyObj(s.qty)[selPoint])} {s.unit}</div>)}
+          {lowRaw.map((r,i)=><div key={i} style={{padding:"10px 12px",borderRadius:10,background:C.redSoft,color:C.red,marginBottom:8,fontSize:13}}>🔴 Критически: <b>{r.name}</b> — {fmt(parseQtyObj(r.qty)[selPoint])} {r.unit}</div>)}
         </div>
       </div>
 
-      {sales.length>0&&(
-        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+      {filteredSales.length>0&&(
+        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,boxSizing:"border-box"}}>
           <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Последние продажи</div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-            <thead>
-              <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                {["Чек","Точка","Позиции","Оплата","COGS","Сумма","Время"].map((h,i)=>
-                  <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {[...sales].reverse().slice(0,10).map((s,i)=>(
-                <tr key={i} style={{borderBottom:`1px solid ${C.border}40`}}>
-                  <td style={{padding:"10px 12px",color:C.muted}}>#{s.no}</td>
-                  <td style={{padding:"10px 12px"}}>{s.point}</td>
-                  <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
-                  <td style={{padding:"10px 12px"}}>{s.payMode==="cash"?"💵 Нал":"💳 Kaspi"}</td>
-                  <td style={{padding:"10px 12px",color:C.yellow}}>{fmtM(s.cogs||0)}</td>
-                  <td style={{padding:"10px 12px",fontWeight:800,color:C.accent}}>{fmtM(s.total)}</td>
-                  <td style={{padding:"10px 12px",color:C.muted}}>{s.time}</td>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+              <thead>
+                <tr style={{borderBottom:`1px solid ${C.border}`}}>
+                  {["Чек","Точка","Позиции","Оплата","COGS","Сумма","Дата / Время"].map((h,i)=>
+                    <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
+                  )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[...filteredSales].reverse().slice(0,10).map((s,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${C.border}40`}}>
+                    <td style={{padding:"10px 12px",color:C.muted}}>#{s.no}</td>
+                    <td style={{padding:"10px 12px"}}>{s.point}</td>
+                    <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
+                    <td style={{padding:"10px 12px"}}>{s.payMode==="cash"?"💵 Нал":"💳 Kaspi"}</td>
+                    <td style={{padding:"10px 12px",color:C.yellow}}>{fmtM(s.cogs||0)}</td>
+                    <td style={{padding:"10px 12px",fontWeight:800,color:C.accent}}>{fmtM(s.total)}</td>
+                    <td style={{padding:"10px 12px",color:C.muted}}>{s.date ? `${s.date} ${s.time}` : s.time}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -281,7 +470,7 @@ function Dashboard({sales,semiStock,rawStock,expenses}){
 }
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
-function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCards}){
+function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards}){
   const [cart,setCart]          = useState([]);
   const [payMode,setPayMode]    = useState(null);
   const [cashInput,setCashInput] = useState("");
@@ -291,10 +480,11 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
   const [lastReceipt,setLast]   = useState(null);
   const [catFilter,setCatFilter] = useState("Все");
   const [search,setSearch]      = useState("");
+  const [posTab,setPosTab]      = useState("products"); // "products" или "cart" на мобильных
   const [toast,showToast]       = useToast();
 
   const cats = ["Все",...new Set(techCards.map(t=>t.cat))];
-  const filtered = techCards.filter(t=>
+  const filtered = techCards.filter(t =>
     (catFilter==="Все"||t.cat===catFilter)&&
     (search===""||t.product.toLowerCase().includes(search.toLowerCase()))
   );
@@ -310,173 +500,295 @@ function POS({semiStock,setSemiStock,rawStock,sales,setSales,currentUser,techCar
   const handlePay=()=>{
     if(payMode==="cash"&&cashGiven<total){showToast("Недостаточно наличных",true);return;}
     const newSemi=[...semiStock];
+    const newRaw=[...rawStock];
+    
+    // 1. Списываем полуфабрикаты с кухни точки
     for(const item of cart){
       for(const ing of item.ings){
-        const spend=ing.qty*item.qty*(1+ing.loss/100);
-        const idx=newSemi.findIndex(s=>s.id===ing.sid);
-        if(idx>=0) newSemi[idx]={...newSemi[idx],qty:Math.round((newSemi[idx].qty-spend)*1000)/1000};
+        const spend = ing.qty * item.qty * (1 + ing.loss/100);
+        const idx = newSemi.findIndex(s=>s.id===ing.sid);
+        if(idx>=0) {
+          const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+          qtyObj[selPoint] = Math.round((qtyObj[selPoint] - spend)*1000)/1000;
+          newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+        }
+      }
+      
+      // 2. Списываем коробки, стаканчики, ленты, шпажки со склада точки
+      const packaging = getPackagingItems(item.product);
+      for(const pkg of packaging){
+        const idx = newRaw.findIndex(r=>r.id===pkg.rawId);
+        if(idx>=0) {
+          const qtyObj = parseQtyObj(newRaw[idx].qty);
+          qtyObj[selPoint] = Math.round((qtyObj[selPoint] - pkg.qty * item.qty)*1000)/1000;
+          newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
+        }
       }
     }
     setSemiStock(newSemi);
-    const cogs=cart.reduce((s,i)=>s+calcCost(i.ings,semiStock,rawStock)*i.qty,0);
+    setRawStock(newRaw);
+
+    const cogs = cart.reduce((s,i)=>s + calcProductCOGS(i, semiStock, rawStock) * i.qty, 0);
     const receipt={
       no:1001+sales.length, point:selPoint,
       items:cart.map(i=>({name:i.product,qty:i.qty,price:i.price})),
       total, subtotal, discAmt, discount, cogs, payMode,
       cashGiven:payMode==="cash"?cashGiven:total,
       change:payMode==="cash"?cashGiven-total:0,
-      time:new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),
+      date: new Date().toLocaleDateString("ru-RU"),
+      time: new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),
     };
     setSales(p=>[...p,receipt]);
     setLast(receipt);
     setDone(true);
+    setPosTab("cart"); // Показываем чек
   };
 
-  const newSale=()=>{setCart([]);setPayMode(null);setCashInput("");setDiscount(0);setDone(false);setLast(null);};
+  const newSale=()=>{
+    setCart([]);
+    setPayMode(null);
+    setCashInput("");
+    setDiscount(0);
+    setDone(false);
+    setLast(null);
+    setPosTab("products");
+  };
 
-  return(
-    <div style={{display:"flex",height:"calc(100vh - 57px)"}}>
-      <Toast toast={toast}/>
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,background:C.surface,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          {(currentUser.role==="owner"||currentUser.role==="director")&&(
-            <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",outline:"none",fontSize:13}}>
-              {POINTS.map(p=><option key={p}>{p}</option>)}
-            </select>
-          )}
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск..." style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13,width:180}}/>
+  const renderProducts = () => (
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,background:C.surface,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+        {(currentUser.role==="owner"||currentUser.role==="director")&&(
+          <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",outline:"none",fontSize:13}}>
+            {POINTS.map(p=><option key={p}>{p}</option>)}
+          </select>
+        )}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск..." style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13,width:180,flexGrow:1}}/>
+        <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:4,width:"100%"}}>
           {cats.map(c=>(
-            <button key={c} onClick={()=>setCatFilter(c)} style={{padding:"7px 14px",borderRadius:20,border:"none",background:catFilter===c?(CAT_COLORS[c]||C.accent):C.card,color:catFilter===c?"#000":C.muted,fontWeight:catFilter===c?700:400,cursor:"pointer",fontSize:13}}>
+            <button key={c} onClick={()=>setCatFilter(c)} style={{padding:"7px 14px",borderRadius:20,border:"none",background:catFilter===c?(CAT_COLORS[c]||C.accent):C.card,color:catFilter===c?"#000":C.muted,fontWeight:catFilter===c?700:400,cursor:"pointer",fontSize:13,whiteSpace:"nowrap"}}>
               {c}
             </button>
           ))}
         </div>
-        <div style={{flex:1,overflowY:"auto",padding:14,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:10,alignContent:"start"}}>
-          {filtered.map(tc=>{
-            const inCart=cart.find(i=>i.id===tc.id);
-            const color=CAT_COLORS[tc.cat]||C.accent;
-            const cost=calcCost(tc.ings,semiStock,rawStock);
-            const margin=cost>0?Math.round((tc.price-cost)/tc.price*100):0;
-            return(
-              <button key={tc.id} onClick={()=>addToCart(tc)} style={{background:inCart?`${color}18`:C.card,border:`1.5px solid ${inCart?color:C.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",color:C.text,position:"relative",transition:"all .15s"}}>
-                {inCart&&<div style={{position:"absolute",top:8,right:8,background:color,color:"#000",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900}}>{inCart.qty}</div>}
-                <div style={{fontSize:12,fontWeight:600,marginBottom:6,lineHeight:1.3}}>{tc.product}</div>
-                <div style={{fontSize:16,fontWeight:900,color}}>{fmtM(tc.price)}</div>
-                <div style={{fontSize:10,color:margin>50?C.green:margin>30?C.yellow:C.red,marginTop:4}}>Маржа {margin}%</div>
-              </button>
-            );
-          })}
-        </div>
       </div>
-
-      <div style={{width:340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:`1px solid ${C.border}`}}>
-        <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontWeight:700,fontSize:15}}>Корзина</span>
-          {cart.length>0&&<button onClick={()=>setCart([])} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:700}}>Очистить</button>}
-        </div>
-
-        <div style={{flex:1,overflowY:"auto",padding:10}}>
-          {cart.length===0
-            ? <div style={{textAlign:"center",color:C.muted,marginTop:40,fontSize:13}}>🍓 Выберите товар</div>
-            : cart.map(item=>{
-              const color=CAT_COLORS[item.cat]||C.accent;
-              return(
-                <div key={item.id} style={{background:C.card,borderRadius:10,padding:"12px",border:`1px solid ${C.border}`,marginBottom:8}}>
-                  <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item.product}</div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      <button onClick={()=>chgQty(item.id,-1)} style={{width:28,height:28,background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:16}}>−</button>
-                      <span style={{fontWeight:800,width:24,textAlign:"center"}}>{item.qty}</span>
-                      <button onClick={()=>chgQty(item.id,1)} style={{width:28,height:28,background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:16}}>+</button>
-                    </div>
-                    <span style={{fontWeight:900,color,fontSize:15}}>{fmtM(item.price*item.qty)}</span>
-                  </div>
-                </div>
-              );
-            })
-          }
-        </div>
-
-        {cart.length>0&&!done&&(
-          <div style={{padding:"14px 16px",borderTop:`1px solid ${C.border}`}}>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:6}}>СКИДКА</div>
-              <div style={{display:"flex",gap:6}}>
-                {[0,5,10,15,20].map(d=>(
-                  <button key={d} onClick={()=>setDiscount(d)} style={{flex:1,padding:"6px 2px",borderRadius:8,border:`1px solid ${discount===d?C.accent:C.border}`,background:discount===d?C.accentSoft:"transparent",color:discount===d?C.accent:C.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
-                    {d===0?"Нет":d+"%"}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {discount>0&&<div style={{fontSize:12,color:C.red,marginBottom:8,textAlign:"right"}}>Скидка: −{fmtM(discAmt)}</div>}
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
-              <span style={{fontWeight:800,fontSize:16}}>К оплате:</span>
-              <span style={{fontSize:22,fontWeight:900,color:C.accent}}>{fmtM(total)}</span>
-            </div>
-            <div style={{display:"flex",gap:8,marginBottom:10}}>
-              <button onClick={()=>setPayMode("cash")} style={{flex:1,padding:10,background:payMode==="cash"?C.greenSoft:C.card,color:payMode==="cash"?C.green:C.text,border:`1px solid ${payMode==="cash"?C.green:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700}}>💵 Нал</button>
-              <button onClick={()=>setPayMode("card")} style={{flex:1,padding:10,background:payMode==="card"?C.blueSoft:C.card,color:payMode==="card"?C.blue:C.text,border:`1px solid ${payMode==="card"?C.blue:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700}}>💳 Kaspi</button>
-            </div>
-            {payMode==="cash"&&(
-              <div style={{marginBottom:10}}>
-                <input value={cashInput} onChange={e=>setCashInput(e.target.value.replace(/\D/g,""))} placeholder="Сумма от клиента..." style={{width:"100%",padding:12,background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,boxSizing:"border-box",fontSize:18,fontWeight:700,outline:"none"}}/>
-                {cashGiven>=total&&cashGiven>0&&<div style={{color:C.green,fontWeight:700,fontSize:14,marginTop:6}}>Сдача: {fmtM(cashGiven-total)}</div>}
-              </div>
-            )}
-            <button onClick={handlePay} disabled={!payMode||(payMode==="cash"&&cashGiven<total)} style={{width:"100%",padding:16,background:payMode?C.accent:C.dimmed,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:payMode?"pointer":"default",fontSize:15}}>
-              ✓ Принять оплату
+      <div style={{flex:1,overflowY:"auto",padding:14,display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10,alignContent:"start"}}>
+        {filtered.map(tc=>{
+          const inCart=cart.find(i=>i.id===tc.id);
+          const color=CAT_COLORS[tc.cat]||C.accent;
+          const cost=calcProductCOGS(tc, semiStock, rawStock);
+          const margin=cost>0?Math.round((tc.price-cost)/tc.price*100):0;
+          return(
+            <button key={tc.id} onClick={()=>addToCart(tc)} style={{background:inCart?`${color}18`:C.card,border:`1.5px solid ${inCart?color:C.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",color:C.text,position:"relative",transition:"all .15s"}}>
+              {inCart&&<div style={{position:"absolute",top:8,right:8,background:color,color:"#000",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900}}>{inCart.qty}</div>}
+              <div style={{fontSize:12,fontWeight:600,marginBottom:6,lineHeight:1.3}}>{tc.product}</div>
+              <div style={{fontSize:16,fontWeight:900,color}}>{fmtM(tc.price)}</div>
+              <div style={{fontSize:10,color:margin>50?C.green:margin>30?C.yellow:C.red,marginTop:4}}>Маржа {margin}%</div>
             </button>
-          </div>
-        )}
-
-        {done&&lastReceipt&&(
-          <div style={{padding:16}}>
-            <div style={{background:C.greenSoft,border:`1px solid ${C.green}`,borderRadius:12,padding:20,marginBottom:12,textAlign:"center"}}>
-              <div style={{fontSize:36}}>✓</div>
-              <div style={{fontSize:18,fontWeight:800,color:C.green,marginBottom:4}}>Оплата принята!</div>
-              <div style={{fontSize:13,color:C.muted}}>Чек #{lastReceipt.no} · {lastReceipt.point}</div>
-              <div style={{fontSize:24,fontWeight:900,marginTop:8}}>{fmtM(lastReceipt.total)}</div>
-              {lastReceipt.change>0&&<div style={{color:C.green,fontWeight:700,marginTop:4}}>Сдача: {fmtM(lastReceipt.change)}</div>}
-            </div>
-            <button onClick={newSale} style={{width:"100%",padding:14,background:C.accent,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:"pointer",fontSize:15}}>🍓 Новая продажа</button>
-          </div>
-        )}
+          );
+        })}
       </div>
+    </div>
+  );
+
+  const renderCart = () => (
+    <div style={{width:isMobile?"100%":340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px solid ${C.border}`,height:"100%"}}>
+      <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontWeight:700,fontSize:15}}>Корзина ({selPoint})</span>
+        {cart.length>0&&<button onClick={()=>setCart([])} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:700}}>Очистить</button>}
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:10}}>
+        {cart.length===0
+          ? <div style={{textAlign:"center",color:C.muted,marginTop:40,fontSize:13}}>🍓 Выберите товар</div>
+          : cart.map(item=>{
+            const color=CAT_COLORS[item.cat]||C.accent;
+            return(
+              <div key={item.id} style={{background:C.card,borderRadius:10,padding:"12px",border:`1px solid ${C.border}`,marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item.product}</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <button onClick={()=>chgQty(item.id,-1)} style={{width:28,height:28,background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:16}}>−</button>
+                    <span style={{fontWeight:800,width:24,textAlign:"center"}}>{item.qty}</span>
+                    <button onClick={()=>chgQty(item.id,1)} style={{width:28,height:28,background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:16}}>+</button>
+                  </div>
+                  <span style={{fontWeight:900,color,fontSize:15}}>{fmtM(item.price*item.qty)}</span>
+                </div>
+              </div>
+            );
+          })
+        }
+      </div>
+
+      {cart.length>0&&!done&&(
+        <div style={{padding:"14px 16px",borderTop:`1px solid ${C.border}`}}>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6}}>СКИДКА</div>
+            <div style={{display:"flex",gap:6}}>
+              {[0,5,10,15,20].map(d=>(
+                <button key={d} onClick={()=>setDiscount(d)} style={{flex:1,padding:"6px 2px",borderRadius:8,border:`1px solid ${discount===d?C.accent:C.border}`,background:discount===d?C.accentSoft:"transparent",color:discount===d?C.accent:C.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                  {d===0?"Нет":d+"%"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {discount>0&&<div style={{fontSize:12,color:C.red,marginBottom:8,textAlign:"right"}}>Скидка: −{fmtM(discAmt)}</div>}
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
+            <span style={{fontWeight:800,fontSize:16}}>К оплате:</span>
+            <span style={{fontSize:22,fontWeight:900,color:C.accent}}>{fmtM(total)}</span>
+          </div>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <button onClick={()=>setPayMode("cash")} style={{flex:1,padding:10,background:payMode==="cash"?C.greenSoft:C.card,color:payMode==="cash"?C.green:C.text,border:`1px solid ${payMode==="cash"?C.green:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700}}>💵 Нал</button>
+            <button onClick={()=>setPayMode("card")} style={{flex:1,padding:10,background:payMode==="card"?C.blueSoft:C.card,color:payMode==="card"?C.blue:C.text,border:`1px solid ${payMode==="card"?C.blue:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700}}>💳 Kaspi</button>
+          </div>
+          {payMode==="cash"&&(
+            <div style={{marginBottom:10}}>
+              <input value={cashInput} onChange={e=>setCashInput(e.target.value.replace(/\D/g,""))} placeholder="Сумма от клиента..." style={{width:"100%",padding:12,background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,boxSizing:"border-box",fontSize:18,fontWeight:700,outline:"none"}}/>
+              {cashGiven>=total&&cashGiven>0&&<div style={{color:C.green,fontWeight:700,fontSize:14,marginTop:6}}>Сдача: {fmtM(cashGiven-total)}</div>}
+            </div>
+          )}
+          <button onClick={handlePay} disabled={!payMode||(payMode==="cash"&&cashGiven<total)} style={{width:"100%",padding:16,background:payMode?C.accent:C.dimmed,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:payMode?"pointer":"default",fontSize:15}}>
+            ✓ Принять оплату
+          </button>
+        </div>
+      )}
+
+      {done&&lastReceipt&&(
+        <div style={{padding:16}}>
+          <div style={{background:C.greenSoft,border:`1px solid ${C.green}`,borderRadius:12,padding:20,marginBottom:12,textAlign:"center"}}>
+            <div style={{fontSize:36}}>✓</div>
+            <div style={{fontSize:18,fontWeight:800,color:C.green,marginBottom:4}}>Оплата принята!</div>
+            <div style={{fontSize:13,color:C.muted}}>Чек #{lastReceipt.no} · {lastReceipt.point}</div>
+            <div style={{fontSize:24,fontWeight:900,marginTop:8}}>{fmtM(lastReceipt.total)}</div>
+            {lastReceipt.change>0&&<div style={{color:C.green,fontWeight:700,marginTop:4}}>Сдача: {fmtM(lastReceipt.change)}</div>}
+          </div>
+          <button onClick={newSale} style={{width:"100%",padding:14,background:C.accent,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:"pointer",fontSize:15}}>🍓 Новая продажа</button>
+        </div>
+      )}
+    </div>
+  );
+
+  return(
+    <div style={{display:"flex",height:"calc(100vh - 57px)"}}>
+      <Toast toast={toast}/>
+      {!isMobile ? (
+        <>
+          {renderProducts()}
+          {renderCart()}
+        </>
+      ) : (
+        <div style={{width:"100%",display:"flex",flexDirection:"column",position:"relative"}}>
+          <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+            <button onClick={()=>setPosTab("products")} style={{flex:1,padding:14,background:posTab==="products"?C.card:"transparent",color:posTab==="products"?C.accent:C.muted,border:"none",fontWeight:700,fontSize:14}}>🍓 Товары</button>
+            <button onClick={()=>setPosTab("cart")} style={{flex:1,padding:14,background:posTab==="cart"?C.card:"transparent",color:posTab==="cart"?C.accent:C.muted,border:"none",fontWeight:700,fontSize:14}}>🛒 Корзина ({cart.reduce((s,i)=>s+i.qty,0)})</button>
+          </div>
+          <div style={{flex:1,overflow:"hidden"}}>
+            {posTab==="products" ? renderProducts() : renderCart()}
+          </div>
+          
+          {posTab==="products" && cart.length>0 && (
+            <button onClick={()=>setPosTab("cart")} style={{position:"absolute",bottom:20,right:20,background:C.accent,color:"#000",padding:"14px 22px",borderRadius:30,boxShadow:"0 4px 15px rgba(232,160,180,0.4)",border:"none",fontWeight:900,fontSize:14,cursor:"pointer",zIndex:10}}>
+              Оформить ({cart.reduce((s,i)=>s+i.qty,0)} шт) · {fmtM(subtotal)} →
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── ПРОИЗВОДСТВО ────────────────────────────────────────────────────────────
+// ─── ПРОИЗВОДСТВО И ПЕРЕМЕЩЕНИЕ ──────────────────────────────────────────────
 function Production({rawStock,setRawStock,semiStock,setSemiStock}){
+  const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
   const [modal,setModal]=useState(null);
-  const [form,setForm]=useState({targetId:"s1",qty:""});
+  const [form,setForm]=useState({targetId:"s1",qty:"",point:"Мастерская"});
+  
+  // Форма перемещения сырья со склада на точку
+  const [transferForm, setTransferForm] = useState({ itemId: "r1", qty: "", destPoint: "Мастерская" });
+  
   const [toast,showToast]=useToast();
 
   const handleTransfer=()=>{
     const qty=parseFloat(form.qty);
-    if(!qty||qty>modal.qty){showToast("Неверное количество",true);return;}
-    setRawStock(p=>p.map(r=>r.id===modal.id?{...r,qty:Math.round((r.qty-qty)*1000)/1000}:r));
-    setSemiStock(p=>p.map(s=>s.id===form.targetId?{...s,qty:Math.round((s.qty+qty)*1000)/1000}:s));
-    showToast(`${modal.name} → кухня (${qty} ${modal.unit})`);
+    const rawMatch = rawStock.find(r=>r.id === modal.rawId);
+    const stockQty = getQty(rawMatch?.qty, "Склад");
+    
+    if(!qty||qty>stockQty){showToast("Недостаточно сырья на главном складе",true);return;}
+    
+    // Списываем сырье со склада
+    setRawStock(p=>p.map(r=> {
+      if (r.id === modal.rawId) {
+        const q = parseQtyObj(r.qty);
+        q["Склад"] = Math.round((q["Склад"] - qty)*1000)/1000;
+        return { ...r, qty: q };
+      }
+      return r;
+    }));
+    
+    // Оприходуем полуфабрикат на кухню выбранной точки
+    setSemiStock(p=>p.map(s=>{
+      if (s.id===form.targetId) {
+        const q = parseSemiQtyObj(s.qty);
+        q[form.point] = Math.round((q[form.point] + qty)*1000)/1000;
+        return { ...s, qty: q };
+      }
+      return s;
+    }));
+    
+    showToast(`${modal.name} → ${form.point} кухня (+${qty} ${modal.unit})`);
     setModal(null);
   };
 
+  const handleRawTransfer=(e)=>{
+    e.preventDefault();
+    const qty = parseFloat(transferForm.qty);
+    const item = rawStock.find(r => r.id === transferForm.itemId);
+    const warehouseQty = getQty(item?.qty, "Склад");
+    
+    if (!qty || qty <= 0 || qty > warehouseQty) {
+      showToast("Недостаточно на складе", true);
+      return;
+    }
+    
+    setRawStock(p => p.map(r => {
+      if (r.id !== transferForm.itemId) return r;
+      const q = parseQtyObj(r.qty);
+      q["Склад"] = Math.round((q["Склад"] - qty) * 1000) / 1000;
+      q[transferForm.destPoint] = Math.round((q[transferForm.destPoint] + qty) * 1000) / 1000;
+      return { ...r, qty: q };
+    }));
+    
+    showToast(`Перемещено: ${item.name} → ${transferForm.destPoint} (${qty} ${item.unit})`);
+    setTransferForm(f => ({ ...f, qty: "" }));
+  };
+
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
+      
+      {/* РЕЖИМЫ */}
+      <div style={{display:"flex",gap:6,marginBottom:20}}>
+        <button onClick={()=>setActiveTab("produce")} style={{padding:"10px 18px",borderRadius:10,border:"none",background:activeTab==="produce"?C.accent:C.card,color:activeTab==="produce"?"#000":C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>🍓 Производство полуфабрикатов</button>
+        <button onClick={()=>setActiveTab("transfer")} style={{padding:"10px 18px",borderRadius:10,border:"none",background:activeTab==="transfer"?C.accent:C.card,color:activeTab==="transfer"?"#000":C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>📦 Распределение упаковки и сырья</button>
+      </div>
+
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:C.card,borderRadius:16,padding:28,width:420,border:`1px solid ${C.border}`}}>
             <h3 style={{marginTop:0,marginBottom:16}}>Передать на кухню</h3>
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Полуфабрикат</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:6}}>ПОЛУФАБРИКАТ</div>
               <select value={form.targetId} onChange={e=>setForm(f=>({...f,targetId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:12,color:C.text,outline:"none"}}>
                 {semiStock.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:C.muted,marginBottom:6}}>КУХНЯ ТОЧКИ</div>
+              <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:12,color:C.text,outline:"none"}}>
+                {POINTS.map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
             <div style={{marginBottom:20}}>
-              <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Количество ({modal.unit}) / Макс.: {fmt(modal.qty)}</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:6}}>КОЛИЧЕСТВО ({modal.unit}) / Склад: {fmt(getQty(rawStock.find(r=>r.id===modal.rawId)?.qty, "Склад"))}</div>
               <input type="number" value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:12,color:C.text,outline:"none",boxSizing:"border-box",fontSize:20,fontWeight:700}}/>
             </div>
             <div style={{display:"flex",gap:10}}>
@@ -487,37 +799,94 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
         </div>
       )}
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <h3 style={{marginTop:0,marginBottom:16}}>🏭 Сырьевой склад</h3>
-          {rawStock.map(r=>(
-            <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}>
+      {activeTab === "produce" ? (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+            <h3 style={{marginTop:0,marginBottom:16}}>🏭 Склад сырья (Центральный)</h3>
+            {rawStock.map(r=>{
+              const matchedSemi = semiStock.find(s=>s.rawId === r.id);
+              if (!matchedSemi) return null;
+              const wQty = getQty(r.qty, "Склад");
+              return(
+                <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13}}>{r.name}</div>
+                    <div style={{fontSize:12,color:wQty<10?C.yellow:C.muted}}>{fmt(wQty)} {r.unit}</div>
+                  </div>
+                  <button onClick={()=>{setModal({id:r.id, name:r.name, unit:r.unit, rawId:r.id});setForm({targetId:matchedSemi.id,qty:"",point:"Мастерская"});}} style={{padding:"7px 14px",borderRadius:8,background:C.accentSoft,color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",fontWeight:700,fontSize:12}}>Производство →</button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h3 style={{margin:0}}>⚗️ Полуфабрикаты по точкам</h3>
+              <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
+                {POINTS.map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
+            {semiStock.map(s=>{
+              const pQty = getQty(s.qty, form.point);
+              return (
+                <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{s.name}</div>
+                  <div style={{fontWeight:800,fontSize:15,color:pQty<0?C.red:pQty<3?C.yellow:C.text}}>{fmt(pQty)} {s.unit}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+            <h3 style={{marginTop:0,marginBottom:16}}>📦 Перемещение упаковки/сырья на точку</h3>
+            <form onSubmit={handleRawTransfer} style={{display:"flex",flexDirection:"column",gap:12}}>
               <div>
-                <div style={{fontWeight:600,fontSize:13}}>{r.name}</div>
-                <div style={{fontSize:12,color:r.qty<10?C.yellow:C.muted}}>{fmt(r.qty)} {r.unit}</div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ПОЗИЦИЯ СЫРЬЯ</div>
+                <select value={transferForm.itemId} onChange={e=>setTransferForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
+                  {rawStock.map(r=><option key={r.id} value={r.id}>{r.name} (на Складе: {fmt(getQty(r.qty, "Склад"))} {r.unit})</option>)}
+                </select>
               </div>
-              <button onClick={()=>{setModal(r);setForm({targetId:"s1",qty:""});}} style={{padding:"7px 14px",borderRadius:8,background:C.accentSoft,color:C.accent,border:`1px solid ${C.accent}`,cursor:"pointer",fontWeight:700,fontSize:12}}>На кухню →</button>
+              <div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КОЛИЧЕСТВО ДЛЯ ПЕРЕДАЧИ</div>
+                <input type="number" step="0.01" required value={transferForm.qty} onChange={e=>setTransferForm(f=>({...f,qty:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА-ПОЛУЧАТЕЛЬ</div>
+                <select value={transferForm.destPoint} onChange={e=>setTransferForm(f=>({...f,destPoint:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
+                  {POINTS.map(p=><option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <button type="submit" style={{padding:"12px 20px",borderRadius:8,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",marginTop:10}}>✓ Выполнить перемещение</button>
+            </form>
+          </div>
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h3 style={{margin:0}}>📦 Остатки упаковки на точках</h3>
+              <select value={transferForm.destPoint} onChange={e=>setTransferForm(f=>({...f,destPoint:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
+                {POINTS.map(p=><option key={p}>{p}</option>)}
+              </select>
             </div>
-          ))}
+            {rawStock.filter(r=>r.name.includes("Коробк") || r.name.includes("Креман") || r.name.includes("Пакет") || r.name.includes("Лент") || r.name.includes("Вилка")).map(r=>{
+              const pQty = getQty(r.qty, transferForm.destPoint);
+              return (
+                <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,marginBottom:8,borderBottom:`1px solid ${C.border}60`}}>
+                  <div style={{fontWeight:600,fontSize:12}}>{r.name}</div>
+                  <div style={{fontWeight:800,fontSize:13}}>{fmt(pQty)} {r.unit}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <h3 style={{marginTop:0,marginBottom:16}}>⚗️ Полуфабрикаты (кухня)</h3>
-          {semiStock.map(s=>(
-            <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}>
-              <div style={{fontWeight:600,fontSize:13}}>{s.name}</div>
-              <div style={{fontWeight:800,fontSize:15,color:s.qty<0?C.red:s.qty<3?C.yellow:C.text}}>{fmt(s.qty)} {s.unit}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
-function Warehouse({rawStock,setRawStock,semiStock}){
+function Warehouse({rawStock,setRawStock}){
   const [showAdd,setShowAdd]=useState(false);
-  const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:""});
+  const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:"Склад"});
   const [history,setHistory]=useState([]);
   const [toast,showToast]=useToast();
 
@@ -525,24 +894,29 @@ function Warehouse({rawStock,setRawStock,semiStock}){
     e.preventDefault();
     const qty=parseFloat(form.qty),price=parseFloat(form.price)||0;
     if(!qty||qty<=0){showToast("Введите количество",true);return;}
+    
     setRawStock(prev=>prev.map(item=>{
       if(item.id!==form.itemId) return item;
-      const cur=item.qty>0?item.qty:0;
-      const avgPrice=cur>0?Math.round((cur*item.price+qty*price)/(cur+qty)):price;
-      return{...item,qty:Math.round((cur+qty)*1000)/1000,price:avgPrice};
+      const qtyObj = parseQtyObj(item.qty);
+      const cur = qtyObj[form.location] || 0;
+      const avgPrice = cur>0 ? Math.round((cur*item.price+qty*price)/(cur+qty)) : price;
+      
+      qtyObj[form.location] = Math.round((cur+qty)*1000)/1000;
+      return{...item,qty:qtyObj,price:avgPrice};
     }));
+    
     const item=rawStock.find(r=>r.id===form.itemId);
-    setHistory(h=>[{date:new Date().toLocaleDateString("ru-RU"),item:item?.name,qty,unit:item?.unit,price,supplier:form.supplier||"—"},...h]);
-    showToast(`Оприходовано: ${item?.name} +${qty} ${item?.unit}`);
-    setForm({itemId:"r1",price:"",qty:"",supplier:""});
+    setHistory(h=>[{date:new Date().toLocaleDateString("ru-RU"),item:item?.name,qty,unit:item?.unit,price,supplier:form.supplier||"—",location:form.location},...h]);
+    showToast(`Оприходовано: ${item?.name} +${qty} ${item?.unit} на ${form.location}`);
+    setForm({itemId:"r1",price:"",qty:"",supplier:"",location:"Склад"});
     setShowAdd(false);
   };
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-        <h2 style={{margin:0}}>▣ Склад сырья</h2>
+        <h2 style={{margin:0}}>▣ Складской учёт</h2>
         <button onClick={()=>setShowAdd(v=>!v)} style={{padding:"10px 22px",borderRadius:10,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",fontSize:14}}>
           {showAdd?"✕ Отмена":"+ Оприходовать"}
         </button>
@@ -550,7 +924,13 @@ function Warehouse({rawStock,setRawStock,semiStock}){
 
       {showAdd&&(
         <form onSubmit={handleAdd} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:24}}>
-          <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 2fr auto",gap:12,alignItems:"end"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,alignItems:"end"}}>
+            <div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Локация поступления</div>
+              <select value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                {ALL_LOCATIONS.map(l=><option key={l}>{l}</option>)}
+              </select>
+            </div>
             <div>
               <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Позиция</div>
               <select value={form.itemId} onChange={e=>setForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
@@ -558,11 +938,11 @@ function Warehouse({rawStock,setRawStock,semiStock}){
               </select>
             </div>
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Цена (₸/ед.)</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Цена закупа (₸/ед.)</div>
               <input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Кол-во</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Количество</div>
               <input type="number" step="0.01" required value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div>
@@ -575,31 +955,41 @@ function Warehouse({rawStock,setRawStock,semiStock}){
       )}
 
       <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden",marginBottom:20}}>
-        <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13}}>
-          <thead>
-            <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
-              {["Наименование","Ед.","Остаток","Ср. цена закупки","На сумму","Статус"].map((h,i)=>
-                <th key={i} style={{padding:"13px 18px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {rawStock.map((r,i)=>(
-              <tr key={r.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":C.surface+"30"}}>
-                <td style={{padding:"13px 18px",fontWeight:600}}>{r.name}</td>
-                <td style={{padding:"13px 18px",color:C.muted}}>{r.unit}</td>
-                <td style={{padding:"13px 18px",fontWeight:800,color:r.qty<10?C.yellow:C.text}}>{fmt(r.qty)}</td>
-                <td style={{padding:"13px 18px",color:C.green,fontWeight:700}}>{fmtM(r.price)}</td>
-                <td style={{padding:"13px 18px",color:C.accent,fontWeight:700}}>{fmtM(Math.round(r.qty*r.price))}</td>
-                <td style={{padding:"13px 18px"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:r.qty<5?C.red:r.qty<15?C.yellow:C.green,background:r.qty<5?C.redSoft:r.qty<15?C.yellowSoft:C.greenSoft,padding:"3px 10px",borderRadius:20}}>
-                    {r.qty<5?"Критично":r.qty<15?"Мало":"OK"}
-                  </span>
-                </td>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
+            <thead>
+              <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
+                {["Наименование","Ед.","На Складе","В Мастерской","В Фуд Траке","В Жаре","В Парке","Ср. цена","Итого (₸)","Статус"].map((h,i)=>
+                  <th key={i} style={{padding:"13px 18px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
+                )}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rawStock.map((r,i)=>{
+                const qObj = parseQtyObj(r.qty);
+                const totalQty = Object.values(qObj).reduce((a,b)=>a+b,0);
+                return(
+                  <tr key={r.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":C.surface+"30"}}>
+                    <td style={{padding:"13px 18px",fontWeight:600}}>{r.name}</td>
+                    <td style={{padding:"13px 18px",color:C.muted}}>{r.unit}</td>
+                    <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qObj["Склад"])}</td>
+                    <td style={{padding:"13px 18px"}}>{fmt(qObj["Мастерская"])}</td>
+                    <td style={{padding:"13px 18px"}}>{fmt(qObj["Фуд Трак"])}</td>
+                    <td style={{padding:"13px 18px"}}>{fmt(qObj["Жара"])}</td>
+                    <td style={{padding:"13px 18px"}}>{fmt(qObj["Парк"])}</td>
+                    <td style={{padding:"13px 18px",color:C.green,fontWeight:700}}>{fmtM(r.price)}</td>
+                    <td style={{padding:"13px 18px",color:C.accent,fontWeight:700}}>{fmtM(Math.round(totalQty*r.price))}</td>
+                    <td style={{padding:"13px 18px"}}>
+                      <span style={{fontSize:11,fontWeight:700,color:totalQty<5?C.red:totalQty<15?C.yellow:C.green,background:totalQty<5?C.redSoft:totalQty<15?C.yellowSoft:C.greenSoft,padding:"3px 10px",borderRadius:20}}>
+                        {totalQty<5?"Критично":totalQty<15?"Мало":"OK"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {history.length>0&&(
@@ -609,7 +999,7 @@ function Warehouse({rawStock,setRawStock,semiStock}){
             <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<history.length-1?`1px solid ${C.border}`:"none"}}>
               <div>
                 <div style={{fontWeight:600,fontSize:13}}>{h.item}</div>
-                <div style={{fontSize:11,color:C.muted}}>{h.supplier} · {h.date}</div>
+                <div style={{fontSize:11,color:C.muted}}>{h.supplier} · {h.location} · {h.date}</div>
               </div>
               <div style={{textAlign:"right"}}>
                 <div style={{fontWeight:800,color:C.green,fontSize:14}}>+{h.qty} {h.unit}</div>
@@ -628,7 +1018,7 @@ const EXP_CATS = [
   {id:"rent",      label:"Аренда",    icon:"🏪", color:C.blue},
   {id:"salary",    label:"Зарплата",  icon:"👤", color:C.purple},
   {id:"marketing", label:"Реклама",   icon:"📣", color:C.accent},
-  {id:"utility",   label:"Коммунал.", icon:"💡", color:C.yellow},
+  {id:"utility",   label:"Коммунальные услуги", icon:"💡", color:C.yellow},
   {id:"tax",       label:"Налоги",    icon:"🧾", color:C.red},
   {id:"other",     label:"Прочее",    icon:"📝", color:C.muted},
 ];
@@ -651,95 +1041,180 @@ function Expenses({expenses,setExpenses}){
   };
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
           <h2 style={{margin:"0 0 6px"}}>💰 Расходы</h2>
           <div style={{display:"flex",gap:16}}>
             <span style={{color:C.red,fontSize:13,fontWeight:700}}>Оплачено: {fmtM(totalPaid)}</span>
-            <span style={{color:C.yellow,fontSize:13,fontWeight:700}}>Ожидает: {fmtM(totalPend)}</span>
+            <span style={{color:C.yellow,fontSize:13,fontWeight:700}}>Ожидается: {fmtM(totalPend)}</span>
           </div>
         </div>
         <button onClick={()=>setShowForm(v=>!v)} style={{padding:"10px 22px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",fontSize:14}}>
-          {showForm?"✕ Отмена":"+ Добавить"}
+          {showForm?"✕ Отмена":"+ Добавить расход"}
         </button>
       </div>
 
       {showForm&&(
         <form onSubmit={handleAdd} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:20}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 1fr 1fr auto",gap:12,alignItems:"end"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,alignItems:"end"}}>
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Категория</div>
-              <select value={form.cat} onChange={e=>setForm(f=>({...f,cat:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КАТЕГОРИЯ</div>
+              <select value={form.cat} onChange={e=>setForm(f=>({...f,cat:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
                 {EXP_CATS.map(c=><option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
               </select>
             </div>
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Описание</div>
-              <input value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Напр. Аренда Точка №1 — июнь" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>НАЗНАЧЕНИЕ</div>
+              <input value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} placeholder="Напр. Аренда офиса за Июнь" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Сумма (₸)</div>
-              <input type="number" required value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СУММА (₸)</div>
+              <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Статус</div>
-              <select value={form.paid?"paid":"pending"} onChange={e=>setForm(f=>({...f,paid:e.target.value==="paid"}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
-                <option value="paid">Оплачено</option>
-                <option value="pending">Ожидает</option>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА</div>
+              <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                <option>Вся компания</option>
+                {POINTS.map(p=><option key={p}>{p}</option>)}
               </select>
             </div>
-            <button type="submit" style={{padding:"11px 20px",borderRadius:8,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить</button>
+            <div style={{display:"flex",alignItems:"center",gap:8,paddingBottom:12}}>
+              <input type="checkbox" checked={form.paid} onChange={e=>setForm(f=>({...f,paid:e.target.checked}))} id="paidCheck" style={{width:18,height:18}}/>
+              <label htmlFor="paidCheck" style={{fontSize:13,fontWeight:600}}>Оплачено</label>
+            </div>
+            <button type="submit" style={{padding:"11px 20px",borderRadius:8,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>✓ Сохранить</button>
           </div>
         </form>
       )}
 
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {expenses.map((e,i)=>{
-          const cat=EXP_CATS.find(c=>c.id===e.cat)||EXP_CATS[5];
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:12,marginBottom:20}}>
+        {EXP_CATS.map(cat=>{
+          const amt=expenses.filter(e=>e.cat===cat.id&&e.paid).reduce((s,e)=>s+e.amount,0);
           return(
-            <div key={e.id||i} style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:"14px 18px",display:"flex",alignItems:"center",gap:14}}>
-              <div style={{fontSize:24}}>{cat.icon}</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:600,fontSize:14}}>{e.desc}</div>
-                <div style={{fontSize:11,color:C.muted}}>{cat.label} · {e.point||"Вся компания"} · {e.date}</div>
+            <div key={cat.id} style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{fontSize:24,background:cat.color+"15",color:cat.color,width:40,height:40,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center"}}>{cat.icon}</div>
+                <div>
+                  <div style={{fontSize:13,fontWeight:700}}>{cat.label}</div>
+                  <div style={{fontSize:11,color:C.muted}}>Итого оплачено</div>
+                </div>
               </div>
-              <div style={{fontWeight:800,color:C.red,fontSize:15}}>{fmtM(e.amount)}</div>
-              <button onClick={()=>setExpenses(p=>p.map((x,j)=>j===i?{...x,paid:!x.paid}:x))} style={{padding:"5px 12px",borderRadius:20,border:"none",background:e.paid?C.greenSoft:C.yellowSoft,color:e.paid?C.green:C.yellow,cursor:"pointer",fontSize:12,fontWeight:700}}>
-                {e.paid?"✓ Оплачено":"⏳ Ожидает"}
-              </button>
-              <button onClick={()=>setExpenses(p=>p.filter((_,j)=>j!==i))} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:8,padding:"6px 10px",cursor:"pointer",fontWeight:700}}>✕</button>
+              <span style={{fontWeight:900,fontSize:16,color:cat.color}}>{fmtS(amt)}</span>
             </div>
           );
         })}
-        {expenses.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40,fontSize:14}}>Расходов нет. Нажмите "+ Добавить"</div>}
       </div>
+
+      {expenses.length>0&&(
+        <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:20}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>История операций расходов</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:500}}>
+              <thead>
+                <tr style={{borderBottom:`1px solid ${C.border}`}}>
+                  {["Категория","Назначение","Точка","Статус","Сумма","Дата"].map((h,i)=>
+                    <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {[...expenses].reverse().map((e,i)=>(
+                  <tr key={e.id} style={{borderBottom:`1px solid ${C.border}40`}}>
+                    <td style={{padding:"10px 12px"}}>{EXP_CATS.find(x=>x.id===e.cat)?.icon} {EXP_CATS.find(x=>x.id===e.cat)?.label}</td>
+                    <td style={{padding:"10px 12px",color:C.text}}>{e.desc||e.note}</td>
+                    <td style={{padding:"10px 12px",color:C.muted}}>{e.point}</td>
+                    <td style={{padding:"10px 12px"}}>
+                      <button onClick={()=>{
+                        setExpenses(p=>p.map(x=>x.id===e.id?{...x,paid:!x.paid}:x));
+                        showToast("Статус оплаты изменен");
+                      }} style={{border:"none",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",background:e.paid?C.greenSoft:C.yellowSoft,color:e.paid?C.green:C.yellow}}>
+                        {e.paid?"✓ Оплачено":"⏳ Ожидает"}
+                      </button>
+                    </td>
+                    <td style={{padding:"10px 12px",fontWeight:800,color:C.accent}}>{fmtM(e.amount)}</td>
+                    <td style={{padding:"10px 12px",color:C.muted}}>{e.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── ОТЧЁТЫ ──────────────────────────────────────────────────────────────────
+// ─── ОТЧЕТЫ ──────────────────────────────────────────────────────────────────
 function Reports({sales,expenses,rawStock,semiStock}){
-  const totalRev  = sales.reduce((s,i)=>s+i.total,0);
-  const totalCOGS = sales.reduce((s,i)=>s+(i.cogs||0),0);
-  const totalExp  = expenses.filter(e=>e.paid).reduce((s,e)=>s+e.amount,0);
+  const [pointFilter, setPointFilter] = useState("Все");
+  const [periodFilter, setPeriodFilter] = useState("За все время");
+
+  const now = new Date();
+  const todayStr = now.toLocaleDateString("ru-RU");
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString("ru-RU");
+
+  const filteredSales = sales.filter(s => {
+    if (pointFilter !== "Все" && s.point !== pointFilter) return false;
+    
+    const sDate = parseLocalDate(s.date);
+    if (periodFilter === "Сегодня") {
+      return s.date === todayStr;
+    } else if (periodFilter === "Вчера") {
+      return s.date === yesterdayStr;
+    } else if (periodFilter === "Неделя") {
+      const diffTime = Math.abs(now - sDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    } else if (periodFilter === "Месяц") {
+      return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
+    }
+    return true;
+  });
+
+  const totalRev  = filteredSales.reduce((s,i)=>s+i.total,0);
+  const totalCOGS = filteredSales.reduce((s,i)=>s+(i.cogs||0),0);
+  const totalExp  = expenses.filter(e=>e.paid && (pointFilter === "Все" || e.point === pointFilter || e.point === "Вся компания")).reduce((s,e)=>s+e.amount,0);
   const grossP    = totalRev-totalCOGS;
   const netP      = grossP-totalExp;
   const margin    = totalRev>0?Math.round(netP/totalRev*100):0;
 
   const byPoint=POINTS.map((p,i)=>({
     name:p,color:POINT_COLORS[i],
-    rev:sales.filter(s=>s.point===p).reduce((a,s)=>a+s.total,0),
-    orders:sales.filter(s=>s.point===p).length,
-    cogs:sales.filter(s=>s.point===p).reduce((a,s)=>a+(s.cogs||0),0),
+    rev:filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+s.total,0),
+    orders:filteredSales.filter(s=>s.point===p).length,
+    cogs:filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+(s.cogs||0),0),
   }));
 
-  const stockValue=rawStock.reduce((s,r)=>s+r.qty*r.price,0);
+  const stockValue = rawStock.reduce((s,r)=>s + (parseQtyObj(r.qty)["Склад"] * r.price),0);
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto"}}>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:20}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+      {/* ФИЛЬТРЫ */}
+      <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",background:C.surface,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <span style={{fontSize:11,color:C.muted}}>ТОЧКА ОТЧЕТА</span>
+          <select value={pointFilter} onChange={e=>setPointFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13}}>
+            <option>Все</option>
+            {POINTS.map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <span style={{fontSize:11,color:C.muted}}>ПЕРИОД ОТЧЕТА</span>
+          <select value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13}}>
+            <option>За все время</option>
+            <option>Сегодня</option>
+            <option>Вчера</option>
+            <option>Неделя</option>
+            <option>Месяц</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
         {[
           {label:"Выручка",             val:fmtS(totalRev),  color:C.green},
           {label:"Расходы (COGS+накл.)",val:fmtS(totalCOGS+totalExp),color:C.red},
@@ -753,14 +1228,14 @@ function Reports({sales,expenses,rawStock,semiStock}){
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 P&L отчёт</div>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 Отчёт о прибылях и убытках (P&L)</div>
           {[
             {label:"Выручка",                  val:totalRev,  color:C.green, bold:true},
             {label:"Себестоимость продаж (COGS)",val:-totalCOGS,color:C.red},
             {label:"Валовая прибыль",           val:grossP,    color:C.blue,  bold:true},
-            {label:"Операционные расходы",      val:-totalExp, color:C.red},
+            {label:"Накладные расходы",         val:-totalExp, color:C.red},
             {label:"Чистая прибыль",            val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
           ].map((r,i)=>(
             <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
@@ -771,34 +1246,36 @@ function Reports({sales,expenses,rawStock,semiStock}){
             </div>
           ))}
           <div style={{background:margin>=20?C.greenSoft:C.yellowSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Итоговая маржа</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Рентабельность бизнеса</div>
             <div style={{fontSize:36,fontWeight:900,color:margin>=20?C.green:margin>=10?C.yellow:C.red}}>{margin}%</div>
           </div>
         </div>
 
         <div>
-          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 По точкам</div>
-            {byPoint.map((p,i)=>(
-              <div key={i} style={{marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
-                    <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
-                    <span style={{fontSize:11,color:C.muted}}>{p.orders} заказов</span>
+          {pointFilter === "Все" && (
+            <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 Финансы по точкам</div>
+              {byPoint.map((p,i)=>(
+                <div key={i} style={{marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
+                      <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
+                      <span style={{fontSize:11,color:C.muted}}>{p.orders} заказов</span>
+                    </div>
+                    <span style={{fontWeight:800,color:p.color}}>{fmtS(p.rev)}</span>
                   </div>
-                  <span style={{fontWeight:800,color:p.color}}>{fmtS(p.rev)}</span>
+                  <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
+                  </div>
                 </div>
-                <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
-                  <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
             <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>📦 Стоимость склада</div>
             <div style={{fontSize:28,fontWeight:900,color:C.accent}}>{fmtS(stockValue)}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:4}}>Итого сырья на главном складе</div>
+            <div style={{fontSize:12,color:C.muted,marginTop:4}}>Стоимость сырья на Главном Складе</div>
           </div>
         </div>
       </div>
@@ -812,6 +1289,14 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
   const [newProduct,setNewProduct]=useState({product:"",cat:"Наборы",price:""});
+  
+  // Управление сотрудниками
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState({ name: "", role: "cashier", pin: "", point: "Мастерская" });
+  
+  // Выбор локации для отображения сырья
+  const [rawLoc, setRawLoc] = useState("Склад");
+
   const [toast,showToast]=useToast();
 
   const cats=["Наборы","Букеты","Креманки","Макси стаканы"];
@@ -821,6 +1306,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
   const updateIng=(tcId,idx,field,val)=>setTechCards(p=>p.map(t=>t.id!==tcId?t:{...t,ings:t.ings.map((x,i)=>i===idx?{...x,[field]:field==="qty"||field==="loss"?parseFloat(val)||0:val}:x)}));
   const addIng=(tcId)=>setTechCards(p=>p.map(t=>t.id!==tcId?t:{...t,ings:[...t.ings,{sid:"s1",qty:0,loss:0}]}));
   const delIng=(tcId,idx)=>setTechCards(p=>p.map(t=>t.id!==tcId?t:{...t,ings:t.ings.filter((_,i)=>i!==idx)}));
+  
   const addProduct=()=>{
     if(!newProduct.product||!newProduct.price){showToast("Заполните название и цену",true);return;}
     setTechCards(p=>[...p,{id:`tc_${Date.now()}`,product:newProduct.product,cat:newProduct.cat,price:parseInt(newProduct.price)||0,ings:[]}]);
@@ -828,14 +1314,37 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
     setShowAddProduct(false);
     showToast("Товар добавлен!");
   };
-  const updateRaw=(id,field,val)=>setRawStock(p=>p.map(r=>r.id===id?{...r,[field]:field==="price"||field==="qty"?parseFloat(val)||0:val}:r));
+
+  const updateRaw=(id,field,val)=>{
+    setRawStock(p=>p.map(r=>{
+      if (r.id !== id) return r;
+      if (field === "price") {
+        return { ...r, price: parseFloat(val) || 0 };
+      } else if (field === "name") {
+        return { ...r, name: val };
+      } else if (field === "unit") {
+        return { ...r, unit: val };
+      } else if (field === "qty") {
+        // Редактируем остаток для выбранной локации
+        const qObj = parseQtyObj(r.qty);
+        qObj[rawLoc] = parseFloat(val) || 0;
+        return { ...r, qty: qObj };
+      }
+      return r;
+    }));
+  };
 
   const inputStyle={background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,outline:"none",width:"100%",boxSizing:"border-box"};
 
+  const getIngName = (sid) => {
+    const semi = semiStock.find(s => s.id === sid);
+    return semi ? semi.name : "Неизвестный ингредиент";
+  };
+
   return(
-    <div style={{padding:"20px 28px",overflowY:"auto"}}>
+    <div style={{padding:"20px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
-      <div style={{display:"flex",gap:6,marginBottom:20}}>
+      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"]].map(([id,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{padding:"10px 18px",borderRadius:10,border:"none",background:tab===id?C.accent:C.card,color:tab===id?"#000":C.muted,fontWeight:tab===id?700:400,cursor:"pointer",fontSize:14}}>
             {label}
@@ -851,23 +1360,25 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
           </div>
           {showAddProduct&&(
             <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.accent}`,padding:20,marginBottom:16}}>
-              <div style={{display:"flex",gap:10,alignItems:"end"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
                 <div style={{flex:2}}>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>НАЗВАНИЕ</div>
                   <input value={newProduct.product} onChange={e=>setNewProduct(f=>({...f,product:e.target.value}))} placeholder="Напр. Набор 30 шт" style={inputStyle}/>
                 </div>
-                <div style={{flex:1}}>
+                <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ЦЕНА (₸)</div>
                   <input type="number" value={newProduct.price} onChange={e=>setNewProduct(f=>({...f,price:e.target.value}))} placeholder="0" style={inputStyle}/>
                 </div>
-                <div style={{flex:1}}>
+                <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КАТЕГОРИЯ</div>
                   <select value={newProduct.cat} onChange={e=>setNewProduct(f=>({...f,cat:e.target.value}))} style={inputStyle}>
                     {cats.map(c=><option key={c}>{c}</option>)}
                   </select>
                 </div>
-                <button onClick={addProduct} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>+ Добавить</button>
-                <button onClick={()=>setShowAddProduct(false)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={addProduct} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>+ Добавить</button>
+                  <button onClick={()=>setShowAddProduct(false)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
+                </div>
               </div>
             </div>
           )}
@@ -882,16 +1393,16 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
                   <div key={tc.id} style={{background:C.card,borderRadius:10,border:`1.5px solid ${editId===tc.id?color:C.border}`,padding:"14px 18px",marginBottom:6}}>
                     {editId===tc.id?(
                       <div>
-                        <div style={{display:"flex",gap:10,marginBottom:10}}>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,marginBottom:10}}>
                           <div style={{flex:2}}>
                             <div style={{fontSize:11,color:C.muted,marginBottom:4}}>НАЗВАНИЕ</div>
                             <input value={tc.product} onChange={e=>updateTC(tc.id,"product",e.target.value)} style={inputStyle}/>
                           </div>
-                          <div style={{flex:1}}>
+                          <div>
                             <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЦЕНА (₸)</div>
                             <input type="number" value={tc.price} onChange={e=>updateTC(tc.id,"price",e.target.value)} style={inputStyle}/>
                           </div>
-                          <div style={{flex:1}}>
+                          <div>
                             <div style={{fontSize:11,color:C.muted,marginBottom:4}}>КАТЕГОРИЯ</div>
                             <select value={tc.cat} onChange={e=>updateTC(tc.id,"cat",e.target.value)} style={inputStyle}>
                               {cats.map(c=><option key={c}>{c}</option>)}
@@ -922,52 +1433,54 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
       {tab==="techcards"&&(
         <div>
           <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Технологические карты</div>
-          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Нажмите на карту → изменяйте нормы расхода и потери</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Норма расхода и процент отходов по ингредиентам</div>
           {techCards.map(tc=>(
             <div key={tc.id} style={{background:C.card,borderRadius:12,border:`1.5px solid ${editId===tc.id?C.accent:C.border}`,padding:"14px 18px",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(editId===tc.id?null:tc.id)}>
                 <div style={{flex:1}}>
                   <span style={{fontWeight:700,fontSize:14}}>{tc.product}</span>
-                  <span style={{fontSize:11,color:C.muted,marginLeft:10}}>{tc.cat} · {tc.ings.length} ингред.</span>
+                  <span style={{fontSize:11,color:C.muted,marginLeft:10}}>{tc.cat} · {tc.ings.map(ing => getIngName(ing.sid)).join(', ')}</span>
                 </div>
                 <span style={{fontWeight:800,color:C.accent,marginRight:12}}>{fmtM(tc.price)}</span>
                 <span style={{fontSize:12,color:C.muted}}>{editId===tc.id?"▲":"▼"}</span>
               </div>
               {editId===tc.id&&(
                 <div style={{marginTop:14}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10}}>
-                    <thead>
-                      <tr style={{background:C.surface}}>
-                        {["Полуфабрикат","Норма (кг/шт)","Потери %","Итого с пот.",""].map((h,i)=>(
-                          <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tc.ings.map((ing,idx)=>{
-                        const withLoss=Math.round(ing.qty*(1+ing.loss/100)*1000)/1000;
-                        return(
-                          <tr key={idx} style={{borderBottom:`1px solid ${C.border}`}}>
-                            <td style={{padding:"8px 10px"}}>
-                              <select value={ing.sid} onChange={e=>updateIng(tc.id,idx,"sid",e.target.value)} style={{...inputStyle,width:"auto",minWidth:180}}>
-                                {semiStock.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                              </select>
-                            </td>
-                            <td style={{padding:"8px 10px"}}>
-                              <input type="number" step="0.001" value={ing.qty} onChange={e=>updateIng(tc.id,idx,"qty",e.target.value)} style={{...inputStyle,width:90}}/>
-                            </td>
-                            <td style={{padding:"8px 10px"}}>
-                              <input type="number" step="0.1" value={ing.loss} onChange={e=>updateIng(tc.id,idx,"loss",e.target.value)} style={{...inputStyle,width:70}}/>
-                            </td>
-                            <td style={{padding:"8px 10px",fontWeight:700,color:C.accent}}>{withLoss}</td>
-                            <td style={{padding:"8px 10px"}}>
-                              <button onClick={()=>delIng(tc.id,idx)} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:6,padding:"6px 10px",cursor:"pointer",fontWeight:700}}>✕</button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10,minWidth:500}}>
+                      <thead>
+                        <tr style={{background:C.surface}}>
+                          {["Полуфабрикат","Норма (кг/шт)","Потери %","Итого с пот.",""].map((h,i)=>(
+                            <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tc.ings.map((ing,idx)=>{
+                          const withLoss=Math.round(ing.qty*(1+ing.loss/100)*1000)/1000;
+                          return(
+                            <tr key={idx} style={{borderBottom:`1px solid ${C.border}`}}>
+                              <td style={{padding:"8px 10px"}}>
+                                <select value={ing.sid} onChange={e=>updateIng(tc.id,idx,"sid",e.target.value)} style={{...inputStyle,width:"auto",minWidth:180}}>
+                                  {semiStock.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+                                </select>
+                              </td>
+                              <td style={{padding:"8px 10px"}}>
+                                <input type="number" step="0.001" value={ing.qty} onChange={e=>updateIng(tc.id,idx,"qty",e.target.value)} style={{...inputStyle,width:90}}/>
+                              </td>
+                              <td style={{padding:"8px 10px"}}>
+                                <input type="number" step="0.1" value={ing.loss} onChange={e=>updateIng(tc.id,idx,"loss",e.target.value)} style={{...inputStyle,width:70}}/>
+                              </td>
+                              <td style={{padding:"8px 10px",fontWeight:700,color:C.accent}}>{withLoss}</td>
+                              <td style={{padding:"8px 10px"}}>
+                                <button onClick={()=>delIng(tc.id,idx)} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:6,padding:"6px 10px",cursor:"pointer",fontWeight:700}}>✕</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>addIng(tc.id)} style={{padding:"8px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,cursor:"pointer",fontSize:13}}>+ Ингредиент</button>
                     <button onClick={()=>{setEditId(null);showToast("Тех. карта сохранена!");}} style={{padding:"8px 18px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓ Сохранить</button>
@@ -981,50 +1494,136 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
 
       {tab==="rawstock"&&(
         <div>
-          <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Сырьё и расходники</div>
-          {rawStock.map(r=>(
-            <div key={r.id} style={{background:C.card,borderRadius:10,border:`1.5px solid ${editId===r.id?C.accent:C.border}`,padding:"12px 16px",marginBottom:6}}>
-              {editId===r.id?(
-                <div>
-                  <div style={{display:"flex",gap:10,marginBottom:10}}>
-                    <div style={{flex:2}}><div style={{fontSize:11,color:C.muted,marginBottom:4}}>НАИМЕНОВАНИЕ</div><input value={r.name} onChange={e=>updateRaw(r.id,"name",e.target.value)} style={inputStyle}/></div>
-                    <div style={{flex:0.6}}><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЕД.</div><input value={r.unit} onChange={e=>updateRaw(r.id,"unit",e.target.value)} style={inputStyle}/></div>
-                    <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЦЕНА (₸)</div><input type="number" value={r.price} onChange={e=>updateRaw(r.id,"price",e.target.value)} style={inputStyle}/></div>
-                    <div style={{flex:1}}><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ОСТАТОК</div><input type="number" step="0.01" value={r.qty} onChange={e=>updateRaw(r.id,"qty",e.target.value)} style={inputStyle}/></div>
-                  </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>{setEditId(null);showToast("Сохранено!");}} style={{padding:"7px 16px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓ Сохранить</button>
-                    <button onClick={()=>{setRawStock(p=>p.filter(x=>x.id!==r.id));setEditId(null);showToast("Удалено");}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑 Удалить</button>
-                    <button onClick={()=>setEditId(null)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
-                  </div>
-                </div>
-              ):(
-                <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(r.id)}>
-                  <div style={{flex:1,fontWeight:600,fontSize:13}}>{r.name}</div>
-                  <div style={{fontSize:13,color:C.muted,marginRight:16}}>{fmt(r.qty)} {r.unit}</div>
-                  <div style={{fontWeight:700,color:C.yellow,marginRight:12}}>{fmtM(r.price)}/{r.unit}</div>
-                  <div style={{fontSize:12,color:C.muted}}>✏️</div>
-                </div>
-              )}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:18,fontWeight:800}}>Сырьё и расходные материалы</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:12,color:C.muted}}>Локация остатков:</span>
+              <select value={rawLoc} onChange={e=>setRawLoc(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
+                {ALL_LOCATIONS.map(l=><option key={l}>{l}</option>)}
+              </select>
             </div>
-          ))}
-          <button onClick={()=>setRawStock(p=>[...p,{id:`r_${Date.now()}`,name:"Новая позиция",unit:"кг",price:0,qty:0}])} style={{marginTop:10,padding:"10px 20px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,color:C.text,cursor:"pointer",fontSize:13}}>+ Добавить сырьё</button>
+          </div>
+          {rawStock.map(r=>{
+            const qtyVal = getQty(r.qty, rawLoc);
+            return(
+              <div key={r.id} style={{background:C.card,borderRadius:10,border:`1.5px solid ${editId===r.id?C.accent:C.border}`,padding:"12px 16px",marginBottom:6}}>
+                {editId===r.id?(
+                  <div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:10}}>
+                      <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>НАИМЕНОВАНИЕ</div><input value={r.name} onChange={e=>updateRaw(r.id,"name",e.target.value)} style={inputStyle}/></div>
+                      <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЕД. ИЗМ.</div><input value={r.unit} onChange={e=>updateRaw(r.id,"unit",e.target.value)} style={inputStyle}/></div>
+                      <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЦЕНА (₸)</div><input type="number" value={r.price} onChange={e=>updateRaw(r.id,"price",e.target.value)} style={inputStyle}/></div>
+                      <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ОСТАТОК ({rawLoc})</div><input type="number" step="0.01" value={qtyVal} onChange={e=>updateRaw(r.id,"qty",e.target.value)} style={inputStyle}/></div>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>{setEditId(null);showToast("Сохранено!");}} style={{padding:"7px 16px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓ Сохранить</button>
+                      <button onClick={()=>{setRawStock(p=>p.filter(x=>x.id!==r.id));setEditId(null);showToast("Удалено");}} style={{padding:"7px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑 Удалить</button>
+                      <button onClick={()=>setEditId(null)} style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
+                    </div>
+                  </div>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setEditId(r.id)}>
+                    <div style={{fontWeight:600,fontSize:13}}>{r.name}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:16}}>
+                      <div style={{fontSize:13,color:C.muted}}>{fmt(qtyVal)} {r.unit}</div>
+                      <div style={{fontWeight:700,color:C.yellow}}>{fmtM(r.price)}/{r.unit}</div>
+                      <div style={{fontSize:12,color:C.muted}}>✏️</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <button onClick={()=>setRawStock(p=>[...p,{id:`r_${Date.now()}`,name:"Новая позиция",unit:"кг",price:0,qty:{ "Склад":0,"Мастерская":0,"Фуд Трак":0,"Жара":0,"Парк":0 }}])} style={{marginTop:10,padding:"10px 20px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,color:C.text,cursor:"pointer",fontSize:13}}>+ Добавить сырьё</button>
         </div>
       )}
 
       {tab==="users"&&(
         <div>
-          <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>Сотрудники и роли</div>
-          {users.map((u,i)=>(
-            <div key={u.id} style={{background:C.card,borderRadius:10,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:14}}>
-              <div style={{fontSize:22}}>{ROLES[u.role].icon}</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
-                <div style={{fontSize:12,color:C.muted}}>{ROLES[u.role].label}{u.point?" · "+u.point:""}</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:18,fontWeight:800}}>Сотрудники и доступы</div>
+            <button onClick={()=>setShowAddUser(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить сотрудника</button>
+          </div>
+          {showAddUser && (
+            <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.accent}`,padding:20,marginBottom:16}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ИМЯ СОТРУДНИКА</div>
+                  <input value={newUser.name} onChange={e=>setNewUser(f=>({...f,name:e.target.value}))} placeholder="Елена" style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>РОЛЬ</div>
+                  <select value={newUser.role} onChange={e=>setNewUser(f=>({...f,role:e.target.value}))} style={inputStyle}>
+                    {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>PIN-КОД (4 ЦИФРЫ)</div>
+                  <input value={newUser.pin} onChange={e=>setNewUser(f=>({...f,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))} placeholder="1234" style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>РАБОЧАЯ ТОЧКА</div>
+                  <select value={newUser.point || ""} onChange={e=>setNewUser(f=>({...f,point:e.target.value || null}))} style={inputStyle}>
+                    <option value="">Все точки (офис)</option>
+                    {POINTS.map(p=><option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{
+                    if(!newUser.name || newUser.pin.length!==4){ showToast("Введите имя и 4-значный PIN",true); return; }
+                    setUsers(p=>[...p, { id: Date.now(), ...newUser }]);
+                    setNewUser({ name: "", role: "cashier", pin: "", point: "Мастерская" });
+                    setShowAddUser(false);
+                    showToast("Сотрудник добавлен!");
+                  }} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",flex:1}}>Добавить</button>
+                  <button onClick={()=>setShowAddUser(false)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
+                </div>
               </div>
-              <select value={u.role} onChange={e=>setUsers(p=>p.map((x,j)=>j===i?{...x,role:e.target.value}:x))} style={{...inputStyle,width:"auto"}}>
-                {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.icon} {v.label}</option>)}
-              </select>
+            </div>
+          )}
+
+          {users.map((u)=>(
+            <div key={u.id} style={{background:C.card,borderRadius:10,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:8}}>
+              {editId === u.id ? (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ИМЯ</div>
+                    <input value={u.name} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,name:e.target.value}:x))} style={inputStyle}/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>РОЛЬ</div>
+                    <select value={u.role} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x))} style={inputStyle}>
+                      {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>PIN-КОД</div>
+                    <input value={u.pin} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,pin:e.target.value.replace(/\D/g,"").slice(0,4)}:x))} style={inputStyle}/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ТОЧКА</div>
+                    <select value={u.point || ""} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,point:e.target.value || null}:x))} style={inputStyle}>
+                      <option value="">Все точки (офис)</option>
+                      {POINTS.map(p=><option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>setEditId(null)} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
+                    <button onClick={()=>{setUsers(p=>p.filter(x=>x.id!==u.id));setEditId(null);showToast("Сотрудник удален");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{fontSize:22}}>{ROLES[u.role].icon}</div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
+                      <div style={{fontSize:12,color:C.muted}}>{ROLES[u.role].label} · {u.point || "Офис"} · PIN: {u.pin}</div>
+                    </div>
+                  </div>
+                  <button onClick={()=>setEditId(u.id)} style={{background:"transparent",border:"none",color:C.accent,cursor:"pointer",fontSize:13,fontWeight:700}}>✏️ Редактировать</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -1034,31 +1633,68 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({semiStock,sales}){
+function Inventory({semiStock,setSemiStock}){
+  const [selPoint, setSelPoint] = useState(POINTS[0]);
+  const [toast,showToast]=useToast();
+
+  const handleSaveInventory = (itemId, factVal) => {
+    const fact = parseFloat(factVal);
+    if(isNaN(fact) || fact < 0) return;
+    
+    setSemiStock(p => p.map(s => {
+      if(s.id !== itemId) return s;
+      const q = parseSemiQtyObj(s.qty);
+      q[selPoint] = fact;
+      return { ...s, qty: q };
+    }));
+    showToast("Фактический остаток на кухне сохранен");
+  };
+
   return(
-    <div style={{padding:28}}>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>☰ Инвентаризация</div>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+      <Toast toast={toast}/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:18,fontWeight:800}}>📋 Инвентаризация кухни</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:12,color:C.muted}}>Выберите точку:</span>
+          <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
+            {POINTS.map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+      </div>
       <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-          <thead>
-            <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
-              {["Полуфабрикат","Ед.","Расчётный остаток","Факт (введите)","Отклонение"].map((h,i)=>
-                <th key={i} style={{padding:"13px 18px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {semiStock.map((s,i)=>(
-              <tr key={s.id} style={{borderBottom:`1px solid ${C.border}`}}>
-                <td style={{padding:"13px 18px",fontWeight:600}}>{s.name}</td>
-                <td style={{padding:"13px 18px",color:C.muted}}>{s.unit}</td>
-                <td style={{padding:"13px 18px",fontWeight:800,color:s.qty<0?C.red:C.text}}>{fmt(s.qty)}</td>
-                <td style={{padding:"13px 18px"}}><input type="number" placeholder={fmt(s.qty)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,outline:"none",width:100}}/></td>
-                <td style={{padding:"13px 18px",color:C.muted}}>—</td>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:500}}>
+            <thead>
+              <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
+                {["Полуфабрикат","Ед.","Расчётный остаток","Факт (введите)","Действие"].map((h,i)=>
+                  <th key={i} style={{padding:"13px 18px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
+                )}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {semiStock.map((s)=>(
+                <tr key={s.id} style={{borderBottom:`1px solid ${C.border}`}}>
+                  <td style={{padding:"13px 18px",fontWeight:600}}>{s.name}</td>
+                  <td style={{padding:"13px 18px",color:C.muted}}>{s.unit}</td>
+                  <td style={{padding:"13px 18px",fontWeight:800,color:getQty(s.qty, selPoint)<0?C.red:C.text}}>{fmt(getQty(s.qty, selPoint))}</td>
+                  <td style={{padding:"13px 18px"}}>
+                    <input type="number" id={`inv_fact_${s.id}`} placeholder={fmt(getQty(s.qty, selPoint))} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,outline:"none",width:100}}/>
+                  </td>
+                  <td style={{padding:"13px 18px"}}>
+                    <button onClick={()=>{
+                      const el = document.getElementById(`inv_fact_${s.id}`);
+                      if(el) {
+                        handleSaveInventory(s.id, el.value);
+                        el.value = "";
+                      }
+                    }} style={{background:C.greenSoft,color:C.green,border:`1px solid ${C.green}`,borderRadius:6,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Сохранить</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -1068,6 +1704,7 @@ function Inventory({semiStock,sales}){
 function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
   const [form,setForm]=useState({stock:"semi",itemId:"s1",qty:"",reason:"spoil",note:"",author:""});
   const [log,setLog]=useState([]);
+  const [selPoint, setSelPoint] = useState(POINTS[0]);
   const [toast,showToast]=useToast();
 
   const allItems=[...semiStock.map(s=>({...s,stock:"semi"})),...rawStock.map(r=>({...r,stock:"raw"}))];
@@ -1086,21 +1723,48 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
     e.preventDefault();
     const qty=parseFloat(form.qty)||0;
     if(!qty||!form.author){showToast("Заполните все поля",true);return;}
-    if(form.stock==="semi") setSemiStock(p=>p.map(s=>s.id===form.itemId?{...s,qty:Math.round((s.qty-qty)*1000)/1000}:s));
-    else setRawStock(p=>p.map(r=>r.id===form.itemId?{...r,qty:Math.round((r.qty-qty)*1000)/1000}:r));
-    setLog(p=>[{date:new Date().toLocaleDateString("ru-RU"),time:new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),item:selItem?.name,qty,unit:selItem?.unit,reason:reasons.find(r=>r.id===form.reason)?.label,author:form.author,note:form.note},...p]);
-    showToast(`Списано: ${selItem?.name} — ${qty} ${selItem?.unit}`);
+    
+    if(form.stock==="semi") {
+      setSemiStock(p=>p.map(s=>{
+        if (s.id===form.itemId) {
+          const q = parseSemiQtyObj(s.qty);
+          q[selPoint] = Math.round((q[selPoint] - qty)*1000)/1000;
+          return { ...s, qty: q };
+        }
+        return s;
+      }));
+    } else {
+      setRawStock(p=>p.map(r=>{
+        if (r.id===form.itemId) {
+          const q = parseQtyObj(r.qty);
+          q[selPoint] = Math.round((q[selPoint] - qty)*1000)/1000;
+          return { ...r, qty: q };
+        }
+        return r;
+      }));
+    }
+    
+    setLog(p=>[{date:new Date().toLocaleDateString("ru-RU"),time:new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),item:selItem?.name,qty,unit:selItem?.unit,reason:reasons.find(r=>r.id===form.reason)?.label,author:form.author,note:form.note,location:selPoint},...p]);
+    showToast(`Списано: ${selItem?.name} — ${qty} ${selItem?.unit} на ${selPoint}`);
     setForm(f=>({...f,qty:"",note:"",author:""}));
   };
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
-      <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>✕ Коррекционная карта (Списание)</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:18,fontWeight:800}}>✕ Коррекционное списание остатков</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:12,color:C.muted}}>Точка списания:</span>
+          <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
+            {POINTS.map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+      </div>
       <form onSubmit={handleSubmit} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:24,marginBottom:20}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
           <div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СКЛАД</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТИП ТОВАРА</div>
             <div style={{display:"flex",gap:8,marginBottom:14}}>
               {[["semi","Полуфабрикаты"],["raw","Сырьё"]].map(([v,l])=>(
                 <button key={v} type="button" onClick={()=>setForm(f=>({...f,stock:v,itemId:v==="semi"?semiStock[0]?.id:rawStock[0]?.id}))} style={{flex:1,padding:10,borderRadius:8,border:`1px solid ${form.stock===v?C.accent:C.border}`,background:form.stock===v?C.accentSoft:"transparent",color:form.stock===v?C.accent:C.muted,cursor:"pointer",fontWeight:700}}>{l}</button>
@@ -1108,9 +1772,12 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
             </div>
             <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ПОЗИЦИЯ</div>
             <select value={form.itemId} onChange={e=>setForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",marginBottom:14}}>
-              {filtered.map(i=><option key={i.id} value={i.id}>{i.name} (ост: {fmt(i.qty)} {i.unit})</option>)}
+              {filtered.map(i=>{
+                const itemQty = form.stock==="semi"? getQty(i.qty, selPoint) : getQty(i.qty, selPoint);
+                return <option key={i.id} value={i.id}>{i.name} (текущий ост.: {fmt(itemQty)} {i.unit})</option>
+              })}
             </select>
-            <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КОЛИЧЕСТВО</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КОЛИЧЕСТВО К СПИСАНИЮ</div>
             <input type="number" step="0.001" required value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box",fontSize:20,fontWeight:700}}/>
           </div>
           <div>
@@ -1118,10 +1785,10 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
             <select value={form.reason} onChange={e=>setForm(f=>({...f,reason:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",marginBottom:14}}>
               {reasons.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
-            <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ОТВЕТСТВЕННЫЙ</div>
-            <input required value={form.author} onChange={e=>setForm(f=>({...f,author:e.target.value}))} placeholder="Имя сотрудника" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
+            <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ОТВЕТСТВЕННЫЙ СОТРУДНИК</div>
+            <input required value={form.author} onChange={e=>setForm(f=>({...f,author:e.target.value}))} placeholder="Имя" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box",marginBottom:14}}/>
             <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КОММЕНТАРИЙ</div>
-            <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="Описание причины..." style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box",height:70,resize:"none"}}/>
+            <textarea value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} placeholder="Например: Срок годности истёк" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box",height:70,resize:"none"}}/>
           </div>
         </div>
         <button type="submit" style={{marginTop:16,width:"100%",padding:14,background:C.red,border:"none",borderRadius:10,color:"#fff",fontWeight:900,cursor:"pointer",fontSize:15}}>✓ Провести списание</button>
@@ -1133,7 +1800,7 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock}){
           {log.map((l,i)=>(
             <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",padding:"10px 0",borderBottom:i<log.length-1?`1px solid ${C.border}`:"none"}}>
               <div>
-                <div style={{fontWeight:600,fontSize:13}}>{l.item}</div>
+                <div style={{fontWeight:600,fontSize:13}}>{l.item} ({l.location})</div>
                 <div style={{fontSize:11,color:C.muted}}>{l.reason} · {l.author} · {l.date} {l.time}</div>
                 {l.note&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>«{l.note}»</div>}
               </div>
@@ -1180,7 +1847,7 @@ function PinScreen({users, onLogin, onClose}){
 
       {!selected ? (
         <div style={{display:"flex",flexDirection:"column",gap:12,width:280}}>
-          <div style={{color:"#7A7A94",fontSize:13,textAlign:"center",marginBottom:4}}>Выберите профиль</div>
+          <div style={{color:"#7A7A94",fontSize:13,textAlign:"center",marginBottom:4}}>Выберите профиль сотрудника</div>
           {users.map(u=>{
             const r = ROLES[u.role];
             return(
@@ -1200,7 +1867,7 @@ function PinScreen({users, onLogin, onClose}){
       ) : (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:20,width:280}}>
           <button onClick={()=>{setSelected(null);setPin("");setError("");}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{display:"flex",gap:12,alignItems:"center"}}>
             <div style={{width:40,height:40,borderRadius:20,background:ROLES[selected.role].color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{ROLES[selected.role].icon}</div>
             <div style={{fontWeight:700}}>{selected.name}</div>
           </div>
@@ -1231,19 +1898,24 @@ const SUPA_URL = process.env.REACT_APP_SUPABASE_URL||"";
 const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
 
 const supaFetch = async (method, table, body=null, params="") => {
+  if (!SUPA_URL || !SUPA_KEY) return null;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
-  const res = await fetch(url,{
-    method,
-    headers:{
-      "apikey":SUPA_KEY,
-      "Authorization":`Bearer ${SUPA_KEY}`,
-      "Content-Type":"application/json",
-      "Prefer": method==="POST"?"resolution=merge-duplicates":"return=minimal",
-    },
-    body: body?JSON.stringify(body):null,
-  });
-  if(method==="GET") return res.json();
-  return res.ok;
+  try {
+    const res = await fetch(url,{
+      method,
+      headers:{
+        "apikey":SUPA_KEY,
+        "Authorization":`Bearer ${SUPA_KEY}`,
+        "Content-Type":"application/json",
+        "Prefer": method === "POST" ? "resolution=merge-duplicates" : "return=minimal",
+      },
+      body: body?JSON.stringify(body):null,
+    });
+    if(method==="GET") return res.json();
+    return res.ok;
+  } catch {
+    return null;
+  }
 };
 
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
@@ -1255,6 +1927,11 @@ export default function App(){
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
   const [loading,setLoading]         = useState(true);
+  const checkIsMobile = () => {
+    if (typeof window === "undefined") return false;
+    return (window.innerWidth < 1024) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+  const [isMobile, setIsMobile]      = useState(checkIsMobile());
 
   const [rawStock,  setRawStock]   = useState(initRawStock);
   const [semiStock, setSemiStock]  = useState(initSemiStock);
@@ -1264,7 +1941,18 @@ export default function App(){
   const [users,     setUsers]      = useState(INIT_USERS);
   const [toast,showToast]          = useToast();
 
-  useEffect(()=>{ document.title = "VkusBuket"; }, []);
+  useEffect(()=>{
+    document.title = "VkusBuket";
+    const handleResize = () => {
+      const mobile = checkIsMobile();
+      setIsMobile(mobile);
+      if (mobile) setSidebarOpen(false);
+      else setSidebarOpen(true);
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(()=>{
     const load = async () => {
@@ -1281,17 +1969,18 @@ export default function App(){
         if(Array.isArray(tc)&&tc.length)     setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
         if(Array.isArray(sl)&&sl.length)     setSales(sl.map(s=>({...s,items:s.items||[],payMode:s.pay_mode,time:s.sale_time,cogs:s.cogs||0})));
         if(Array.isArray(exp)&&exp.length)   setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
-        if(!Array.isArray(raw)||!raw.length)  await supaFetch("POST","raw_stock",initRawStock);
-        if(!Array.isArray(semi)||!semi.length) await supaFetch("POST","semi_stock",initSemiStock);
-        if(!Array.isArray(tc)||!tc.length)   await supaFetch("POST","tech_cards",INIT_TECH_CARDS);
       } catch(e) {
         console.warn("Supabase недоступен, работаем локально:",e);
-        setRawStock(LS("vb_raw",initRawStock));
-        setSemiStock(LS("vb_semi",initSemiStock));
-        setTechCards(LS("vb_tc",INIT_TECH_CARDS));
-        setSales(LS("vb_sales",[]));
-        setExpenses(LS("vb_exp",[]));
       }
+      
+      // Всегда сливаем с localStorage для гарантированного оффлайн-сохранения
+      setRawStock(prev => LS("vb_raw", prev));
+      setSemiStock(prev => LS("vb_semi", prev));
+      setTechCards(prev => LS("vb_tc", prev));
+      setSales(prev => LS("vb_sales", prev));
+      setExpenses(prev => LS("vb_exp", prev));
+      setUsers(prev => LS("vb_users", prev));
+      
       setLoading(false);
     };
     load();
@@ -1314,6 +2003,11 @@ export default function App(){
     localStorage.setItem("vb_tc",JSON.stringify(techCards));
     techCards.forEach(t=>supaFetch("POST","tech_cards",t).catch(()=>{}));
   },[techCards,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_users",JSON.stringify(users));
+  },[users,loading]);
 
   const setSalesWithSync = (updater) => {
     setSales(prev=>{
@@ -1349,7 +2043,7 @@ export default function App(){
   if(loading) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
       <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
-      <div style={{fontSize:14,color:"#7A7A94"}}>⟳ Загрузка данных из облака...</div>
+      <div style={{fontSize:14,color:"#7A7A94"}}>⟳ Загрузка данных...</div>
     </div>
   );
 
@@ -1363,14 +2057,32 @@ export default function App(){
   const totalOrd = sales.length;
 
   return(
-    <div style={{fontFamily:"'DM Sans','Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",color:C.text,overflow:"hidden"}}>
+    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setUserMenu(false);setPage(ROLES[u.role].nav[0]);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
-      {/* САЙДБАР */}
-      <div style={{width:sidebarOpen?220:58,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width .2s",overflow:"hidden",height:"100vh",position:"sticky",top:0}}>
+      {/* САЙДБАР (МОБИЛЬНЫЙ ВЫЕЗДНОЙ ИЛИ ДЕКСТОПНЫЙ СТАТИЧЕСКИЙ) */}
+      {isMobile && sidebarOpen && (
+        <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:998}} />
+      )}
+      
+      <div style={{
+        width:sidebarOpen?220:isMobile?0:58,
+        background:C.surface,
+        borderRight:`1px solid ${C.border}`,
+        display:"flex",
+        flexDirection:"column",
+        flexShrink:0,
+        transition:"width .2s, left .2s",
+        overflow:"hidden",
+        height:"100vh",
+        position:isMobile?"fixed":"sticky",
+        left:isMobile ? (sidebarOpen ? 0 : -220) : 0,
+        top:0,
+        zIndex:999
+      }}>
         <div style={{padding:"18px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          {sidebarOpen&&<span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>}
+          <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>
           <button onClick={()=>setSidebarOpen(v=>!v)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0}}>{sidebarOpen?"←":"→"}</button>
         </div>
 
@@ -1378,9 +2090,9 @@ export default function App(){
           {allowedNav.map(n=>{
             const active=page===n.id;
             return(
-              <button key={n.id} onClick={()=>setPage(n.id)} title={!sidebarOpen?n.label:""} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:active?C.accentSoft:"transparent",color:active?C.accent:C.muted,fontWeight:active?700:400,width:"100%",textAlign:"left",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden"}}>
+              <button key={n.id} onClick={()=>{setPage(n.id); if(isMobile) setSidebarOpen(false);}} title={!sidebarOpen?n.label:""} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:active?C.accentSoft:"transparent",color:active?C.accent:C.muted,fontWeight:active?700:400,width:"100%",textAlign:"left",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden"}}>
                 <span style={{fontSize:18,flexShrink:0}}>{n.icon}</span>
-                {sidebarOpen&&<span style={{fontSize:13}}>{n.label}</span>}
+                {(sidebarOpen || isMobile) &&<span style={{fontSize:13}}>{n.label}</span>}
               </button>
             );
           })}
@@ -1389,7 +2101,7 @@ export default function App(){
         <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
           <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
             <div style={{width:32,height:32,borderRadius:16,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{role.icon}</div>
-            {sidebarOpen&&<div>
+            {(sidebarOpen || isMobile) &&<div>
               <div style={{fontSize:12,fontWeight:700}}>{currentUser.name}</div>
               <div style={{fontSize:10,color:C.muted}}>{role.label}{currentUser.point?" · "+currentUser.point:""}</div>
             </div>}
@@ -1398,25 +2110,30 @@ export default function App(){
       </div>
 
       {/* ОСНОВНОЙ КОНТЕНТ */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",width:"100%"}}>
         <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"13px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-          <div style={{fontSize:16,fontWeight:800}}>{NAV.find(n=>n.id===page)?.label}</div>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {isMobile && (
+              <button onClick={()=>setSidebarOpen(true)} style={{background:"transparent",border:"none",color:C.text,fontSize:22,cursor:"pointer",padding:0}}>☰</button>
+            )}
+            <div style={{fontSize:16,fontWeight:800}}>{NAV.find(n=>n.id===page)?.label}</div>
+          </div>
           <div style={{display:"flex",gap:10}}>
             <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:12}}>
               <span style={{color:C.muted}}>Заказов: </span><span style={{fontWeight:700,color:C.blue}}>{totalOrd}</span>
             </div>
-            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:12}}>
+            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:12,display:isMobile?"none":"block"}}>
               <span style={{color:C.muted}}>Выручка: </span><span style={{fontWeight:700,color:C.accent}}>{fmtS(totalRev)}</span>
             </div>
           </div>
         </div>
 
-        <div style={{flex:1,overflowY:"auto"}}>
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses}/>}
-          {page==="pos"        && <POS        semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
+          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} setRawStock={setRawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock}/>}
-          {page==="inventory"  && <Inventory  semiStock={semiStock} sales={sales}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStock}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock}/>}
