@@ -3363,7 +3363,11 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
   const totalCOGS = filteredSales.reduce((s,i)=>s+(i.cogs||0),0);
 
   const filteredExpenses = expenses.filter(e => {
-    if (pointFilter !== "Все" && e.point !== pointFilter && e.point !== "Вся компания") return false;
+    if (isCashier) {
+      if (e.point !== myPoint) return false;
+    } else {
+      if (pointFilter !== "Все" && e.point !== pointFilter && e.point !== "Вся компания") return false;
+    }
     
     const eDate = parseLocalDate(e.date);
     if (periodFilter === "Сегодня") {
