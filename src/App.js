@@ -4521,12 +4521,27 @@ export default function App(){
   };
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
 
-  const [rawStock,  setRawStock]   = useState(initRawStock);
-  const [semiStock, setSemiStock]  = useState(initSemiStock);
-  const [techCards, setTechCards]  = useState(INIT_TECH_CARDS);
-  const [sales,     setSales]      = useState([]);
-  const [expenses,  setExpenses]   = useState([]);
-  const [users,     setUsers]      = useState(INIT_USERS);
+  const [rawStock,  setRawStock]   = useState(() => {
+    const loaded = LS("vb_raw", initRawStock);
+    return Array.isArray(loaded) ? loaded.map(r => ({ ...r, qty: parseQtyObj(r.qty) })) : initRawStock;
+  });
+  const [semiStock, setSemiStock]  = useState(() => {
+    const loaded = LS("vb_semi", initSemiStock);
+    return Array.isArray(loaded) ? loaded.map(s => ({ ...s, qty: parseSemiQtyObj(s.qty) })) : initSemiStock;
+  });
+  const [techCards, setTechCards]  = useState(() => {
+    const loaded = LS("vb_tc", INIT_TECH_CARDS);
+    return Array.isArray(loaded) ? loaded.map(t => ({ ...t, ings: t.ings || [] })) : INIT_TECH_CARDS;
+  });
+  const [sales,     setSales]      = useState(() => {
+    const loaded = LS("vb_sales", []);
+    return Array.isArray(loaded) ? loaded.map(s => {
+      const dObj = s.created_at ? new Date(s.created_at) : new Date();
+      return { ...s, date: s.date || dObj.toLocaleDateString("ru-RU") };
+    }) : [];
+  });
+  const [expenses,  setExpenses]   = useState(() => LS("vb_exp", []));
+  const [users,     setUsers]      = useState(() => LS("vb_users", INIT_USERS));
   const [toast,showToast]          = useToast();
 
   useEffect(()=>{
@@ -4569,38 +4584,9 @@ export default function App(){
         if(Array.isArray(exp)&&exp.length)   setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
       } catch(e) {
         console.warn("Supabase недоступен, работаем локально:",e);
+      } finally {
+        setLoading(false);
       }
-      
-      // Всегда сливаем с localStorage для гарантированного оффлайн-сохранения
-      setRawStock(prev => {
-        const loaded = LS("vb_raw", prev);
-        return Array.isArray(loaded) ? loaded.map(r => ({ ...r, qty: parseQtyObj(r.qty) })) : prev;
-      });
-      setSemiStock(prev => {
-        const loaded = LS("vb_semi", prev);
-        return Array.isArray(loaded) ? loaded.map(s => ({ ...s, qty: parseSemiQtyObj(s.qty) })) : prev;
-      });
-      setTechCards(prev => {
-        const loaded = LS("vb_tc", prev);
-        return Array.isArray(loaded) ? loaded.map(t => ({ ...t, ings: t.ings || [] })) : prev;
-      });
-      setSales(prev => {
-        const loaded = LS("vb_sales", prev);
-        return Array.isArray(loaded) ? loaded.map(s => {
-          const dObj = s.created_at ? new Date(s.created_at) : new Date();
-          return { ...s, date: s.date || dObj.toLocaleDateString("ru-RU") };
-        }) : prev;
-      });
-      setExpenses(prev => {
-        const loaded = LS("vb_exp", prev);
-        return Array.isArray(loaded) ? loaded : prev;
-      });
-      setUsers(prev => {
-        const loaded = LS("vb_users", prev);
-        return Array.isArray(loaded) ? loaded : prev;
-      });
-      
-      setLoading(false);
     };
     load();
   },[]);
