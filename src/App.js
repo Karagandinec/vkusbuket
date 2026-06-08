@@ -2871,7 +2871,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
 }
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
-function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses}){
+function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards}){
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад"});
   const [history,setHistory]=useState(() => {
@@ -2917,48 +2917,73 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
   // Данные за сегодня для кассира
   const todayStr = new Date().toLocaleDateString("ru-RU");
   const todaySales = isCashier ? (sales||[]).filter(s => s.point === myPoint && s.date === todayStr) : [];
-  const todaySalesCOGS = todaySales.reduce((sum, i) => sum + (i.cogs || 0), 0);
 
-  const todayReceiptsValue = filteredHistory
+  // Расчет поступившего сегодня ассортимента (для кассира)
+  const receivedGrouped = {};
+  filteredHistory
     .filter(h => h.date === todayStr)
-    .reduce((sum, h) => sum + (h.qty * h.price), 0);
-  const todayReceiptsCount = filteredHistory.filter(h => h.date === todayStr).length;
+    .forEach(h => {
+      if (!receivedGrouped[h.item]) {
+        receivedGrouped[h.item] = { qty: 0, unit: h.unit };
+      }
+      receivedGrouped[h.item].qty += h.qty;
+    });
 
-  const todayWriteOffsValue = (() => {
-    try {
-      const saved = localStorage.getItem("vb_writeoffs_log");
-      const log = saved ? JSON.parse(saved) : [];
-      const pointWriteOffs = log.filter(l => l.location === myPoint && l.date === todayStr);
-      return pointWriteOffs.reduce((sum, l) => {
-        if (l.stock === "semi") {
-          const s = (semiStock || []).find(x => x.id === l.itemId);
-          const raw = (rawStock || []).find(r => r.id === s?.rawId);
-          return sum + l.qty * (raw?.price || 0);
-        } else {
-          const r = (rawStock || []).find(x => x.id === l.itemId);
-          return sum + l.qty * (r?.price || 0);
-        }
-      }, 0);
-    } catch(e) {
-      return 0;
+  // Расчет израсходованного сегодня ассортимента (для кассира)
+  const consumedGrouped = {};
+  const addCons = (name, qty, unit) => {
+    const roundedQty = Math.round(qty * 1000) / 1000;
+    if (roundedQty <= 0) return;
+    if (!consumedGrouped[name]) {
+      consumedGrouped[name] = { qty: 0, unit };
     }
-  })();
-  const todayWarehouseExpense = todaySalesCOGS + todayWriteOffsValue;
-
-  const getPointStockValue = (point, rStock, sStock) => {
-    const rawVal = (rStock || []).reduce((sum, r) => {
-      const q = getQty(r.qty, point);
-      return sum + q * (r.price || 0);
-    }, 0);
-    const semiVal = (sStock || []).reduce((sum, s) => {
-      const q = parseSemiQtyObj(s.qty)[point] || 0;
-      const raw = (rStock || []).find(r => r.id === s.rawId);
-      const p = raw?.price || 0;
-      return sum + q * p;
-    }, 0);
-    return rawVal + semiVal;
+    consumedGrouped[name].qty += roundedQty;
   };
-  const currentStockValue = getPointStockValue(myPoint, rawStock, semiStock);
+
+  todaySales.forEach(sale => {
+    (sale.items || []).forEach(item => {
+      const tc = (techCards || []).find(t => t.id === item.id || t.product === item.name);
+      if (tc) {
+        (tc.ings || []).forEach(ing => {
+          const spend = ing.qty * item.qty * (1 + (ing.loss || 0) / 100);
+          if (ing.rid) {
+            const raw = (rawStock || []).find(r => r.id === ing.rid);
+            if (raw) addCons(raw.name, spend, raw.unit);
+          } else {
+            const semi = (semiStock || []).find(s => s.id === ing.sid);
+            if (semi) addCons(semi.name, spend, semi.unit);
+          }
+        });
+        const packaging = getPackagingItems(item.name);
+        (packaging || []).forEach(pkg => {
+          const raw = (rawStock || []).find(r => r.id === pkg.rawId);
+          if (raw) addCons(raw.name, pkg.qty * item.qty, raw.unit);
+        });
+      }
+      if (item.extras) {
+        if (item.extras.s6 > 0) {
+          const semi = (semiStock || []).find(s => s.id === "s6");
+          if (semi) addCons(semi.name, item.extras.s6 * 50 * item.qty, semi.unit);
+        }
+        if (item.extras.s7 > 0) {
+          const semi = (semiStock || []).find(s => s.id === "s7");
+          if (semi) addCons(semi.name, item.extras.s7 * 50 * item.qty, semi.unit);
+        }
+        if (item.extras.s2 > 0) {
+          const semi = (semiStock || []).find(s => s.id === "s2");
+          if (semi) addCons(semi.name, item.extras.s2 * 30 * item.qty, semi.unit);
+        }
+      }
+    });
+  });
+
+  try {
+    const saved = localStorage.getItem("vb_writeoffs_log");
+    const log = saved ? JSON.parse(saved) : [];
+    log.filter(l => l.location === myPoint && l.date === todayStr).forEach(l => {
+      addCons(l.item, l.qty, l.unit);
+    });
+  } catch (e) {}
 
   return(
     <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
@@ -2972,24 +2997,39 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
 
       {/* Карточки сводки за сегодня для кассира */}
       {isCashier && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
-          <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📥 Приход за сегодня</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.blue}}>{fmtS(todayReceiptsValue)}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4}}>{todayReceiptsCount} поступлений</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:20}}>
+          {/* Блок Приход за сегодня */}
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            <div style={{fontSize:12,color:C.muted,textTransform:"uppercase",marginBottom:12,fontWeight:700}}>📥 Поступило сегодня на точку</div>
+            {Object.keys(receivedGrouped).length === 0 ? (
+              <div style={{color:C.muted,fontSize:13,fontStyle:"italic"}}>Поступлений сегодня не было</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {Object.entries(receivedGrouped).map(([name, info]) => (
+                  <div key={name} style={{display:"flex",justifyContent:"space-between",fontSize:13,borderBottom:`1px solid ${C.border}40`,paddingBottom:6}}>
+                    <span style={{fontWeight:600}}>{name}</span>
+                    <span style={{color:C.blue,fontWeight:800}}>+{fmt(info.qty)} {info.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📤 Расход за сегодня</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.red}}>{fmtS(todayWarehouseExpense)}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4,display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"4px 8px"}}>
-              <span>продажи: {fmtS(todaySalesCOGS)}</span>
-              <span>списано: {fmtS(todayWriteOffsValue)}</span>
-            </div>
-          </div>
-          <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📦 Остатки на сегодня</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmtS(currentStockValue)}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4}}>сырьё и полуфабрикаты</div>
+
+          {/* Блок Расход за сегодня */}
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            <div style={{fontSize:12,color:C.muted,textTransform:"uppercase",marginBottom:12,fontWeight:700}}>📤 Израсходовано сегодня (POS + списания)</div>
+            {Object.keys(consumedGrouped).length === 0 ? (
+              <div style={{color:C.muted,fontSize:13,fontStyle:"italic"}}>Расхода сегодня не было</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {Object.entries(consumedGrouped).map(([name, info]) => (
+                  <div key={name} style={{display:"flex",justifyContent:"space-between",fontSize:13,borderBottom:`1px solid ${C.border}40`,paddingBottom:6}}>
+                    <span style={{fontWeight:600}}>{name}</span>
+                    <span style={{color:C.red,fontWeight:800}}>-{fmt(info.qty)} {info.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3036,7 +3076,7 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
             <thead>
               <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
                 {isCashier ? (
-                  ["Наименование","Ед.","Остаток на точке","Ср. цена","Итого (₸)","Статус"].map((h,i)=>
+                  ["Наименование","Ед.","Остаток на точке","Статус"].map((h,i)=>
                     <th key={i} style={{padding:"13px 18px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
                   )
                 ) : (
@@ -3047,7 +3087,11 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
               </tr>
             </thead>
             <tbody>
-              {rawStock.map((r,i)=>{
+              {rawStock.filter(r => {
+                const qObj = parseQtyObj(r.qty);
+                const totalQty = isCashier ? qObj[myPoint] : Object.values(qObj).reduce((a,b)=>a+b,0);
+                return totalQty > 0;
+              }).map((r,i)=>{
                 const qObj = parseQtyObj(r.qty);
                 const totalQty = isCashier ? qObj[myPoint] : Object.values(qObj).reduce((a,b)=>a+b,0);
                 return(
@@ -3063,10 +3107,10 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
                         <td style={{padding:"13px 18px"}}>{fmt(qObj["Фуд Трак"])}</td>
                         <td style={{padding:"13px 18px"}}>{fmt(qObj["Жара"])}</td>
                         <td style={{padding:"13px 18px"}}>{fmt(qObj["Парк"])}</td>
+                        <td style={{padding:"13px 18px",color:C.green,fontWeight:700}}>{fmtM(r.price)}</td>
+                        <td style={{padding:"13px 18px",color:C.accent,fontWeight:700}}>{fmtM(Math.round(totalQty*r.price))}</td>
                       </>
                     )}
-                    <td style={{padding:"13px 18px",color:C.green,fontWeight:700}}>{fmtM(r.price)}</td>
-                    <td style={{padding:"13px 18px",color:C.accent,fontWeight:700}}>{fmtM(Math.round(totalQty*r.price))}</td>
                     <td style={{padding:"13px 18px"}}>
                       <span style={{fontSize:11,fontWeight:700,color:totalQty<5?C.red:totalQty<15?C.yellow:C.green,background:totalQty<5?C.redSoft:totalQty<15?C.yellowSoft:C.greenSoft,padding:"3px 10px",borderRadius:20}}>
                         {totalQty<5?"Критично":totalQty<15?"Мало":"OK"}
@@ -3099,7 +3143,11 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
               </tr>
             </thead>
             <tbody>
-              {semiStock.map((s,i)=>{
+              {semiStock.filter(s => {
+                const qtyObj = parseSemiQtyObj(s.qty);
+                const totalQty = isCashier ? qtyObj[myPoint] : Object.values(qtyObj).reduce((a,b)=>a+b,0);
+                return totalQty > 0;
+              }).map((s,i)=>{
                 const qtyObj = parseSemiQtyObj(s.qty);
                 const totalQty = isCashier ? qtyObj[myPoint] : Object.values(qtyObj).reduce((a,b)=>a+b,0);
                 const limitCritical = s.unit === "г" ? 500 : 5;
@@ -4632,7 +4680,7 @@ export default function App(){
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale}/>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} setRawStock={setRawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser} sales={sales} expenses={expenses}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
           {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStock}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
