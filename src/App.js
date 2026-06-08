@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 // ─── ЦВЕТА ───────────────────────────────────────────────────────────────────
 const C = {
@@ -1855,7 +1856,7 @@ const NAV = [
 ];
 
 const fmtM = (n) => Math.round(n||0).toLocaleString("ru-RU") + " ₸";
-const fmtS = (n) => { n=n||0; if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+"M ₸"; if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+"K ₸"; return n+" ₸"; };
+const fmtS = (n) => Math.round(n||0).toLocaleString("ru-RU") + " ₸";
 const fmt  = (n,d=2) => typeof n==="number" ? n.toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:d}) : String(n||0);
 
 // ─── BEHAVIORAL HELPERS ───────────────────────────────────────────────────────
@@ -2873,7 +2874,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
 function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards}){
   const [showAdd,setShowAdd]=useState(false);
-  const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад"});
+  const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
   const [history,setHistory]=useState(() => {
     try {
       const saved = localStorage.getItem("vb_warehouse_history");
@@ -2893,20 +2894,55 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
     const qty=parseFloat(form.qty),price=parseFloat(form.price)||0;
     if(!qty||qty<=0){showToast("Введите количество",true);return;}
     
-    setRawStock(prev=>prev.map(item=>{
-      if(item.id!==form.itemId) return item;
-      const qtyObj = parseQtyObj(item.qty);
-      const cur = qtyObj[form.location] || 0;
-      const avgPrice = cur>0 ? Math.round((cur*item.price+qty*price)/(cur+qty)) : price;
+    if (form.manualEntry) {
+      if (!form.customName.trim()) { showToast("Введите название товара", true); return; }
+      if (!form.customUnit.trim()) { showToast("Введите единицу измерения", true); return; }
       
-      qtyObj[form.location] = Math.round((cur+qty)*1000)/1000;
-      return{...item,qty:qtyObj,price:avgPrice};
-    }));
+      const newId = (form.customType === "raw" ? "r_" : "s_") + Date.now();
+      const name = form.customName.trim();
+      const unit = form.customUnit.trim();
+      
+      const qtyObj = { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 };
+      qtyObj[form.location] = qty;
+      
+      if (form.customType === "raw") {
+        const newItem = { id: newId, name, unit, price, qty: qtyObj };
+        setRawStock(prev => [...prev, newItem]);
+        showToast(`Добавлено новое сырьё: ${name} (+${qty} ${unit})`);
+      } else {
+        const newItem = { id: newId, name, unit, qty: qtyObj, rawId: null };
+        setSemiStock(prev => [...prev, newItem]);
+        showToast(`Добавлен новый полуфабрикат: ${name} (+${qty} ${unit})`);
+      }
+    } else {
+      setRawStock(prev=>prev.map(item=>{
+        if(item.id!==form.itemId) return item;
+        const qtyObj = parseQtyObj(item.qty);
+        const cur = qtyObj[form.location] || 0;
+        const avgPrice = cur>0 ? Math.round((cur*item.price+qty*price)/(cur+qty)) : price;
+        
+        qtyObj[form.location] = Math.round((cur+qty)*1000)/1000;
+        return{...item,qty:qtyObj,price:avgPrice};
+      }));
+      const item=rawStock.find(r=>r.id===form.itemId);
+      showToast(`Оприходовано: ${item?.name} +${qty} ${item?.unit} на ${form.location}`);
+    }
     
-    const item=rawStock.find(r=>r.id===form.itemId);
-    setHistory(h=>[{date:new Date().toLocaleDateString("ru-RU"),item:item?.name,qty,unit:item?.unit,price,supplier:form.supplier||"—",location:form.location},...h]);
-    showToast(`Оприходовано: ${item?.name} +${qty} ${item?.unit} на ${form.location}`);
-    setForm({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад"});
+    const itemName = form.manualEntry ? form.customName.trim() : rawStock.find(r=>r.id===form.itemId)?.name;
+    const itemUnit = form.manualEntry ? form.customUnit.trim() : rawStock.find(r=>r.id===form.itemId)?.unit;
+    setHistory(h=>[{date:new Date().toLocaleDateString("ru-RU"),item:itemName,qty,unit:itemUnit,price,supplier:form.supplier||"—",location:form.location},...h]);
+    
+    setForm({
+      itemId:"r1",
+      price:"",
+      qty:"",
+      supplier:"",
+      location:currentUser.role==="cashier"?currentUser.point:"Склад",
+      manualEntry: false,
+      customName: "",
+      customType: "raw",
+      customUnit: "г"
+    });
     setShowAdd(false);
   };
 
@@ -3036,6 +3072,21 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
 
       {showAdd&&(
         <form onSubmit={handleAdd} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:15}}>
+            <input 
+              type="checkbox" 
+              id="manualEntry" 
+              checked={form.manualEntry} 
+              onChange={e=>{
+                const checked = e.target.checked;
+                setForm(f=>({...f, manualEntry: checked, customName: "", customType: "raw", customUnit: "г", price: "", qty: ""}));
+              }}
+              style={{cursor:"pointer",width:16,height:16}}
+            />
+            <label htmlFor="manualEntry" style={{fontSize:13,fontWeight:700,cursor:"pointer",color:form.manualEntry?C.accent:C.text}}>
+              Добавить товар вручную (которого нет в списке)
+            </label>
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,alignItems:"end"}}>
             {!isCashier && (
               <div>
@@ -3045,16 +3096,48 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
                 </select>
               </div>
             )}
-            <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Позиция</div>
-              <select value={form.itemId} onChange={e=>setForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
-                {rawStock.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Цена закупа (₸/ед.)</div>
-              <input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
-            </div>
+            
+            {form.manualEntry ? (
+              <>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Название товара</div>
+                  <input required value={form.customName} onChange={e=>setForm(f=>({...f,customName:e.target.value}))} placeholder="Введите название" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Тип товара</div>
+                  <select value={form.customType} onChange={e=>setForm(f=>({...f,customType:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                    <option value="raw">Сырьё / упаковка</option>
+                    <option value="semi">Полуфабрикат</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Ед. измерения</div>
+                  <input required value={form.customUnit} onChange={e=>setForm(f=>({...f,customUnit:e.target.value}))} placeholder="г, шт, уп" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+                {form.customType === "raw" ? (
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Цена закупа (₸/ед.)</div>
+                    <input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+                  </div>
+                ) : (
+                  <div style={{display:"none"}} />
+                )}
+              </>
+            ) : (
+              <>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Позиция</div>
+                  <select value={form.itemId} onChange={e=>setForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                    {rawStock.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Цена закупа (₸/ед.)</div>
+                  <input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              </>
+            )}
+            
             <div>
               <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase"}}>Количество</div>
               <input type="number" step="0.01" required value={form.qty} onChange={e=>setForm(f=>({...f,qty:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
@@ -4400,6 +4483,8 @@ function PinScreen({users, onLogin, onClose}){
 const SUPA_URL = process.env.REACT_APP_SUPABASE_URL||"";
 const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
 
+const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : null;
+
 const supaFetch = async (method, table, body=null, params="") => {
   if (!SUPA_URL || !SUPA_KEY) return null;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
@@ -4523,19 +4608,16 @@ export default function App(){
   useEffect(()=>{
     if(loading) return;
     localStorage.setItem("vb_raw",JSON.stringify(rawStock));
-    rawStock.forEach(r=>supaFetch("POST","raw_stock",r).catch(()=>{}));
   },[rawStock,loading]);
 
   useEffect(()=>{
     if(loading) return;
     localStorage.setItem("vb_semi",JSON.stringify(semiStock));
-    semiStock.forEach(s=>supaFetch("POST","semi_stock",s).catch(()=>{}));
   },[semiStock,loading]);
 
   useEffect(()=>{
     if(loading) return;
     localStorage.setItem("vb_tc",JSON.stringify(techCards));
-    techCards.forEach(t=>supaFetch("POST","tech_cards",t).catch(()=>{}));
   },[techCards,loading]);
 
   useEffect(()=>{
@@ -4543,10 +4625,189 @@ export default function App(){
     localStorage.setItem("vb_users",JSON.stringify(users));
   },[users,loading]);
 
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_sales",JSON.stringify(sales));
+  },[sales,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_exp",JSON.stringify(expenses));
+  },[expenses,loading]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase
+      .channel("vkusbuket-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "raw_stock" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setRawStock(prev => prev.filter(r => r.id !== oldRow.id));
+        } else {
+          const parsed = { ...newRow, qty: parseQtyObj(newRow.qty) };
+          setRawStock(prev => {
+            const idx = prev.findIndex(r => r.id === parsed.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [...prev, parsed];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "semi_stock" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setSemiStock(prev => prev.filter(s => s.id !== oldRow.id));
+        } else {
+          const parsed = { ...newRow, qty: parseSemiQtyObj(newRow.qty), rawId: newRow.rawId || newRow.raw_id };
+          setSemiStock(prev => {
+            const idx = prev.findIndex(s => s.id === parsed.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [...prev, parsed];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "tech_cards" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setTechCards(prev => prev.filter(t => t.id !== oldRow.id));
+        } else {
+          const parsed = { ...newRow, ings: newRow.ings || [] };
+          setTechCards(prev => {
+            const idx = prev.findIndex(t => t.id === parsed.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [...prev, parsed];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setSales(prev => prev.filter(s => s.no !== oldRow.no));
+        } else {
+          const dObj = newRow.created_at ? new Date(newRow.created_at) : new Date();
+          const parsed = {
+            ...newRow,
+            items: newRow.items || [],
+            payMode: newRow.pay_mode,
+            time: newRow.sale_time,
+            cogs: newRow.cogs || 0,
+            date: newRow.date || dObj.toLocaleDateString("ru-RU")
+          };
+          setSales(prev => {
+            const idx = prev.findIndex(s => s.no === parsed.no);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [...prev, parsed];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "expenses" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setExpenses(prev => prev.filter(e => e.id !== oldRow.id));
+        } else {
+          const parsed = { ...newRow, desc: newRow.note, date: newRow.expense_date };
+          setExpenses(prev => {
+            const idx = prev.findIndex(e => e.id === parsed.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [...prev, parsed];
+            }
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loading]);
+
+  const setRawStockWithSync = (updater) => {
+    setRawStock(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("POST", "raw_stock", newItem).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "raw_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+  const setSemiStockWithSync = (updater) => {
+    setSemiStock(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("POST", "semi_stock", newItem).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "semi_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+  const setTechCardsWithSync = (updater) => {
+    setTechCards(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("POST", "tech_cards", newItem).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "tech_cards", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
   const setSalesWithSync = (updater) => {
     setSales(prev=>{
       const next = typeof updater==="function"?updater(prev):updater;
-      localStorage.setItem("vb_sales",JSON.stringify(next));
       const newSale = next[next.length-1];
       if(newSale) supaFetch("POST","sales",{
         no:newSale.no, point:newSale.point, items:newSale.items,
@@ -4555,6 +4816,7 @@ export default function App(){
         cogs:newSale.cogs||0, pay_mode:newSale.payMode,
         cash_given:newSale.cashGiven||0, change_amt:newSale.change||0,
         sale_time:newSale.time,
+        date:newSale.date,
       }).catch(()=>{});
       return next;
     });
@@ -4564,25 +4826,23 @@ export default function App(){
     const sale = sales.find(s => s.no === saleNo);
     if (!sale) return;
     const { newRaw, newSemi } = restoreStockForSale(sale, rawStock, semiStock, techCards);
-    setRawStock(newRaw);
-    setSemiStock(newSemi);
+    setRawStockWithSync(newRaw);
+    setSemiStockWithSync(newSemi);
     setSales(prev => {
       const next = prev.filter(s => s.no !== saleNo);
-      localStorage.setItem("vb_sales", JSON.stringify(next));
       return next;
     });
     try {
       await supaFetch("DELETE", "sales", null, `?no=eq.${saleNo}`);
-      showToast(`Продажа #${saleNo} аннулирована!`);
+      showToast("Продажа #" + saleNo + " аннулирована!");
     } catch (e) {
-      showToast(`Продажа #${saleNo} удалена локально`);
+      showToast("Продажа #" + saleNo + " удалена локально");
     }
   };
 
   const setExpensesWithSync = (updater) => {
     setExpenses(prev=>{
       const next = typeof updater==="function"?updater(prev):updater;
-      localStorage.setItem("vb_exp",JSON.stringify(next));
       const added = next.filter(n=>!prev.find(p=>p.id===n.id));
       added.forEach(e=>supaFetch("POST","expenses",{
         cat:e.cat, note:e.desc||e.note, amount:e.amount,
@@ -4684,14 +4944,14 @@ export default function App(){
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale}/>}
-          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} setRawStock={setRawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
-          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
-          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
-          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
+          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
+          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
+          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
-          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCards} rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} users={users} setUsers={setUsers}/>}
+          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsers}/>}
         </div>
       </div>
     </div>
