@@ -17,9 +17,11 @@ const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
 const ALL_LOCATIONS = ["Склад", ...POINTS];
 
 const ROLES = {
-  owner:    { label:"Владелец",  icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
-  director: { label:"Директор",  icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
-  cashier:  { label:"Кассир",    icon:"🧾", color:C.green,   nav:["pos","warehouse","writeoff","inventory","reports"] },
+  owner:       { label:"Владелец",    icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  director:    { label:"Директор",    icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  manager:     { label:"Менеджер",    icon:"📋", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff","expenses","reports"] },
+  storekeeper: { label:"Кладовщик",   icon:"📦", color:C.yellow,  nav:["warehouse","inventory","writeoff"] },
+  cashier:     { label:"Кассир",      icon:"🧾", color:C.green,   nav:["pos","warehouse","writeoff","inventory","reports"] },
 };
 
 const INIT_USERS = [
