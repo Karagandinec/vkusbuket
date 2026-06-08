@@ -4060,8 +4060,10 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({semiStock,setSemiStock}){
-  const [selPoint, setSelPoint] = useState(POINTS[0]);
+function Inventory({semiStock,setSemiStock,currentUser}){
+  const isCashier = currentUser?.role === "cashier";
+  const myPoint = currentUser?.point;
+  const [selPoint, setSelPoint] = useState(isCashier ? currentUser.point : POINTS[0]);
   const [toast,showToast]=useToast();
 
   const handleSaveInventory = (itemId, factVal) => {
@@ -4081,12 +4083,16 @@ function Inventory({semiStock,setSemiStock}){
     <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:18,fontWeight:800}}>📋 Инвентаризация кухни</div>
+        <div style={{fontSize:18,fontWeight:800}}>📋 {isCashier ? `Инвентаризация кухни (${myPoint})` : "Инвентаризация кухни"}</div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:12,color:C.muted}}>Выберите точку:</span>
-          <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
-            {POINTS.map(p=><option key={p}>{p}</option>)}
-          </select>
+          {isCashier ? (
+            <span style={{fontSize:13,fontWeight:700,color:C.text}}>{myPoint}</span>
+          ) : (
+            <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
+              {POINTS.map(p=><option key={p}>{p}</option>)}
+            </select>
+          )}
         </div>
       </div>
       <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
@@ -4681,7 +4687,7 @@ export default function App(){
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} setRawStock={setRawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
           {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
-          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStock}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
