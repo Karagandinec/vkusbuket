@@ -18,11 +18,10 @@ const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
 const ALL_LOCATIONS = ["Склад", ...POINTS];
 
 const ROLES = {
-  owner:       { label:"Владелец",    icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
-  director:    { label:"Директор",    icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
-  manager:     { label:"Менеджер",    icon:"📋", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff","expenses","reports"] },
-  storekeeper: { label:"Кладовщик",   icon:"📦", color:C.yellow,  nav:["warehouse","inventory","writeoff"] },
-  cashier:     { label:"Кассир",      icon:"🧾", color:C.green,   nav:["pos","warehouse","writeoff","inventory","reports"] },
+  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff","expenses"] },
+  cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","writeoff","inventory"] },
 };
 
 const INIT_USERS = [
@@ -1859,6 +1858,14 @@ const fmtM = (n) => Math.round(n||0).toLocaleString("ru-RU") + " ₸";
 const fmtS = (n) => Math.round(n||0).toLocaleString("ru-RU") + " ₸";
 const fmt  = (n,d=2) => typeof n==="number" ? n.toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:d}) : String(n||0);
 
+const PAY_LABELS = { cash:"💵 Нал", kaspi:"📱 Kaspi", halyk:"🏦 Халык", bck:"🏛️ БЦК", card:"💳 Kaspi", split:"🔀 Сплит" };
+const fmtPay = (sale) => {
+  if (sale.payMode === "split" && sale.payments) {
+    return sale.payments.map(p => (PAY_LABELS[p.method]||p.method) + " " + fmtM(p.amount)).join(" + ");
+  }
+  return PAY_LABELS[sale.payMode] || sale.payMode || "—";
+};
+
 // ─── BEHAVIORAL HELPERS ───────────────────────────────────────────────────────
 const parseQtyObj = (qty) => {
   if (typeof qty === "object" && qty !== null) {
@@ -2298,12 +2305,12 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale})
                     <td style={{padding:"10px 12px",color:C.muted}}>#{s.no}</td>
                     <td style={{padding:"10px 12px"}}>{s.point}</td>
                     <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
-                    <td style={{padding:"10px 12px"}}>{s.payMode==="cash"?"💵 Нал":"💳 Kaspi"}</td>
+                    <td style={{padding:"10px 12px"}}>{fmtPay(s)}</td>
                     <td style={{padding:"10px 12px",color:C.yellow}}>{fmtM(s.cogs||0)}</td>
                     <td style={{padding:"10px 12px",fontWeight:800,color:C.accent}}>{fmtM(s.total)}</td>
                     <td style={{padding:"10px 12px",color:C.muted}}>{s.date ? `${s.date} ${s.time}` : s.time}</td>
                     <td style={{padding:"10px 12px"}}>
-                      {(currentUser?.role === "owner" || currentUser?.role === "director") && (
+                      {currentUser?.role === "owner" && (
                         <button onClick={() => {
                           if (window.confirm(`Аннулировать продажу #${s.no} на сумму ${fmtM(s.total)}?`)) {
                             onCancelSale(s.no);
@@ -2336,6 +2343,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [catFilter,setCatFilter] = useState("Все");
   const [search,setSearch]      = useState("");
   const [posTab,setPosTab]      = useState("products"); // "products" или "cart" на мобильных
+  const [splitMode,setSplitMode] = useState(false);
+  const [payments,setPayments]   = useState([]); // [{method:"cash",amount:5000},{method:"kaspi",amount:2500}]
   const [toast,showToast]       = useToast();
 
   const cats = ["Все",...new Set(techCards.map(t=>t.cat))];
@@ -2356,7 +2365,15 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const cashGiven= parseInt(cashInput.replace(/\D/g,""))||0;
 
   const handlePay=()=>{
-    if(payMode==="cash"&&cashGiven<total){showToast("Недостаточно наличных",true);return;}
+    // Валидация
+    if (splitMode) {
+      const splitTotal = payments.reduce((s,p)=>s+p.amount,0);
+      if (splitTotal !== total) { showToast("Сумма платежей не совпадает с итого",true); return; }
+    } else {
+      if (!payMode) { showToast("Выберите способ оплаты",true); return; }
+      if (payMode==="cash" && cashGiven<total) { showToast("Недостаточно наличных",true); return; }
+    }
+
     const newSemi=[...semiStock];
     const newRaw=[...rawStock];
     
@@ -2424,12 +2441,24 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     setRawStock(newRaw);
 
     const cogs = cart.reduce((s,i)=>s + calcCartItemCOGS(i, semiStock, rawStock) * i.qty, 0);
+    
+    // Формируем массив платежей
+    const receiptPayments = splitMode
+      ? payments
+      : [{ method: payMode, amount: total }];
+    const effectivePayMode = splitMode ? "split" : payMode;
+    const cashPayment = receiptPayments.find(p=>p.method==="cash");
+    const effectiveCashGiven = cashPayment ? cashGiven : 0;
+    const effectiveChange = (payMode==="cash" && !splitMode) ? cashGiven-total : 0;
+
     const receipt={
       no:1001+sales.length, point:selPoint,
       items:cart.map(i=>({name:i.product,qty:i.qty,price:i.price,extras:i.extras})),
-      total, subtotal, discAmt, discount, cogs, payMode,
-      cashGiven:payMode==="cash"?cashGiven:total,
-      change:payMode==="cash"?cashGiven-total:0,
+      total, subtotal, discAmt, discount, cogs,
+      payMode: effectivePayMode,
+      payments: receiptPayments,
+      cashGiven: effectiveCashGiven,
+      change: effectiveChange,
       date: new Date().toLocaleDateString("ru-RU"),
       time: new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),
     };
@@ -2446,6 +2475,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     setDiscount(0);
     setDone(false);
     setLast(null);
+    setSplitMode(false);
+    setPayments([]);
     setPosTab("products");
   };
 
@@ -2617,17 +2648,91 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             <span style={{fontWeight:800,fontSize:16}}>К оплате:</span>
             <span style={{fontSize:22,fontWeight:900,color:C.accent}}>{fmtM(total)}</span>
           </div>
-          <div style={{display:"flex",gap:8,marginBottom:10}}>
-            <button onClick={()=>setPayMode("cash")} style={{flex:1,padding:10,background:payMode==="cash"?C.greenSoft:C.card,color:payMode==="cash"?C.green:C.text,border:`1px solid ${payMode==="cash"?C.green:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700}}>💵 Нал</button>
-            <button onClick={()=>setPayMode("card")} style={{flex:1,padding:10,background:payMode==="card"?C.blueSoft:C.card,color:payMode==="card"?C.blue:C.text,border:`1px solid ${payMode==="card"?C.blue:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700}}>💳 Kaspi</button>
+
+          {/* Переключатель сплит-оплаты */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+            <button onClick={()=>{setSplitMode(!splitMode);if(!splitMode){setPayments([]);setPayMode(null);}}} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${splitMode?C.accent:C.border}`,background:splitMode?C.accentSoft:"transparent",color:splitMode?C.accent:C.muted,cursor:"pointer",fontSize:11,fontWeight:700}}>
+              {splitMode?"✓ Сплит-оплата":"Разделить оплату"}
+            </button>
+            {splitMode&&<span style={{fontSize:11,color:C.muted}}>Введите суммы по методам</span>}
           </div>
-          {payMode==="cash"&&(
-            <div style={{marginBottom:10}}>
-              <input value={cashInput} onChange={e=>setCashInput(e.target.value.replace(/\D/g,""))} placeholder="Сумма от клиента..." style={{width:"100%",padding:12,background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,boxSizing:"border-box",fontSize:18,fontWeight:700,outline:"none"}}/>
-              {cashGiven>=total&&cashGiven>0&&<div style={{color:C.green,fontWeight:700,fontSize:14,marginTop:6}}>Сдача: {fmtM(cashGiven-total)}</div>}
-            </div>
+
+          {!splitMode ? (
+            <>
+              {/* Обычная оплата: 4 кнопки */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:10}}>
+                {[
+                  {id:"cash",label:"💵 Нал",color:C.green,soft:C.greenSoft},
+                  {id:"kaspi",label:"📱 Kaspi",color:C.blue,soft:C.blueSoft},
+                  {id:"halyk",label:"🏦 Халык",color:C.purple,soft:C.purpleSoft},
+                  {id:"bck",label:"🏛️ БЦК",color:C.yellow,soft:C.yellowSoft},
+                ].map(m=>(
+                  <button key={m.id} onClick={()=>setPayMode(m.id)} style={{padding:10,background:payMode===m.id?m.soft:C.card,color:payMode===m.id?m.color:C.text,border:`1px solid ${payMode===m.id?m.color:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {payMode==="cash"&&(
+                <div style={{marginBottom:10}}>
+                  <input value={cashInput} onChange={e=>setCashInput(e.target.value.replace(/\D/g,""))} placeholder="Сумма от клиента..." style={{width:"100%",padding:12,background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,boxSizing:"border-box",fontSize:18,fontWeight:700,outline:"none"}}/>
+                  {cashGiven>=total&&cashGiven>0&&<div style={{color:C.green,fontWeight:700,fontSize:14,marginTop:6}}>Сдача: {fmtM(cashGiven-total)}</div>}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Сплит-оплата: поля для каждого метода */}
+              <div style={{marginBottom:10}}>
+                {[
+                  {id:"cash",label:"💵 Нал",color:C.green},
+                  {id:"kaspi",label:"📱 Kaspi",color:C.blue},
+                  {id:"halyk",label:"🏦 Халык",color:C.purple},
+                  {id:"bck",label:"🏛️ БЦК",color:C.yellow},
+                ].map(m=>{
+                  const existing = payments.find(p=>p.method===m.id);
+                  const val = existing ? existing.amount : "";
+                  return (
+                    <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                      <span style={{fontSize:12,fontWeight:700,color:m.color,width:85}}>{m.label}</span>
+                      <input
+                        type="number"
+                        value={val}
+                        onChange={e=>{
+                          const amt = parseInt(e.target.value)||0;
+                          setPayments(prev=>{
+                            const filtered = prev.filter(p=>p.method!==m.id);
+                            if(amt>0) filtered.push({method:m.id,amount:amt});
+                            return filtered;
+                          });
+                        }}
+                        placeholder="0"
+                        style={{flex:1,padding:"8px 12px",background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",fontSize:14,fontWeight:700}}
+                      />
+                      <span style={{fontSize:11,color:C.muted}}>₸</span>
+                    </div>
+                  );
+                })}
+                {(() => {
+                  const splitTotal = payments.reduce((s,p)=>s+p.amount,0);
+                  const remaining = total - splitTotal;
+                  return (
+                    <div style={{display:"flex",justifyContent:"space-between",marginTop:8,padding:"8px 12px",borderRadius:8,background:remaining===0?C.greenSoft:C.yellowSoft}}>
+                      <span style={{fontSize:12,fontWeight:700,color:remaining===0?C.green:C.yellow}}>
+                        {remaining===0?"✓ Сумма совпадает":`Осталось: ${fmtM(remaining)}`}
+                      </span>
+                      <span style={{fontSize:12,fontWeight:700,color:C.muted}}>Итого: {fmtM(splitTotal)}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </>
           )}
-          <button onClick={handlePay} disabled={!payMode||(payMode==="cash"&&cashGiven<total)} style={{width:"100%",padding:16,background:payMode?C.accent:C.dimmed,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:payMode?"pointer":"default",fontSize:15}}>
+
+          <button
+            onClick={handlePay}
+            disabled={splitMode ? payments.reduce((s,p)=>s+p.amount,0)!==total : (!payMode||(payMode==="cash"&&cashGiven<total))}
+            style={{width:"100%",padding:16,background:(splitMode?(payments.reduce((s,p)=>s+p.amount,0)===total):payMode)?C.accent:C.dimmed,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:(splitMode?(payments.reduce((s,p)=>s+p.amount,0)===total):payMode)?"pointer":"default",fontSize:15}}
+          >
             ✓ Принять оплату
           </button>
         </div>
@@ -3706,7 +3811,7 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
                   <tr key={i} style={{borderBottom:`1px solid ${C.border}40`}}>
                     <td style={{padding:"10px 12px",color:C.muted}}>#{s.no}</td>
                     <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
-                    <td style={{padding:"10px 12px"}}>{s.payMode==="cash"?"💵":"💳"}</td>
+                    <td style={{padding:"10px 12px"}}>{fmtPay(s)}</td>
                     <td style={{padding:"10px 12px",fontWeight:800,color:C.green}}>{fmtM(s.total)}</td>
                     <td style={{padding:"10px 12px",color:C.muted}}>{s.date} {s.time}</td>
                   </tr>
@@ -4800,6 +4905,7 @@ export default function App(){
         total:newSale.total, subtotal:newSale.subtotal||newSale.total,
         disc_amt:newSale.discAmt||0, discount:newSale.discount||0,
         cogs:newSale.cogs||0, pay_mode:newSale.payMode,
+        payments:newSale.payments||[],
         cash_given:newSale.cashGiven||0, change_amt:newSale.change||0,
         sale_time:newSale.time,
         date:newSale.date,
