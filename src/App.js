@@ -18,8 +18,8 @@ const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
 const ALL_LOCATIONS = ["Склад", ...POINTS];
 
 const ROLES = {
-  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
-  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","settings"] },
+  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
+  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
   admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff","expenses"] },
   cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","writeoff","inventory"] },
 };
@@ -1851,6 +1851,7 @@ const NAV = [
   { id:"writeoff",    icon:"🗑️", label:"Списания",       desc:"Коррекционные карты" },
   { id:"expenses",    icon:"💰", label:"Расходы",        desc:"Аренда, зарплата, реклама" },
   { id:"reports",     icon:"📊", label:"Отчеты",         desc:"Cash Flow, P&L" },
+  { id:"shifts",      icon:"🕐", label:"Смены",          desc:"Журнал кассовых смен" },
   { id:"settings",    icon:"⚙️", label:"Настройки",      desc:"Техкарты и Маржа" },
 ];
 
@@ -2332,7 +2333,7 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale})
 }
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
-function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards}){
+function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift}){
   const [cart,setCart]          = useState([]);
   const [payMode,setPayMode]    = useState(null);
   const [cashInput,setCashInput] = useState("");
@@ -2346,6 +2347,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [splitMode,setSplitMode] = useState(false);
   const [payments,setPayments]   = useState([]); // [{method:"cash",amount:5000},{method:"kaspi",amount:2500}]
   const [toast,showToast]       = useToast();
+  const [showCloseShift,setShowCloseShift] = useState(false);
+  const [actualCashInput,setActualCashInput] = useState("");
 
   const cats = ["Все",...new Set(techCards.map(t=>t.cat))];
   const filtered = techCards.filter(t =>
@@ -2459,6 +2462,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
       payments: receiptPayments,
       cashGiven: effectiveCashGiven,
       change: effectiveChange,
+      shift_id: currentShift?.id || null,
       date: new Date().toLocaleDateString("ru-RU"),
       time: new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"}),
     };
@@ -2748,6 +2752,58 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             {lastReceipt.change>0&&<div style={{color:C.green,fontWeight:700,marginTop:4}}>Сдача: {fmtM(lastReceipt.change)}</div>}
           </div>
           <button onClick={newSale} style={{width:"100%",padding:14,background:C.accent,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:"pointer",fontSize:15}}>🍓 Новая продажа</button>
+        </div>
+      )}
+
+      {/* Кнопка закрытия смены для кассира */}
+      {currentUser?.role==="cashier" && currentShift && !done && (
+        <div style={{padding:"0 16px 16px"}}>
+          <button onClick={()=>{setShowCloseShift(true);setActualCashInput("");}} style={{width:"100%",padding:12,background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>🔒 Закрыть смену</button>
+        </div>
+      )}
+
+      {/* Модалка закрытия смены */}
+      {showCloseShift && currentShift && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🔒 Закрытие смены</div>
+            {(()=>{
+              const shiftSales = sales.filter(s=>s.shift_id===currentShift.id);
+              const expectedCash = shiftSales.reduce((sum,s)=>{
+                if(s.payMode==="cash") return sum+s.total;
+                if(s.payMode==="split" && s.payments) return sum+s.payments.filter(p=>p.method==="cash").reduce((a,p)=>a+p.amount,0);
+                return sum;
+              },0);
+              const actualCash = parseInt(actualCashInput.replace(/\D/g,""))||0;
+              const discrepancy = actualCash - expectedCash;
+              return (
+                <>
+                  <div style={{background:C.surface,borderRadius:10,padding:14,marginBottom:14}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Продаж за смену:</span><span style={{fontWeight:700}}>{shiftSales.length}</span></div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Ожидаемая наличка:</span><span style={{fontWeight:700,color:C.green}}>{fmtM(expectedCash)}</span></div>
+                  </div>
+                  <div style={{marginBottom:14}}>
+                    <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Фактическая наличка в кассе (₸)</div>
+                    <input value={actualCashInput} onChange={e=>setActualCashInput(e.target.value.replace(/[^0-9]/g,""))} placeholder="0" style={{width:"100%",padding:"12px 14px",borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,fontSize:18,fontWeight:700,outline:"none",boxSizing:"border-box"}} autoFocus/>
+                  </div>
+                  {actualCashInput && (
+                    <div style={{background:discrepancy===0?C.greenSoft:discrepancy>0?C.blueSoft:C.redSoft,borderRadius:10,padding:12,marginBottom:14,textAlign:"center"}}>
+                      <div style={{fontSize:12,color:C.muted}}>Расхождение</div>
+                      <div style={{fontSize:20,fontWeight:900,color:discrepancy===0?C.green:discrepancy>0?C.blue:C.red}}>{discrepancy>0?"+":""}{fmtM(discrepancy)}</div>
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:10}}>
+                    <button onClick={()=>setShowCloseShift(false)} style={{flex:1,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}>Отмена</button>
+                    <button onClick={async()=>{
+                      await supaFetch("PATCH","shifts",{closed_at:new Date().toISOString(),actual_cash:actualCash,expected_cash:expectedCash,discrepancy,status:"closed"},`?id=eq.${currentShift.id}`);
+                      setShowCloseShift(false);
+                      if(onCloseShift) onCloseShift();
+                    }} style={{flex:1,padding:12,borderRadius:10,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontWeight:800,fontSize:14}}>Закрыть смену</button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
         </div>
       )}
     </div>
@@ -3897,7 +3953,12 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
     setRawStock(p=>p.map(r=>{
       if (r.id !== id) return r;
       if (field === "price") {
-        return { ...r, price: parseFloat(val) || 0 };
+        const newPrice = parseFloat(val) || 0;
+        // Phase 4: track price history in raw_material_prices
+        if (newPrice !== r.price) {
+          supaFetch("POST","raw_material_prices",{raw_id:id,price:newPrice,effective_from:new Date().toISOString()}).catch(()=>{});
+        }
+        return { ...r, price: newPrice };
       } else if (field === "name") {
         return { ...r, name: val };
       } else if (field === "unit") {
@@ -4186,7 +4247,10 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{
                     if(!newUser.name || newUser.pin.length!==4){ showToast("Введите имя и 4-значный PIN",true); return; }
-                    setUsers(p=>[...p, { id: Date.now(), ...newUser }]);
+                    const newId = Date.now();
+                    const usr = { id: newId, ...newUser };
+                    setUsers(p=>[...p, usr]);
+                    supaFetch("POST","app_users",{id:newId,name:newUser.name,role:newUser.role,point:newUser.point,pin:newUser.pin,is_active:true}).catch(()=>{});
                     setNewUser({ name: "", role: "cashier", pin: "", point: "Мастерская" });
                     setShowAddUser(false);
                     showToast("Сотрудник добавлен!");
@@ -4223,8 +4287,8 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
                     </select>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>setEditId(null)} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
-                    <button onClick={()=>{setUsers(p=>p.filter(x=>x.id!==u.id));setEditId(null);showToast("Сотрудник удален");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑</button>
+                    <button onClick={()=>{supaFetch("PATCH","app_users",{name:u.name,role:u.role,pin:u.pin,point:u.point},`?id=eq.${u.id}`).catch(()=>{});setEditId(null);showToast("Сохранено!");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
+                    <button onClick={()=>{setUsers(p=>p.filter(x=>x.id!==u.id));supaFetch("PATCH","app_users",{is_active:false},`?id=eq.${u.id}`).catch(()=>{});setEditId(null);showToast("Сотрудник удален");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑</button>
                   </div>
                 </div>
               ) : (
@@ -4502,6 +4566,68 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   );
 }
 
+// ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
+function Shifts(){
+  const [shifts,setShifts] = useState([]);
+  const [loadingShifts,setLoadingShifts] = useState(true);
+
+  useEffect(()=>{
+    const load = async ()=>{
+      const data = await supaFetch("GET","shifts","",`?order=opened_at.desc&limit=100`);
+      if(Array.isArray(data)) setShifts(data);
+      setLoadingShifts(false);
+    };
+    load();
+  },[]);
+
+  const fmtDT = (iso) => {
+    if(!iso) return "—";
+    const d = new Date(iso);
+    return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  };
+
+  return(
+    <div style={{padding:"20px 28px",overflowY:"auto"}}>
+      <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>🕐 Журнал смен</div>
+      {loadingShifts ? (
+        <div style={{color:C.muted,textAlign:"center",padding:40}}>⟳ Загрузка смен...</div>
+      ) : shifts.length === 0 ? (
+        <div style={{color:C.muted,textAlign:"center",padding:40}}>Нет данных о сменах</div>
+      ) : (
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:800}}>
+            <thead>
+              <tr style={{background:C.surface}}>
+                {["Точка","Кассир","Открыта","Закрыта","Ожидаемая ₸","Фактическая ₸","Расхождение","Статус"].map((h,i)=>(
+                  <th key={i} style={{padding:"10px 14px",textAlign:"left",fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shifts.map(sh=>{
+                const disc = sh.discrepancy||0;
+                const statusColor = sh.status==="closed" ? C.green : C.yellow;
+                return(
+                  <tr key={sh.id} style={{borderBottom:`1px solid ${C.border}`}}>
+                    <td style={{padding:"10px 14px",fontWeight:600}}>{sh.point||"—"}</td>
+                    <td style={{padding:"10px 14px"}}>{sh.cashier_name||"—"}</td>
+                    <td style={{padding:"10px 14px",fontSize:12}}>{fmtDT(sh.opened_at)}</td>
+                    <td style={{padding:"10px 14px",fontSize:12}}>{fmtDT(sh.closed_at)}</td>
+                    <td style={{padding:"10px 14px",fontWeight:700}}>{sh.expected_cash!=null?fmtM(sh.expected_cash):"—"}</td>
+                    <td style={{padding:"10px 14px",fontWeight:700}}>{sh.actual_cash!=null?fmtM(sh.actual_cash):"—"}</td>
+                    <td style={{padding:"10px 14px",fontWeight:700,color:disc===0?C.green:disc>0?C.blue:C.red}}>{disc!==0?(disc>0?"+":"")+fmtM(disc):"—"}</td>
+                    <td style={{padding:"10px 14px"}}><span style={{background:sh.status==="closed"?C.greenSoft:C.yellowSoft,color:statusColor,padding:"4px 10px",borderRadius:6,fontWeight:700,fontSize:11}}>{sh.status==="closed"?"Закрыта":"Открыта"}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
 function PinScreen({users, onLogin, onClose}){
   const [selected, setSelected] = useState(null);
@@ -4648,6 +4774,8 @@ export default function App(){
   const [expenses,  setExpenses]   = useState(() => LS("vb_exp", []));
   const [users,     setUsers]      = useState(() => LS("vb_users", INIT_USERS));
   const [toast,showToast]          = useToast();
+  const [currentShift,setCurrentShift] = useState(null);
+  const [showOpenShift,setShowOpenShift] = useState(false);
 
   useEffect(()=>{
     document.title = "VkusBuket";
@@ -4665,12 +4793,13 @@ export default function App(){
   useEffect(()=>{
     const load = async () => {
       try {
-        const [raw,semi,tc,sl,exp] = await Promise.all([
+        const [raw,semi,tc,sl,exp,appUsers] = await Promise.all([
           supaFetch("GET","raw_stock"),
           supaFetch("GET","semi_stock"),
           supaFetch("GET","tech_cards"),
           supaFetch("GET","sales","",`?order=created_at.desc&limit=500`),
           supaFetch("GET","expenses"),
+          supaFetch("GET","app_users","",`?is_active=eq.true`),
         ]);
         if(Array.isArray(raw)&&raw.length)   setRawStock(raw);
         if(Array.isArray(semi)&&semi.length)  setSemiStock(semi);
@@ -4687,6 +4816,23 @@ export default function App(){
           };
         }));
         if(Array.isArray(exp)&&exp.length)   setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
+
+        // Phase 5: Load users from app_users, populate if empty
+        if(Array.isArray(appUsers)&&appUsers.length) {
+          setUsers(appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin})));
+        } else {
+          // Populate app_users from INIT_USERS (one-time)
+          for(const u of INIT_USERS) {
+            supaFetch("POST","app_users",{id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin,is_active:true}).catch(()=>{});
+          }
+        }
+
+        // Phase 4: Populate raw_material_prices if empty (one-time)
+        const prices = await supaFetch("GET","raw_material_prices","",`?limit=1`);
+        if(Array.isArray(prices)&&prices.length===0&&Array.isArray(raw)&&raw.length) {
+          const priceRows = raw.map(r=>({raw_id:r.id,price:r.price,effective_from:new Date().toISOString()}));
+          supaFetch("POST","raw_material_prices",priceRows).catch(()=>{});
+        }
       } catch(e) {
         console.warn("Supabase недоступен, работаем локально:",e);
       } finally {
@@ -4909,6 +5055,7 @@ export default function App(){
         cash_given:newSale.cashGiven||0, change_amt:newSale.change||0,
         sale_time:newSale.time,
         date:newSale.date,
+        shift_id:newSale.shift_id||null,
       }).catch(()=>{});
       return next;
     });
@@ -4954,7 +5101,57 @@ export default function App(){
 
   // ── PIN-ЭКРАН ──
   const ROLE_FALLBACK = { label:"?", icon:"👤", color:C.muted, nav:["dashboard","pos"] };
-  if(!currentUser) return <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);}} />;
+
+  // Phase 3: handle login with shift check for cashiers
+  const handleLogin = async (u) => {
+    setCurrentUser(u);
+    setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);
+    if(u.role==="cashier" && u.point) {
+      try {
+        const openShifts = await supaFetch("GET","shifts","",`?cashier_pin=eq.${u.pin}&status=eq.open&select=*`);
+        if(Array.isArray(openShifts) && openShifts.length > 0) {
+          setCurrentShift(openShifts[0]);
+        } else {
+          setShowOpenShift(true);
+        }
+      } catch { setShowOpenShift(true); }
+    }
+  };
+
+  const handleOpenShift = async () => {
+    if(!currentUser) return;
+    const shift = {
+      point: currentUser.point,
+      cashier_name: currentUser.name,
+      cashier_pin: currentUser.pin,
+      opened_at: new Date().toISOString(),
+      status: "open",
+    };
+    const res = await fetch(`${SUPA_URL}/rest/v1/shifts`,{
+      method:"POST",
+      headers:{
+        "apikey":SUPA_KEY,
+        "Authorization":`Bearer ${SUPA_KEY}`,
+        "Content-Type":"application/json",
+        "Prefer":"return=representation",
+      },
+      body:JSON.stringify(shift),
+    });
+    if(res.ok) {
+      const arr = await res.json();
+      if(Array.isArray(arr) && arr.length > 0) setCurrentShift(arr[0]);
+    }
+    setShowOpenShift(false);
+    showToast("Смена открыта!");
+  };
+
+  const handleCloseShift = () => {
+    setCurrentShift(null);
+    setCurrentUser(null);
+    showToast("Смена закрыта, выход из системы");
+  };
+
+  if(!currentUser) return <PinScreen users={users} onLogin={handleLogin} />;
 
   const role       = ROLES[currentUser.role] || ROLE_FALLBACK;
   const allowedNav = NAV.filter(n=>role.nav.includes(n.id));
@@ -4965,7 +5162,22 @@ export default function App(){
   return(
     <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
-      {showUserMenu && <PinScreen users={users} onLogin={(u)=>{setCurrentUser(u);setUserMenu(false);setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
+      {showUserMenu && <PinScreen users={users} onLogin={(u)=>{handleLogin(u);setUserMenu(false);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
+
+      {/* Модалка открытия смены */}
+      {showOpenShift && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:340,maxWidth:"90vw",border:`1px solid ${C.border}`,textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:12}}>🔓</div>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Открыть смену?</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Точка: <b>{currentUser?.point}</b><br/>Кассир: <b>{currentUser?.name}</b></div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setShowOpenShift(false);setCurrentUser(null);}} style={{flex:1,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}>Отмена</button>
+              <button onClick={handleOpenShift} style={{flex:1,padding:12,borderRadius:10,border:"none",background:C.green,color:"#000",cursor:"pointer",fontWeight:800,fontSize:14}}>Открыть</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* САЙДБАР (МОБИЛЬНЫЙ ВЫЕЗДНОЙ ИЛИ ДЕКСТОПНЫЙ СТАТИЧЕСКИЙ) */}
       {isMobile && sidebarOpen && (
@@ -5036,13 +5248,14 @@ export default function App(){
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale}/>}
-          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
+          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync}/>}
           {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
           {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
+          {page==="shifts"     && <Shifts />}
           {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsers}/>}
         </div>
       </div>
