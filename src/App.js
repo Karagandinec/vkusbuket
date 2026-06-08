@@ -2871,7 +2871,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
 }
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
-function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
+function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses}){
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад"});
   const [history,setHistory]=useState(() => {
@@ -2914,6 +2914,15 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   const myPoint = currentUser.point;
   const filteredHistory = isCashier ? history.filter(h => h.location === myPoint) : history;
 
+  // Данные за сегодня для кассира
+  const todayStr = new Date().toLocaleDateString("ru-RU");
+  const todaySales = isCashier ? (sales||[]).filter(s => s.point === myPoint && s.date === todayStr) : [];
+  const todayRevenue = todaySales.reduce((s,i)=>s+i.total, 0);
+  const todayOrders = todaySales.length;
+  const todayReceipts = filteredHistory.filter(h => h.date === todayStr);
+  const todayReceiptsCount = todayReceipts.length;
+  const todayExpenses = isCashier ? (expenses||[]).filter(e => e.paid && (e.point === myPoint || e.point === "Вся компания") && e.date === todayStr && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount, 0) : 0;
+
   return(
     <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
@@ -2923,6 +2932,27 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
           {showAdd?"✕ Отмена":"+ Оприходовать"}
         </button>
       </div>
+
+      {/* Карточки сводки за сегодня для кассира */}
+      {isCashier && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}}>
+          <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>💰 Продажи сегодня</div>
+            <div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmtS(todayRevenue)}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>{todayOrders} чеков</div>
+          </div>
+          <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📥 Приход сегодня</div>
+            <div style={{fontSize:22,fontWeight:900,color:C.blue}}>{todayReceiptsCount}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>поступлений</div>
+          </div>
+          <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📤 Расход сегодня</div>
+            <div style={{fontSize:22,fontWeight:900,color:C.red}}>{fmtS(todayExpenses)}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>операционные</div>
+          </div>
+        </div>
+      )}
 
       {showAdd&&(
         <form onSubmit={handleAdd} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:24}}>
@@ -3371,97 +3401,146 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
-        {[
-          {label:"Выручка (ДДС Приход)", val:fmtS(totalRev),  color:C.green},
-          {label:"Расходы P&L (COGS+накл.)",val:fmtS(totalCOGS+totalExp),color:C.red},
-          {label:"Чистая прибыль P&L",      val:fmtS(netP),      color:netP>=0?C.green:C.red},
-          {label:"Рентабельность (Маржа)", val:`${margin}%`,    color:margin>=20?C.green:margin>=10?C.yellow:C.red},
-        ].map((k,i)=>(
-          <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
-            <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.val}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
-        {/* P&L Отчет */}
-        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 Отчёт о прибылях и убытках (P&L)</div>
+      {/* KPI-карточки */}
+      {isCashier ? (
+        /* Упрощённый вид для кассира: только продажи и расходы */
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
           {[
-            {label:"Выручка (Продажи)",        val:totalRev,  color:C.green, bold:true},
-            {label:"Себестоимость продаж (COGS)",val:-totalCOGS,color:C.red},
-            {label:"Валовая прибыль",           val:grossP,    color:C.blue,  bold:true},
-            {label:"Накладные расходы",         val:-totalExp, color:C.red},
-            {label:"Чистая прибыль",            val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
-          ].map((r,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
-              <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
-              <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
-                {r.val>=0?"+":""}{fmtM(r.val)}
-              </span>
+            {label:"СУММА ПРОДАЖ",     val:fmtS(totalRev),  color:C.green},
+            {label:"КОЛИЧЕСТВО ЧЕКОВ", val:String(filteredSales.length),  color:C.accent},
+            {label:"РАСХОДЫ",          val:fmtS(totalExp),  color:C.red},
+          ].map((k,i)=>(
+            <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
+              <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.val}</div>
             </div>
           ))}
-          <div style={{background:margin>=20?C.greenSoft:C.yellowSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Рентабельность бизнеса</div>
-            <div style={{fontSize:36,fontWeight:900,color:margin>=20?C.green:margin>=10?C.yellow:C.red}}>{margin}%</div>
-          </div>
         </div>
-
-        {/* Cash Flow (ДДС) Отчет */}
-        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>📊 Движение денежных средств (Cash Flow)</div>
+      ) : (
+        /* Полный вид для владельца / директора */
+        <>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
           {[
-            {label:"Поступления от клиентов (Выручка)", val:totalRev,  color:C.green, bold:true},
-            {label:"Внесение личных средств",          val:totalInflow,color:C.green},
-            {label:"Оплата расходов (Накладные)",      val:-totalExp,  color:C.red},
-            {label:"Сейф (Снятие наличных)",          val:-totalSafe, color:C.red},
-            {label:"Чистый денежный поток (Net Cash)",  val:netCashFlow,color:netCashFlow>=0?C.green:C.red, bold:true, big:true},
-          ].map((r,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
-              <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
-              <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
-                {r.val>=0?"+":""}{fmtM(r.val)}
-              </span>
+            {label:"Выручка (ДДС Приход)", val:fmtS(totalRev),  color:C.green},
+            {label:"Расходы P&L (COGS+накл.)",val:fmtS(totalCOGS+totalExp),color:C.red},
+            {label:"Чистая прибыль P&L",      val:fmtS(netP),      color:netP>=0?C.green:C.red},
+            {label:"Рентабельность (Маржа)", val:`${margin}%`,    color:margin>=20?C.green:margin>=10?C.yellow:C.red},
+          ].map((k,i)=>(
+            <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
+              <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.val}</div>
             </div>
           ))}
-          <div style={{background:C.blueSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Изменение денежного баланса за период</div>
-            <div style={{fontSize:24,fontWeight:900,color:C.blue}}>{netCashFlow>=0?"+":""}{fmtM(netCashFlow)}</div>
-          </div>
         </div>
-      </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16}}>
-        {pointFilter === "Все" && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
+          {/* P&L Отчет */}
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 Финансы по точкам</div>
-            {byPoint.map((p,i)=>(
-              <div key={i} style={{marginBottom:12}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
-                    <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
-                    <span style={{fontSize:11,color:C.muted}}>{p.orders} заказов</span>
-                  </div>
-                  <span style={{fontWeight:800,color:p.color}}>{fmtS(p.rev)}</span>
-                </div>
-                <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
-                  <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
-                </div>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 Отчёт о прибылях и убытках (P&L)</div>
+            {[
+              {label:"Выручка (Продажи)",        val:totalRev,  color:C.green, bold:true},
+              {label:"Себестоимость продаж (COGS)",val:-totalCOGS,color:C.red},
+              {label:"Валовая прибыль",           val:grossP,    color:C.blue,  bold:true},
+              {label:"Накладные расходы",         val:-totalExp, color:C.red},
+              {label:"Чистая прибыль",            val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
+            ].map((r,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
+                <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
+                <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
+                  {r.val>=0?"+":""}{fmtM(r.val)}
+                </span>
               </div>
             ))}
+            <div style={{background:margin>=20?C.greenSoft:C.yellowSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Рентабельность бизнеса</div>
+              <div style={{fontSize:36,fontWeight:900,color:margin>=20?C.green:margin>=10?C.yellow:C.red}}>{margin}%</div>
+            </div>
           </div>
-        )}
-        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-          <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>📦 Стоимость склада</div>
-          <div style={{fontSize:28,fontWeight:900,color:C.accent}}>{fmtS(stockValue)}</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:4}}>
-            {isCashier ? `Стоимость сырья на вашей точке (${myPoint})` : "Стоимость сырья на Главном Складе"}
+
+          {/* Cash Flow (ДДС) Отчет */}
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>📊 Движение денежных средств (Cash Flow)</div>
+            {[
+              {label:"Поступления от клиентов (Выручка)", val:totalRev,  color:C.green, bold:true},
+              {label:"Внесение личных средств",          val:totalInflow,color:C.green},
+              {label:"Оплата расходов (Накладные)",      val:-totalExp,  color:C.red},
+              {label:"Сейф (Снятие наличных)",          val:-totalSafe, color:C.red},
+              {label:"Чистый денежный поток (Net Cash)",  val:netCashFlow,color:netCashFlow>=0?C.green:C.red, bold:true, big:true},
+            ].map((r,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
+                <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
+                <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
+                  {r.val>=0?"+":""}{fmtM(r.val)}
+                </span>
+              </div>
+            ))}
+            <div style={{background:C.blueSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Изменение денежного баланса за период</div>
+              <div style={{fontSize:24,fontWeight:900,color:C.blue}}>{netCashFlow>=0?"+":""}{fmtM(netCashFlow)}</div>
+            </div>
           </div>
         </div>
-      </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16}}>
+          {pointFilter === "Все" && (
+            <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 Финансы по точкам</div>
+              {byPoint.map((p,i)=>(
+                <div key={i} style={{marginBottom:12}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
+                      <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
+                      <span style={{fontSize:11,color:C.muted}}>{p.orders} заказов</span>
+                    </div>
+                    <span style={{fontWeight:800,color:p.color}}>{fmtS(p.rev)}</span>
+                  </div>
+                  <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
+                    <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>📦 Стоимость склада</div>
+            <div style={{fontSize:28,fontWeight:900,color:C.accent}}>{fmtS(stockValue)}</div>
+            <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+              Стоимость сырья на Главном Складе
+            </div>
+          </div>
+        </div>
+        </>
+      )}
+
+      {/* Список продаж для кассира */}
+      {isCashier && filteredSales.length > 0 && (
+        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>🧾 Продажи ({periodFilter})</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:400}}>
+              <thead>
+                <tr style={{borderBottom:`1px solid ${C.border}`}}>
+                  {["Чек","Позиции","Оплата","Сумма","Время"].map((h,i)=>
+                    <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {[...filteredSales].reverse().slice(0,20).map((s,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${C.border}40`}}>
+                    <td style={{padding:"10px 12px",color:C.muted}}>#{s.no}</td>
+                    <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
+                    <td style={{padding:"10px 12px"}}>{s.payMode==="cash"?"💵":"💳"}</td>
+                    <td style={{padding:"10px 12px",fontWeight:800,color:C.green}}>{fmtM(s.total)}</td>
+                    <td style={{padding:"10px 12px",color:C.muted}}>{s.date} {s.time}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4465,7 +4544,7 @@ export default function App(){
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale}/>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStock} rawStock={rawStock} setRawStock={setRawStock} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock}/>}
-          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser} sales={sales} expenses={expenses}/>}
           {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStock}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStock} semiStock={semiStock} setSemiStock={setSemiStock} currentUser={currentUser}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
