@@ -2917,11 +2917,48 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
   // Данные за сегодня для кассира
   const todayStr = new Date().toLocaleDateString("ru-RU");
   const todaySales = isCashier ? (sales||[]).filter(s => s.point === myPoint && s.date === todayStr) : [];
-  const todayRevenue = todaySales.reduce((s,i)=>s+i.total, 0);
-  const todayOrders = todaySales.length;
-  const todayReceipts = filteredHistory.filter(h => h.date === todayStr);
-  const todayReceiptsCount = todayReceipts.length;
-  const todayExpenses = isCashier ? (expenses||[]).filter(e => e.paid && (e.point === myPoint || e.point === "Вся компания") && e.date === todayStr && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount, 0) : 0;
+  const todaySalesCOGS = todaySales.reduce((sum, i) => sum + (i.cogs || 0), 0);
+
+  const todayReceiptsValue = filteredHistory
+    .filter(h => h.date === todayStr)
+    .reduce((sum, h) => sum + (h.qty * h.price), 0);
+  const todayReceiptsCount = filteredHistory.filter(h => h.date === todayStr).length;
+
+  const todayWriteOffsValue = (() => {
+    try {
+      const saved = localStorage.getItem("vb_writeoffs_log");
+      const log = saved ? JSON.parse(saved) : [];
+      const pointWriteOffs = log.filter(l => l.location === myPoint && l.date === todayStr);
+      return pointWriteOffs.reduce((sum, l) => {
+        if (l.stock === "semi") {
+          const s = (semiStock || []).find(x => x.id === l.itemId);
+          const raw = (rawStock || []).find(r => r.id === s?.rawId);
+          return sum + l.qty * (raw?.price || 0);
+        } else {
+          const r = (rawStock || []).find(x => x.id === l.itemId);
+          return sum + l.qty * (r?.price || 0);
+        }
+      }, 0);
+    } catch(e) {
+      return 0;
+    }
+  })();
+  const todayWarehouseExpense = todaySalesCOGS + todayWriteOffsValue;
+
+  const getPointStockValue = (point, rStock, sStock) => {
+    const rawVal = (rStock || []).reduce((sum, r) => {
+      const q = getQty(r.qty, point);
+      return sum + q * (r.price || 0);
+    }, 0);
+    const semiVal = (sStock || []).reduce((sum, s) => {
+      const q = parseSemiQtyObj(s.qty)[point] || 0;
+      const raw = (rStock || []).find(r => r.id === s.rawId);
+      const p = raw?.price || 0;
+      return sum + q * p;
+    }, 0);
+    return rawVal + semiVal;
+  };
+  const currentStockValue = getPointStockValue(myPoint, rawStock, semiStock);
 
   return(
     <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
@@ -2935,21 +2972,24 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
 
       {/* Карточки сводки за сегодня для кассира */}
       {isCashier && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
           <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>💰 Продажи сегодня</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmtS(todayRevenue)}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4}}>{todayOrders} чеков</div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📥 Приход за сегодня</div>
+            <div style={{fontSize:22,fontWeight:900,color:C.blue}}>{fmtS(todayReceiptsValue)}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>{todayReceiptsCount} поступлений</div>
           </div>
           <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📥 Приход сегодня</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.blue}}>{todayReceiptsCount}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4}}>поступлений</div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📤 Расход за сегодня</div>
+            <div style={{fontSize:22,fontWeight:900,color:C.red}}>{fmtS(todayWarehouseExpense)}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4,display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"4px 8px"}}>
+              <span>продажи: {fmtS(todaySalesCOGS)}</span>
+              <span>списано: {fmtS(todayWriteOffsValue)}</span>
+            </div>
           </div>
           <div style={{background:C.card,borderRadius:12,padding:"16px 18px",border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📤 Расход сегодня</div>
-            <div style={{fontSize:22,fontWeight:900,color:C.red}}>{fmtS(todayExpenses)}</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:4}}>операционные</div>
+            <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>📦 Остатки на сегодня</div>
+            <div style={{fontSize:22,fontWeight:900,color:C.green}}>{fmtS(currentStockValue)}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:4}}>сырьё и полуфабрикаты</div>
           </div>
         </div>
       )}
@@ -3541,6 +3581,42 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
           </div>
         </div>
       )}
+
+      {/* Список расходов для кассира */}
+      {isCashier && filteredExpenses.length > 0 && (
+        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
+          <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>💰 Расходы ({periodFilter})</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:400}}>
+              <thead>
+                <tr style={{borderBottom:`1px solid ${C.border}`}}>
+                  {["Категория","Сумма","Дата","Комментарий","Статус"].map((h,i)=>
+                    <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {[...filteredExpenses].reverse().map((e,i)=>{
+                  const catInfo = EXP_CATS.find(c => c.id === e.cat);
+                  return (
+                    <tr key={e.id || i} style={{borderBottom:`1px solid ${C.border}40`}}>
+                      <td style={{padding:"10px 12px"}}>{catInfo?.icon} {catInfo?.label || e.cat}</td>
+                      <td style={{padding:"10px 12px",fontWeight:800,color:C.red}}>{fmtM(e.amount)}</td>
+                      <td style={{padding:"10px 12px",color:C.muted}}>{e.date}</td>
+                      <td style={{padding:"10px 12px",color:C.muted,fontStyle:e.desc?"normal":"italic"}}>{e.desc || "—"}</td>
+                      <td style={{padding:"10px 12px"}}>
+                        <span style={{color:e.paid?C.green:C.yellow,fontSize:11,fontWeight:700}}>
+                          {e.paid?"Оплачено":"Ожидает"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -4010,12 +4086,16 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
       return [];
     }
   });
-  const [selPoint, setSelPoint] = useState(POINTS[0]);
+  const isCashier = currentUser.role === "cashier";
+  const myPoint = currentUser.point;
+  const [selPoint, setSelPoint] = useState(currentUser.role === "cashier" ? currentUser.point : POINTS[0]);
   const [toast,showToast]=useToast();
 
   useEffect(() => {
     localStorage.setItem("vb_writeoffs_log", JSON.stringify(log));
   }, [log]);
+
+  const filteredLog = isCashier ? log.filter(l => l.location === myPoint) : log;
 
   const allItems=[...semiStock.map(s=>({...s,stock:"semi"})),...rawStock.map(r=>({...r,stock:"raw"}))];
   const filtered=allItems.filter(i=>i.stock===form.stock);
@@ -4108,9 +4188,13 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
         <div style={{fontSize:18,fontWeight:800}}>✕ Коррекционное списание остатков</div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:12,color:C.muted}}>Точка списания:</span>
-          <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
-            {POINTS.map(p=><option key={p}>{p}</option>)}
-          </select>
+          {isCashier ? (
+            <span style={{fontSize:13,fontWeight:700,color:C.text}}>{myPoint}</span>
+          ) : (
+            <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px",outline:"none",fontSize:12}}>
+              {POINTS.map(p=><option key={p}>{p}</option>)}
+            </select>
+          )}
         </div>
       </div>
       <form onSubmit={handleSubmit} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:24,marginBottom:20}}>
@@ -4146,11 +4230,11 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
         <button type="submit" style={{marginTop:16,width:"100%",padding:14,background:C.red,border:"none",borderRadius:10,color:"#fff",fontWeight:900,cursor:"pointer",fontSize:15}}>✓ Провести списание</button>
       </form>
 
-      {log.length>0&&(
+      {filteredLog.length>0&&(
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>История списаний</div>
-          {log.map((l,i)=>(
-            <div key={l.id || i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<log.length-1?`1px solid ${C.border}`:"none"}}>
+          {filteredLog.map((l,i)=>(
+            <div key={l.id || i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<filteredLog.length-1?`1px solid ${C.border}`:"none"}}>
               <div>
                 <div style={{fontWeight:600,fontSize:13}}>{l.item} ({l.location})</div>
                 <div style={{fontSize:11,color:C.muted}}>{l.reason} · {l.author} · {l.date} {l.time}</div>
