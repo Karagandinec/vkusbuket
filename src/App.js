@@ -4665,7 +4665,22 @@ function PinScreen({users, onLogin, onClose}){
       {!selected ? (
         <div style={{display:"flex",flexDirection:"column",gap:12,width:280}}>
           <div style={{color:"#7A7A94",fontSize:13,textAlign:"center",marginBottom:4}}>Выберите профиль сотрудника</div>
-          {users.map(u=>{
+          {[...users].sort((a, b) => {
+            const getWeight = (u) => {
+              if (u.role === "owner") return 1;
+              if (u.role === "director") return 2;
+              if (u.role === "cashier") {
+                const pt = u.point || "";
+                if (pt.includes("Мастерская")) return 3;
+                if (pt.includes("Фуд") || pt.includes("Food")) return 4;
+                if (pt.includes("Жара")) return 5;
+                if (pt.includes("Парк")) return 6;
+                return 7;
+              }
+              return 8;
+            };
+            return getWeight(a) - getWeight(b);
+          }).map(u=>{
             const r = ROLES[u.role] || { label: u.role||"Неизвестно", icon:"👤", color:C.muted, nav:["dashboard"] };
             return(
               <button key={u.id} onClick={()=>{setSelected(u);setPin("");setError("");}}
@@ -5183,7 +5198,13 @@ export default function App(){
   if(!currentUser) return <PinScreen users={users} onLogin={handleLogin} />;
 
   const role       = ROLES[currentUser.role] || ROLE_FALLBACK;
-  const allowedNav = NAV.filter(n=>role.nav.includes(n.id));
+  const userNav    = [...role.nav];
+  if (currentUser.role === "cashier" && currentUser.point === "Мастерская") {
+    if (!userNav.includes("production")) {
+      userNav.push("production");
+    }
+  }
+  const allowedNav = NAV.filter(n=>userNav.includes(n.id));
 
   const totalRev = sales.reduce((s,i)=>s+i.total,0);
   const totalOrd = sales.length;
