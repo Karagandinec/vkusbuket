@@ -2055,7 +2055,7 @@ const calcCartItemCOGS = (item, semiStock, rawStock) => {
   
   const vanillaCost = (item.extras?.s6 || 0) * 50 * vanillaPrice;
   const chocIceCost = (item.extras?.s7 || 0) * 50 * chocolateIcePrice;
-  const milkChocCost = (item.extras?.s2 || 0) * 30 * milkChocPrice;
+  const milkChocCost = (item.extras?.s2 || 0) * 15 * milkChocPrice;
   
   return baseCOGS + vanillaCost + chocIceCost + milkChocCost;
 };
@@ -2143,7 +2143,7 @@ const restoreStockForSale = (sale, rawStock, semiStock, techCards) => {
         const idx = newSemi.findIndex(s => s.id === "s2");
         if (idx >= 0) {
           const q = parseSemiQtyObj(newSemi[idx].qty);
-          q[selPoint] = Math.round((q[selPoint] + item.extras.s2 * 30 * item.qty) * 1000) / 1000;
+          q[selPoint] = Math.round((q[selPoint] + item.extras.s2 * 15 * item.qty) * 1000) / 1000;
           newSemi[idx] = { ...newSemi[idx], qty: q };
         }
       }
@@ -2622,7 +2622,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           const idx = newSemi.findIndex(s=>s.id==="s2");
           if (idx >= 0) {
             const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - item.extras.s2 * 30 * item.qty)*1000)/1000;
+            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - item.extras.s2 * 15 * item.qty)*1000)/1000;
             newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
           }
         }
@@ -2815,7 +2815,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                   {[
                     { key: "s6", label: "🍦 Слив. 50г", price: 500 },
                     { key: "s7", label: "🍦 Шок. 50г", price: 500 },
-                    { key: "s2", label: "🍫 Шок. 30г", price: 500 }
+                    { key: "s2", label: "🍫 Шок. 15г", price: 500 }
                   ].map(ext => {
                     const active = (item.extras?.[ext.key] || 0) > 0;
                     return (
@@ -3617,7 +3617,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
         }
         if (item.extras.s2 > 0) {
           const semi = (semiStock || []).find(s => s.id === "s2");
-          if (semi) addCons(semi.name, item.extras.s2 * 30 * item.qty, semi.unit);
+          if (semi) addCons(semi.name, item.extras.s2 * 15 * item.qty, semi.unit);
         }
       }
     });
@@ -5638,7 +5638,7 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
           const idx = newSemi.findIndex(s => s.id === "s2");
           if (idx >= 0) {
             const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s2 * 30 * item.qty) * 1000) / 1000;
+            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s2 * 15 * item.qty) * 1000) / 1000;
             newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
           }
         }
