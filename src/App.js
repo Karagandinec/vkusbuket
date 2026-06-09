@@ -2432,8 +2432,25 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [showCloseShift,setShowCloseShift] = useState(false);
   const [actualCashInput,setActualCashInput] = useState("");
 
-  const cats = ["Все",...new Set(techCards.map(t=>t.cat))];
-  const filtered = techCards.filter(t =>
+  const displayCards = techCards.map(t => {
+    if (t.cat === "Макси стаканы") {
+      return { ...t, cat: "Креманки" };
+    }
+    return t;
+  });
+
+  const isRestrictedPoint = ["Парк", "Фуд Трак", "Жара"].includes(currentUser?.point);
+  const isRestrictedCashier = currentUser?.role === "cashier" && isRestrictedPoint;
+
+  const finalCards = displayCards.filter(t => {
+    if (isRestrictedCashier && (t.cat === "Наборы" || t.cat === "Букеты")) {
+      return false;
+    }
+    return true;
+  });
+
+  const cats = ["Все",...new Set(finalCards.map(t=>t.cat))];
+  const filtered = finalCards.filter(t =>
     (catFilter==="Все"||t.cat===catFilter)&&
     (search===""||t.product.toLowerCase().includes(search.toLowerCase()))
   );
