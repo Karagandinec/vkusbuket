@@ -2131,7 +2131,7 @@ function useToast(){
 }
 
 // ─── ДАШБОРД ─────────────────────────────────────────────────────────────────
-function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale}){
+function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
   const [pointFilter, setPointFilter] = useState("Все");
   const [periodFilter, setPeriodFilter] = useState("За все время");
   const [selPoint, setSelPoint] = useState(POINTS[0]);
@@ -2213,15 +2213,61 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale})
     return qty < threshold;
   });
 
-  const KPI = [
+  const isAdmin = currentUser?.role === "admin";
+  const KPI = isAdmin ? [
+    {label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
+    {label:"РАСХОДЫ",        val:fmtS(totalExp),  color:C.red },
+  ] : [
     {label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
     {label:"COGS (себест.)", val:fmtS(totalCOGS), color:C.yellow },
     {label:"ВАЛОВАЯ ПРИБЫЛЬ",val:fmtS(grossP),    color:grossP>=0?C.green:C.red },
     {label:"ЧИСТАЯ ПРИБЫЛЬ", val:fmtS(netP),      color:netP>=0?C.green:C.red },
   ];
 
+  const pendingDeletions = sales.filter(s => s.status === "pending");
+  const isOwnerOrDirector = currentUser?.role === "owner" || currentUser?.role === "director";
+
   return (
     <div style={{padding:"24px 28px",overflowY:"auto",height:"calc(100vh - 57px)",boxSizing:"border-box"}}>
+      {/* ЗАПРОСЫ НА УДАЛЕНИЕ */}
+      {isOwnerOrDirector && pendingDeletions.length > 0 && (
+        <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.red}`,padding:22,marginBottom:22,boxSizing:"border-box"}}>
+          <div style={{fontSize:15,fontWeight:800,color:C.red,marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+            <span>⏳ Запросы на удаление чеков ({pendingDeletions.length})</span>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {pendingDeletions.map(s => {
+              const requestedBy = (users||[]).find(u => u.id === s.delete_requested_by)?.name || "Кассир";
+              return (
+                <div key={s.no} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.surface,padding:"14px 18px",borderRadius:10,border:`1px solid ${C.border}`,flexWrap:"wrap",gap:12}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:14}}>Чек #{s.no} ({s.point})</div>
+                    <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+                      Сумма: <span style={{fontWeight:700,color:C.accent}}>{fmtM(s.total)}</span> | Инициатор: <b>{requestedBy}</b>
+                    </div>
+                    <div style={{fontSize:12,color:C.text,marginTop:4}}>Позиции: {s.items?.map(it=>`${it.name} x${it.qty}`).join(", ")}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={async () => {
+                      if (window.confirm(`Одобрить удаление чека #${s.no}?`)) {
+                        await onCancelSale(s.no);
+                      }
+                    }} style={{background:C.green,color:"#000",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer",fontSize:13}}>Одобрить</button>
+                    <button onClick={async () => {
+                      if (window.confirm(`Отклонить удаление чека #${s.no}?`)) {
+                        setSales(prev => prev.map(x => x.no === s.no ? { ...x, status: "active" } : x));
+                        await supaFetch("PATCH", "sales", { status: "active", delete_requested_by: null }, `?no=eq.${s.no}`);
+                        showToast("Запрос на удаление отклонен.");
+                      }
+                    }} style={{background:"transparent",color:C.muted,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 14px",fontWeight:600,cursor:"pointer",fontSize:13}}>Отклонить</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ФИЛЬТРЫ */}
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",background:C.surface,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -2294,7 +2340,7 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale})
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
               <thead>
                 <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                  {["Чек","Точка","Позиции","Оплата","COGS","Сумма","Дата / Время",""].map((h,i)=>
+                  {["Чек","Точка","Позиции","Оплата",!isAdmin && "COGS","Сумма","Дата / Время",""].filter(Boolean).map((h,i)=>
                     <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
                   )}
                 </tr>
@@ -2306,7 +2352,7 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale})
                     <td style={{padding:"10px 12px"}}>{s.point}</td>
                     <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
                     <td style={{padding:"10px 12px"}}>{fmtPay(s)}</td>
-                    <td style={{padding:"10px 12px",color:C.yellow}}>{fmtM(s.cogs||0)}</td>
+                    {!isAdmin && <td style={{padding:"10px 12px",color:C.yellow}}>{fmtM(s.cogs||0)}</td>}
                     <td style={{padding:"10px 12px",fontWeight:800,color:C.accent}}>{fmtM(s.total)}</td>
                     <td style={{padding:"10px 12px",color:C.muted}}>{s.date ? `${s.date} ${s.time}` : s.time}</td>
                     <td style={{padding:"10px 12px"}}>
@@ -2332,8 +2378,10 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale})
 }
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
-function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift}){
+function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers}){
   const [cart,setCart]          = useState([]);
+  const [phoneSearch, setPhoneSearch] = useState("");
+  const [loyaltyCustomer, setLoyaltyCustomer] = useState(null);
   const [payMode,setPayMode]    = useState(null);
   const [cashInput,setCashInput] = useState("");
   const [selPoint,setSelPoint]  = useState(currentUser.point||POINTS[0]);
@@ -2481,6 +2529,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     setSplitMode(false);
     setPayments([]);
     setPosTab("products");
+    setPhoneSearch("");
+    setLoyaltyCustomer(null);
   };
 
   const renderOrders = () => {
@@ -2503,9 +2553,39 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 <div style={{fontSize:13,color:C.text,marginBottom:8}}>
                   {s.items?.map(it => `${it.name} x${it.qty}`).join(", ")}
                 </div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${C.border}60`,paddingTop:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${C.border}60`,paddingTop:8,flexWrap:"wrap",gap:8}}>
                   <span style={{fontSize:12,color:C.muted}}>Тип: {s.payMode === "cash" ? "💵 Наличные" : "💳 Kaspi"}</span>
-                  <span style={{fontWeight:900,color:C.green,fontSize:15}}>{fmtM(s.total)}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontWeight:900,color:C.green,fontSize:15,marginRight:8}}>{fmtM(s.total)}</span>
+                    {s.status === "pending" ? (
+                      <span style={{color:C.yellow,fontSize:11,fontWeight:700,background:C.yellowSoft,padding:"4px 8px",borderRadius:6}}>⏳ Ожидает удаления</span>
+                    ) : (
+                      currentUser?.role === "owner" || currentUser?.role === "director" ? (
+                        <button onClick={() => {
+                          if (window.confirm(`Аннулировать продажу #${s.no} на сумму ${fmtM(s.total)}?`)) {
+                            onCancelSale(s.no);
+                          }
+                        }} style={{background:C.red + "1a",color:C.red,border:`1px solid ${C.red}40`,borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
+                          Аннулировать
+                        </button>
+                      ) : (
+                        <button onClick={async () => {
+                          const reason = window.prompt("Укажите причину удаления чека:");
+                          if (reason) {
+                            try {
+                              setSales(prev => prev.map(x => x.no === s.no ? { ...x, status: "pending", delete_requested_by: currentUser.id } : x));
+                              await supaFetch("PATCH", "sales", { status: "pending", delete_requested_by: currentUser.id }, `?no=eq.${s.no}`);
+                              showToast("Запрос на удаление отправлен владельцу.");
+                            } catch (e) {
+                              showToast("Ошибка при отправке запроса", true);
+                            }
+                          }
+                        }} style={{background:C.red + "1a",color:C.red,border:`1px solid ${C.red}40`,borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
+                          Запросить удаление
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -2636,11 +2716,53 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
       {cart.length>0&&!done&&(
         <div style={{padding:"14px 16px",borderTop:`1px solid ${C.border}`}}>
+          {/* ПОИСК КЛИЕНТА ДЛЯ ЛОЯЛЬНОСТИ */}
           <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:6}}>СКИДКА</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6}}>КЛИЕНТ (ПОИСК ПО ТЕЛЕФОНУ)</div>
+            <div style={{display:"flex",gap:6}}>
+              <input
+                value={phoneSearch}
+                onChange={e => {
+                  const val = e.target.value.replace(/[^0-9+]/g, "");
+                  setPhoneSearch(val);
+                  const found = (customers || []).find(c => c.phone === val || c.phone.endsWith(val));
+                  if (found) {
+                    setLoyaltyCustomer(found);
+                    setDiscount(found.discount_percent);
+                    showToast(`Применена скидка клиента ${found.name}: ${found.discount_percent}%`);
+                  } else {
+                    setLoyaltyCustomer(null);
+                  }
+                }}
+                placeholder="87011234567"
+                style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,outline:"none",width:"100%",boxSizing:"border-box",flex:1,padding:"6px 10px"}}
+              />
+              {loyaltyCustomer && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhoneSearch("");
+                    setLoyaltyCustomer(null);
+                    setDiscount(0);
+                  }}
+                  style={{background:C.redSoft,color:C.red,border:"none",borderRadius:8,padding:"0 12px",cursor:"pointer",fontWeight:700}}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {loyaltyCustomer && (
+              <div style={{fontSize:12,color:C.green,marginTop:6,fontWeight:600}}>
+                ✓ {loyaltyCustomer.name} (Скидка: {loyaltyCustomer.discount_percent}%)
+              </div>
+            )}
+          </div>
+
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:6}}>РУЧНАЯ СКИДКА</div>
             <div style={{display:"flex",gap:6}}>
               {[0,5,10,15,20].map(d=>(
-                <button key={d} onClick={()=>setDiscount(d)} style={{flex:1,padding:"6px 2px",borderRadius:8,border:`1px solid ${discount===d?C.accent:C.border}`,background:discount===d?C.accentSoft:"transparent",color:discount===d?C.accent:C.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
+                <button key={d} onClick={()=>{setDiscount(d);setLoyaltyCustomer(null);setPhoneSearch("");}} style={{flex:1,padding:"6px 2px",borderRadius:8,border:`1px solid ${discount===d?C.accent:C.border}`,background:discount===d?C.accentSoft:"transparent",color:discount===d?C.accent:C.muted,cursor:"pointer",fontSize:12,fontWeight:700}}>
                   {d===0?"Нет":d+"%"}
                 </button>
               ))}
@@ -2845,13 +2967,18 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 }
 
 // ─── ПРОИЗВОДСТВО И ПЕРЕМЕЩЕНИЕ ──────────────────────────────────────────────
-function Production({rawStock,setRawStock,semiStock,setSemiStock}){
+function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
   const [modal,setModal]=useState(null);
   const [form,setForm]=useState({targetId:"s1",qty:"",point:"Мастерская"});
   
-  // Форма перемещения сырья со склада на точку
-  const [transferForm, setTransferForm] = useState({ itemId: "r1", qty: "", destPoint: "Мастерская" });
+  // Форма перемещения сырья между локациями
+  const [transferForm, setTransferForm] = useState({
+    itemId: "r1",
+    qty: "",
+    sourceLoc: currentUser?.point === "Мастерская" ? "Мастерская" : "Склад",
+    destPoint: currentUser?.point === "Мастерская" ? "Фуд Трак" : "Мастерская"
+  });
   
   const [toast,showToast]=useToast();
 
@@ -2890,22 +3017,30 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
     e.preventDefault();
     const qty = parseFloat(transferForm.qty);
     const item = rawStock.find(r => r.id === transferForm.itemId);
-    const warehouseQty = getQty(item?.qty, "Склад");
+    const sourceLoc = transferForm.sourceLoc || "Склад";
+    const destLoc = transferForm.destPoint;
+
+    if (sourceLoc === destLoc) {
+      showToast("Локации отправления и назначения должны отличаться", true);
+      return;
+    }
+
+    const availableQty = getQty(item?.qty, sourceLoc);
     
-    if (!qty || qty <= 0 || qty > warehouseQty) {
-      showToast("Недостаточно на складе", true);
+    if (!qty || qty <= 0 || qty > availableQty) {
+      showToast(`Недостаточно сырья в локации: ${sourceLoc} (доступно: ${fmt(availableQty)} ${item?.unit})`, true);
       return;
     }
     
     setRawStock(p => p.map(r => {
       if (r.id !== transferForm.itemId) return r;
       const q = parseQtyObj(r.qty);
-      q["Склад"] = Math.round((q["Склад"] - qty) * 1000) / 1000;
-      q[transferForm.destPoint] = Math.round((q[transferForm.destPoint] + qty) * 1000) / 1000;
+      q[sourceLoc] = Math.round((q[sourceLoc] - qty) * 1000) / 1000;
+      q[destLoc] = Math.round((q[destLoc] + qty) * 1000) / 1000;
       return { ...r, qty: q };
     }));
     
-    showToast(`Перемещено: ${item.name} → ${transferForm.destPoint} (${qty} ${item.unit})`);
+    showToast(`Перемещено: ${item.name} | ${sourceLoc} → ${destLoc} (${qty} ${item.unit})`);
     setTransferForm(f => ({ ...f, qty: "" }));
   };
 
@@ -2987,12 +3122,18 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <h3 style={{marginTop:0,marginBottom:16}}>📦 Перемещение упаковки/сырья на точку</h3>
+            <h3 style={{marginTop:0,marginBottom:16}}>📦 Перемещение упаковки/сырья между точками</h3>
             <form onSubmit={handleRawTransfer} style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ОТКУДА (ИСТОЧНИК)</div>
+                <select value={transferForm.sourceLoc || "Склад"} onChange={e=>setTransferForm(f=>({...f,sourceLoc:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
+                  {ALL_LOCATIONS.map(l=><option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ПОЗИЦИЯ СЫРЬЯ</div>
                 <select value={transferForm.itemId} onChange={e=>setTransferForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
-                  {rawStock.map(r=><option key={r.id} value={r.id}>{r.name} (на Складе: {fmt(getQty(r.qty, "Склад"))} {r.unit})</option>)}
+                  {rawStock.map(r=><option key={r.id} value={r.id}>{r.name} (доступно: {fmt(getQty(r.qty, transferForm.sourceLoc || "Склад"))} {r.unit})</option>)}
                 </select>
               </div>
               <div>
@@ -3002,7 +3143,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock}){
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА-ПОЛУЧАТЕЛЬ</div>
                 <select value={transferForm.destPoint} onChange={e=>setTransferForm(f=>({...f,destPoint:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
-                  {POINTS.map(p=><option key={p}>{p}</option>)}
+                  {ALL_LOCATIONS.filter(l => l !== (transferForm.sourceLoc || "Склад")).map(l=><option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <button type="submit" style={{padding:"12px 20px",borderRadius:8,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",marginTop:10}}>✓ Выполнить перемещение</button>
@@ -3622,9 +3763,11 @@ function Expenses({expenses,setExpenses}){
 // ─── ОТЧЕТЫ ──────────────────────────────────────────────────────────────────
 function Reports({sales,expenses,rawStock,semiStock,currentUser}){
   const isCashier = currentUser?.role === "cashier";
+  const isAdmin = currentUser?.role === "admin";
   const myPoint = currentUser?.point;
   const [pointFilter, setPointFilter] = useState(isCashier ? currentUser.point : "Все");
   const [periodFilter, setPeriodFilter] = useState("За все время");
+  const [reportType, setReportType] = useState("finance");
 
   const now = new Date();
   const todayStr = now.toLocaleDateString("ru-RU");
@@ -3704,6 +3847,79 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
   const stockLoc = isCashier ? myPoint : "Склад";
   const stockValue = rawStock.reduce((s,r)=>s + (parseQtyObj(r.qty)[stockLoc] * r.price),0);
 
+  const getAbcData = () => {
+    const productSales = {};
+    filteredSales.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        productSales[item.name] = (productSales[item.name] || 0) + (item.price * item.qty);
+      });
+    });
+
+    const itemsArray = Object.keys(productSales).map(name => ({
+      name,
+      revenue: productSales[name]
+    }));
+
+    itemsArray.sort((a, b) => b.revenue - a.revenue);
+
+    const totalItemsRev = itemsArray.reduce((sum, item) => sum + item.revenue, 0);
+    let runningSum = 0;
+
+    return itemsArray.map(item => {
+      runningSum += item.revenue;
+      const share = totalItemsRev > 0 ? (item.revenue / totalItemsRev * 100) : 0;
+      const cumShare = totalItemsRev > 0 ? (runningSum / totalItemsRev * 100) : 0;
+
+      let group = "C";
+      if (cumShare <= 80.01) group = "A";
+      else if (cumShare <= 95.01) group = "B";
+
+      return {
+        ...item,
+        share,
+        cumShare,
+        group
+      };
+    });
+  };
+
+  const abcRows = getAbcData();
+
+  const getFoodcostData = () => {
+    return POINTS.map((p, idx) => {
+      const pSales = sales.filter(s => s.point === p);
+      const pFilteredSales = pSales.filter(s => {
+        const sDate = parseLocalDate(s.date);
+        if (periodFilter === "Сегодня") return s.date === todayStr;
+        if (periodFilter === "Вчера") return s.date === yesterdayStr;
+        if (periodFilter === "Неделя") {
+          const diffTime = Math.abs(now - sDate);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return diffDays <= 7;
+        }
+        if (periodFilter === "Месяц") {
+          return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
+        }
+        return true;
+      });
+
+      const rev = pFilteredSales.reduce((sum, s) => sum + s.total, 0);
+      const cogsVal = pFilteredSales.reduce((sum, s) => sum + (s.cogs || 0), 0);
+      const percent = rev > 0 ? (cogsVal / rev * 100) : 0;
+
+      return {
+        name: p,
+        revenue: rev,
+        cogs: cogsVal,
+        percent,
+        color: POINT_COLORS[idx]
+      };
+    });
+  };
+
+  const foodcostRows = getFoodcostData();
+  const fcLimit = 30;
+
   return(
     <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       {/* ФИЛЬТРЫ */}
@@ -3736,15 +3952,30 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
         </div>
       </div>
 
-      {/* KPI-карточки */}
-      {isCashier ? (
-        /* Упрощённый вид для кассира: только продажи и расходы */
+      {/* ТАБЫ ДЛЯ ОУНЕРА ИЛИ ДИРЕКТОРА */}
+      {!(isCashier || isAdmin) && (
+        <div style={{display:"flex",gap:10,marginBottom:22,flexWrap:"wrap"}}>
+          <button onClick={()=>setReportType("finance")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:reportType==="finance"?C.accentSoft:C.card,color:reportType==="finance"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
+            📊 Финансовые отчеты (P&L, CF)
+          </button>
+          <button onClick={()=>setReportType("abc")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:reportType==="abc"?C.accentSoft:C.card,color:reportType==="abc"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
+            🔤 ABC-анализ товаров
+          </button>
+          <button onClick={()=>setReportType("foodcost")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:reportType==="foodcost"?C.accentSoft:C.card,color:reportType==="foodcost"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
+            🍔 Фудкост по точкам
+          </button>
+        </div>
+      )}
+
+      {isCashier || isAdmin ? (
+        /* Упрощённый вид для кассира и администратора: только продажи, расходы и стоимость склада */
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
           {[
             {label:"СУММА ПРОДАЖ",     val:fmtS(totalRev),  color:C.green},
             {label:"КОЛИЧЕСТВО ЧЕКОВ", val:String(filteredSales.length),  color:C.accent},
             {label:"РАСХОДЫ",          val:fmtS(totalExp),  color:C.red},
-          ].map((k,i)=>(
+            isAdmin && {label:"СТОИМОСТЬ СКЛАДА", val:fmtS(stockValue), color:C.blue},
+          ].filter(Boolean).map((k,i)=>(
             <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
               <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
               <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.val}</div>
@@ -3754,112 +3985,204 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
       ) : (
         /* Полный вид для владельца / директора */
         <>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
-          {[
-            {label:"Выручка (ДДС Приход)", val:fmtS(totalRev),  color:C.green},
-            {label:"Расходы P&L (COGS+накл.)",val:fmtS(totalCOGS+totalExp),color:C.red},
-            {label:"Чистая прибыль P&L",      val:fmtS(netP),      color:netP>=0?C.green:C.red},
-            {label:"Рентабельность (Маржа)", val:`${margin}%`,    color:margin>=20?C.green:margin>=10?C.yellow:C.red},
-          ].map((k,i)=>(
-            <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
-              <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.val}</div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
-          {/* P&L Отчет */}
-          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 Отчёт о прибылях и убытках (P&L)</div>
+        {reportType === "finance" && (
+          <>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:20}}>
             {[
-              {label:"Выручка (Продажи)",        val:totalRev,  color:C.green, bold:true},
-              {label:"Себестоимость продаж (COGS)",val:-totalCOGS,color:C.red},
-              {label:"Валовая прибыль",           val:grossP,    color:C.blue,  bold:true},
-              {label:"Накладные расходы",         val:-totalExp, color:C.red},
-              {label:"Чистая прибыль",            val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
-            ].map((r,i)=>(
-              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
-                <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
-                <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
-                  {r.val>=0?"+":""}{fmtM(r.val)}
-                </span>
+              {label:"Выручка (ДДС Приход)", val:fmtS(totalRev),  color:C.green},
+              {label:"Расходы P&L (COGS+накл.)",val:fmtS(totalCOGS+totalExp),color:C.red},
+              {label:"Чистая прибыль P&L",      val:fmtS(netP),      color:netP>=0?C.green:C.red},
+              {label:"Рентабельность (Маржа)", val:`${margin}%`,    color:margin>=20?C.green:margin>=10?C.yellow:C.red},
+            ].map((k,i)=>(
+              <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>{k.label}</div>
+                <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.val}</div>
               </div>
             ))}
-            <div style={{background:margin>=20?C.greenSoft:C.yellowSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Рентабельность бизнеса</div>
-              <div style={{fontSize:36,fontWeight:900,color:margin>=20?C.green:margin>=10?C.yellow:C.red}}>{margin}%</div>
-            </div>
           </div>
 
-          {/* Cash Flow (ДДС) Отчет */}
-          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>📊 Движение денежных средств (Cash Flow)</div>
-            {[
-              {label:"Поступления от клиентов (Выручка)", val:totalRev,  color:C.green, bold:true},
-              {label:"Внесение личных средств",          val:totalInflow,color:C.green},
-              {label:"Оплата расходов (Накладные)",      val:-totalExp,  color:C.red},
-              {label:"Сейф (Снятие наличных)",          val:-totalSafe, color:C.red},
-              {label:"Чистый денежный поток (Net Cash)",  val:netCashFlow,color:netCashFlow>=0?C.green:C.red, bold:true, big:true},
-            ].map((r,i)=>(
-              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
-                <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
-                <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
-                  {r.val>=0?"+":""}{fmtM(r.val)}
-                </span>
-              </div>
-            ))}
-            <div style={{background:C.blueSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Изменение денежного баланса за период</div>
-              <div style={{fontSize:24,fontWeight:900,color:C.blue}}>{netCashFlow>=0?"+":""}{fmtM(netCashFlow)}</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16}}>
-          {pointFilter === "Все" && (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
+            {/* P&L Отчет */}
             <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-              <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 Финансы по точкам</div>
-              {byPoint.map((p,i)=>(
-                <div key={i} style={{marginBottom:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
-                      <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
-                      <span style={{fontSize:11,color:C.muted}}>{p.orders} зак.</span>
-                    </div>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontWeight:800,color:p.color,fontSize:13}}>{fmtS(p.rev)}</div>
-                      <div style={{fontSize:10,color:C.muted,marginTop:2}}>Кост (COGS): <span style={{color:C.yellow,fontWeight:700}}>{fmtS(p.cogs)}</span> | Прибыль: <span style={{color:C.green,fontWeight:700}}>{fmtS(p.rev - p.cogs)}</span></div>
-                    </div>
-                  </div>
-                  <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
-                    <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
-                  </div>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>💹 Отчёт о прибылях и убытках (P&L)</div>
+              {[
+                {label:"Выручка (Продажи)",        val:totalRev,  color:C.green, bold:true},
+                {label:"Себестоимость продаж (COGS)",val:-totalCOGS,color:C.red},
+                {label:"Валовая прибыль",           val:grossP,    color:C.blue,  bold:true},
+                {label:"Накладные расходы",         val:-totalExp, color:C.red},
+                {label:"Чистая прибыль",            val:netP,      color:netP>=0?C.green:C.red, bold:true, big:true},
+              ].map((r,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
+                  <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
+                  <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
+                    {r.val>=0?"+":""}{fmtM(r.val)}
+                  </span>
                 </div>
               ))}
+              <div style={{background:margin>=20?C.greenSoft:C.yellowSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
+                <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Рентабельность бизнеса</div>
+                <div style={{fontSize:36,fontWeight:900,color:margin>=20?C.green:margin>=10?C.yellow:C.red}}>{margin}%</div>
+              </div>
             </div>
-          )}
-          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>📦 Стоимость склада</div>
-            <div style={{fontSize:28,fontWeight:900,color:C.accent}}>{fmtS(stockValue)}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:4}}>
-              Стоимость сырья на Главном Складе
+
+            {/* Cash Flow (ДДС) Отчет */}
+            <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:16}}>📊 Движение денежных средств (Cash Flow)</div>
+              {[
+                {label:"Поступления от клиентов (Выручка)", val:totalRev,  color:C.green, bold:true},
+                {label:"Внесение личных средств",          val:totalInflow,color:C.green},
+                {label:"Оплата расходов (Накладные)",      val:-totalExp,  color:C.red},
+                {label:"Сейф (Снятие наличных)",          val:-totalSafe, color:C.red},
+                {label:"Чистый денежный поток (Net Cash)",  val:netCashFlow,color:netCashFlow>=0?C.green:C.red, bold:true, big:true},
+              ].map((r,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${C.border}40`}}>
+                  <span style={{fontSize:r.big?14:13,color:r.bold?C.text:C.muted,fontWeight:r.bold?700:400}}>{r.label}</span>
+                  <span style={{fontSize:r.big?18:14,fontWeight:r.bold?900:500,color:r.color}}>
+                    {r.val>=0?"+":""}{fmtM(r.val)}
+                  </span>
+                </div>
+              ))}
+              <div style={{background:C.blueSoft,borderRadius:10,padding:14,marginTop:14,textAlign:"center"}}>
+                <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Изменение денежного баланса за период</div>
+                <div style={{fontSize:24,fontWeight:900,color:C.blue}}>{netCashFlow>=0?"+":""}{fmtM(netCashFlow)}</div>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:16,marginBottom:16}}>
+            {pointFilter === "Все" && (
+              <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>📍 Финансы по точкам</div>
+                {byPoint.map((p,i)=>(
+                  <div key={i} style={{marginBottom:12}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
+                        <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
+                        <span style={{fontSize:11,color:C.muted}}>{p.orders} зак.</span>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontWeight:800,color:p.color,fontSize:13}}>{fmtS(p.rev)}</div>
+                        <div style={{fontSize:10,color:C.muted,marginTop:2}}>Кост (COGS): <span style={{color:C.yellow,fontWeight:700}}>{fmtS(p.cogs)}</span> | Прибыль: <span style={{color:C.green,fontWeight:700}}>{fmtS(p.rev - p.cogs)}</span></div>
+                      </div>
+                    </div>
+                    <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
+                      <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
+              <div style={{fontSize:15,fontWeight:800,marginBottom:12}}>📦 Стоимость склада</div>
+              <div style={{fontSize:28,fontWeight:900,color:C.accent}}>{fmtS(stockValue)}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:4}}>
+                Стоимость сырья на Главном Складе
+              </div>
+            </div>
+          </div>
+          </>
+        )}
+
+        {reportType === "abc" && (
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>🔤 ABC-анализ товаров по выручке ({periodFilter})</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:20}}>
+              Категория A (до 80% выручки) — ключевые товары. Категория B (80% - 95%) — средняя значимость. Категория C (95% - 100%) — низкая доля выручки.
+            </div>
+            {abcRows.length === 0 ? (
+              <div style={{textAlign:"center",color:C.muted,padding:40}}>Нет данных о продажах за выбранный период</div>
+            ) : (
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+                  <thead>
+                    <tr style={{borderBottom:`1px solid ${C.border}`,textAlign:"left"}}>
+                      <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Товар</th>
+                      <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Выручка</th>
+                      <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Доля (%)</th>
+                      <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Накоп. доля (%)</th>
+                      <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Группа</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {abcRows.map((row, idx) => {
+                      const groupColor = row.group === "A" ? C.green : row.group === "B" ? C.yellow : C.red;
+                      const groupBg = row.group === "A" ? C.greenSoft : row.group === "B" ? C.yellowSoft : C.redSoft;
+                      return (
+                        <tr key={idx} style={{borderBottom:`1px solid ${C.border}40`}}>
+                          <td style={{padding:"12px 12px",fontWeight:600}}>{row.name}</td>
+                          <td style={{padding:"12px 12px"}}>{fmtM(row.revenue)}</td>
+                          <td style={{padding:"12px 12px"}}>{row.share.toFixed(1)}%</td>
+                          <td style={{padding:"12px 12px"}}>{row.cumShare.toFixed(1)}%</td>
+                          <td style={{padding:"12px 12px"}}>
+                            <span style={{color:groupColor,background:groupBg,padding:"4px 10px",borderRadius:20,fontSize:11,fontWeight:900}}>{row.group}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {reportType === "foodcost" && (
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:8}}>🍔 Анализ Фудкоста по точкам ({periodFilter})</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:20}}>
+              Процент Фудкоста рассчитывается как Себестоимость сырья (COGS) / Выручка. Установленная норма: <b>{fcLimit}%</b>. При превышении нормы выводится красный индикатор предупреждения.
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:600}}>
+                <thead>
+                  <tr style={{borderBottom:`1px solid ${C.border}`,textAlign:"left"}}>
+                    <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Точка</th>
+                    <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Выручка</th>
+                    <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Себестоимость (COGS)</th>
+                    <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Процент фудкоста</th>
+                    <th style={{padding:"10px 12px",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {foodcostRows.map((row, idx) => {
+                    const isOver = row.percent > fcLimit;
+                    return (
+                      <tr key={idx} style={{borderBottom:`1px solid ${C.border}40`}}>
+                        <td style={{padding:"12px 12px",fontWeight:600,display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{width:8,height:8,borderRadius:4,background:row.color}}/>
+                          {row.name}
+                        </td>
+                        <td style={{padding:"12px 12px"}}>{fmtM(row.revenue)}</td>
+                        <td style={{padding:"12px 12px",color:C.yellow}}>{fmtM(row.cogs)}</td>
+                        <td style={{padding:"12px 12px",fontWeight:800,color:isOver ? C.red : C.green}}>{row.percent.toFixed(1)}%</td>
+                        <td style={{padding:"12px 12px"}}>
+                          {isOver ? (
+                            <span style={{color:C.red,background:C.redSoft,padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:800}}>⚠️ Превышение нормы</span>
+                          ) : (
+                            <span style={{color:C.green,background:C.greenSoft,padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:800}}>✓ В норме</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         </>
       )}
 
-      {/* Список продаж для кассира */}
-      {isCashier && filteredSales.length > 0 && (
+      {/* Список продаж для кассира и администратора */}
+      {(isCashier || isAdmin) && filteredSales.length > 0 && (
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>🧾 Продажи ({periodFilter})</div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:400}}>
               <thead>
                 <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                  {["Чек","Позиции","Оплата","Сумма","Время"].map((h,i)=>
+                  {["Чек",isAdmin && "Точка","Позиции","Оплата","Сумма","Время"].filter(Boolean).map((h,i)=>
                     <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
                   )}
                 </tr>
@@ -3868,6 +4191,7 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
                 {[...filteredSales].reverse().slice(0,20).map((s,i)=>(
                   <tr key={i} style={{borderBottom:`1px solid ${C.border}40`}}>
                     <td style={{padding:"10px 12px",color:C.muted}}>#{s.no}</td>
+                    {isAdmin && <td style={{padding:"10px 12px"}}>{s.point}</td>}
                     <td style={{padding:"10px 12px",color:C.muted,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.items?.map(x=>x.name).join(", ")}</td>
                     <td style={{padding:"10px 12px"}}>{fmtPay(s)}</td>
                     <td style={{padding:"10px 12px",fontWeight:800,color:C.green}}>{fmtM(s.total)}</td>
@@ -3880,15 +4204,15 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
         </div>
       )}
 
-      {/* Список расходов для кассира */}
-      {isCashier && filteredExpenses.length > 0 && (
+      {/* Список расходов для кассира и администратора */}
+      {(isCashier || isAdmin) && filteredExpenses.length > 0 && (
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:16}}>
           <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>💰 Расходы ({periodFilter})</div>
           <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:400}}>
               <thead>
                 <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                  {["Категория","Сумма","Дата","Комментарий","Статус"].map((h,i)=>
+                  {["Категория","Сумма",isAdmin && "Точка","Дата","Комментарий","Статус"].filter(Boolean).map((h,i)=>
                     <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
                   )}
                 </tr>
@@ -3900,6 +4224,7 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
                     <tr key={e.id || i} style={{borderBottom:`1px solid ${C.border}40`}}>
                       <td style={{padding:"10px 12px"}}>{catInfo?.icon} {catInfo?.label || e.cat}</td>
                       <td style={{padding:"10px 12px",fontWeight:800,color:C.red}}>{fmtM(e.amount)}</td>
+                      {isAdmin && <td style={{padding:"10px 12px"}}>{e.point || "Вся компания"}</td>}
                       <td style={{padding:"10px 12px",color:C.muted}}>{e.date}</td>
                       <td style={{padding:"10px 12px",color:C.muted,fontStyle:e.desc?"normal":"italic"}}>{e.desc || "—"}</td>
                       <td style={{padding:"10px 12px"}}>
@@ -3920,7 +4245,7 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
 }
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
-function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers}){
+function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers}){
   const [tab,setTab]=useState("products");
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
@@ -3929,6 +4254,11 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
   // Управление сотрудниками
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", role: "cashier", pin: "", point: "Мастерская" });
+
+  // Управление клиентами (лояльность)
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: "", phone: "", discount_percent: 0 });
+  const [editCustId, setEditCustId] = useState(null);
   
   // Выбор локации для отображения сырья
   const [rawLoc, setRawLoc] = useState("Склад");
@@ -3992,7 +4322,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
     <div style={{padding:"20px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
-        {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"]].map(([id,label])=>(
+        {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"],["loyalty","👥 Клиенты (Лояльность)"]].map(([id,label])=>(
           <button key={id} onClick={()=>setTab(id)} style={{padding:"10px 18px",borderRadius:10,border:"none",background:tab===id?C.accent:C.card,color:tab===id?"#000":C.muted,fontWeight:tab===id?700:400,cursor:"pointer",fontSize:14}}>
             {label}
           </button>
@@ -4263,7 +4593,22 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
             </div>
           )}
 
-          {users.map((u)=>(
+          {[...users].sort((a, b) => {
+            const getWeight = (u) => {
+              if (u.role === "owner") return 1;
+              if (u.role === "director") return 2;
+              if (u.role === "cashier") {
+                const pt = u.point || "";
+                if (pt.includes("Мастерская")) return 3;
+                if (pt.includes("Фуд") || pt.includes("Food")) return 4;
+                if (pt.includes("Жара")) return 5;
+                if (pt.includes("Парк")) return 6;
+                return 7;
+              }
+              return 8;
+            };
+            return getWeight(a) - getWeight(b);
+          }).map((u)=>(
             <div key={u.id} style={{background:C.card,borderRadius:10,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:8}}>
               {editId === u.id ? (
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
@@ -4309,35 +4654,220 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
           ))}
         </div>
       )}
+
+      {tab==="loyalty"&&(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:18,fontWeight:800}}>База клиентов (Лояльность)</div>
+            <button onClick={()=>setShowAddCustomer(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить клиента</button>
+          </div>
+          {showAddCustomer && (
+            <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.accent}`,padding:20,marginBottom:16}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ИМЯ КЛИЕНТА</div>
+                  <input value={newCustomer.name} onChange={e=>setNewCustomer(f=>({...f,name:e.target.value}))} placeholder="Иван Иванов" style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТЕЛЕФОН</div>
+                  <input value={newCustomer.phone} onChange={e=>setNewCustomer(f=>({...f,phone:e.target.value}))} placeholder="+7 (707) 123-4567" style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СКИДКА (%)</div>
+                  <input type="number" min="0" max="100" value={newCustomer.discount_percent} onChange={e=>setNewCustomer(f=>({...f,discount_percent:parseInt(e.target.value)||0}))} placeholder="5" style={inputStyle}/>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>{
+                    if(!newCustomer.name || !newCustomer.phone){ showToast("Введите имя и телефон клиента",true); return; }
+                    const newId = Date.now();
+                    const cust = { id: newId, name: newCustomer.name, phone: newCustomer.phone, discount_percent: newCustomer.discount_percent };
+                    setCustomers(p=>[...p, cust]);
+                    setNewCustomer({ name: "", phone: "", discount_percent: 0 });
+                    setShowAddCustomer(false);
+                    showToast("Клиент добавлен в базу!");
+                  }} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",flex:1}}>Добавить</button>
+                  <button onClick={()=>setShowAddCustomer(false)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {customers.map((c)=>(
+            <div key={c.id} style={{background:C.card,borderRadius:10,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:8}}>
+              {editCustId === c.id ? (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ИМЯ</div>
+                    <input value={c.name} onChange={e=>setCustomers(p=>p.map(x=>x.id===c.id?{...x,name:e.target.value}:x))} style={inputStyle}/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ТЕЛЕФОН</div>
+                    <input value={c.phone} onChange={e=>setCustomers(p=>p.map(x=>x.id===c.id?{...x,phone:e.target.value}:x))} style={inputStyle}/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>СКИДКА (%)</div>
+                    <input type="number" min="0" max="100" value={c.discount_percent} onChange={e=>setCustomers(p=>p.map(x=>x.id===c.id?{...x,discount_percent:parseInt(e.target.value)||0}:x))} style={inputStyle}/>
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>{setEditCustId(null);showToast("Сохранено!");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
+                    <button onClick={()=>{setCustomers(p=>p.filter(x=>x.id!==c.id));setEditCustId(null);showToast("Клиент удален");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:14,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{fontSize:22}}>👤</div>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:14}}>{c.name}</div>
+                      <div style={{fontSize:12,color:C.muted}}>Тел: {c.phone} · Скидка: {c.discount_percent}%</div>
+                    </div>
+                  </div>
+                  <button onClick={()=>setEditCustId(c.id)} style={{background:"transparent",border:"none",color:C.accent,cursor:"pointer",fontSize:13,fontWeight:700}}>✏️ Редактировать</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({semiStock,setSemiStock,currentUser}){
+function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
   const isCashier = currentUser?.role === "cashier";
   const myPoint = currentUser?.point;
   const [selPoint, setSelPoint] = useState(isCashier ? currentUser.point : POINTS[0]);
+  const [activeTab, setActiveTab] = useState("semi"); // "semi" или "raw"
+  const [facts, setFacts] = useState({});
   const [toast,showToast]=useToast();
 
-  const handleSaveInventory = (itemId, factVal) => {
-    const fact = parseFloat(factVal);
-    if(isNaN(fact) || fact < 0) return;
-    
-    setSemiStock(p => p.map(s => {
-      if(s.id !== itemId) return s;
-      const q = parseSemiQtyObj(s.qty);
-      q[selPoint] = fact;
-      return { ...s, qty: q };
-    }));
-    showToast("Фактический остаток на кухне сохранен");
+  const handleCommitInventory = async () => {
+    const auditedKeys = Object.keys(facts).filter(k => facts[k] !== "");
+    if (auditedKeys.length === 0) {
+      showToast("Введите хотя бы одно фактическое значение", true);
+      return;
+    }
+
+    if (!window.confirm(`Зафиксировать результаты инвентаризации по ${auditedKeys.length} позициям?`)) return;
+
+    const invId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+    try {
+      await supaFetch("POST", "inventory", {
+        id: invId,
+        point: selPoint,
+        created_by: currentUser?.name || "Кассир",
+        created_at: new Date().toISOString()
+      });
+
+      const itemsToInsert = [];
+      const updatedSemi = [...semiStock];
+      const updatedRaw = [...rawStock];
+      let writeOffsCount = 0;
+
+      for (const itemId of auditedKeys) {
+        const factVal = parseFloat(facts[itemId]);
+        if (isNaN(factVal) || factVal < 0) continue;
+
+        const semiItem = semiStock.find(s => s.id === itemId);
+        const rawItem = rawStock.find(r => r.id === itemId);
+
+        if (semiItem) {
+          const expected = getQty(semiItem.qty, selPoint);
+          const difference = factVal - expected;
+
+          itemsToInsert.push({
+            inventory_id: invId,
+            component_type: "semi",
+            component_id: itemId,
+            expected_quantity: expected,
+            actual_quantity: factVal,
+            difference: difference
+          });
+
+          const idx = updatedSemi.findIndex(s => s.id === itemId);
+          if (idx >= 0) {
+            const q = parseSemiQtyObj(updatedSemi[idx].qty);
+            q[selPoint] = factVal;
+            updatedSemi[idx] = { ...updatedSemi[idx], qty: q };
+          }
+
+          if (difference < 0) {
+            const shortageQty = Math.abs(difference);
+            const cost = calcProductCOGS(semiItem, semiStock, rawStock);
+            const amount = shortageQty * cost;
+
+            await supaFetch("POST", "expenses", {
+              cat: "other",
+              note: `Авто-списание (инвентаризация): ${semiItem.name} (-${shortageQty} ${semiItem.unit}) [Разница при пересчете]`,
+              amount: amount,
+              point: selPoint,
+              paid: true,
+              expense_date: new Date().toLocaleDateString("ru-RU")
+            }).catch(()=>{});
+
+            writeOffsCount++;
+          }
+        } else if (rawItem) {
+          const expected = getQty(rawItem.qty, selPoint);
+          const difference = factVal - expected;
+
+          itemsToInsert.push({
+            inventory_id: invId,
+            component_type: "raw",
+            component_id: itemId,
+            expected_quantity: expected,
+            actual_quantity: factVal,
+            difference: difference
+          });
+
+          const idx = updatedRaw.findIndex(r => r.id === itemId);
+          if (idx >= 0) {
+            const q = parseQtyObj(updatedRaw[idx].qty);
+            q[selPoint] = factVal;
+            updatedRaw[idx] = { ...updatedRaw[idx], qty: q };
+          }
+
+          if (difference < 0) {
+            const shortageQty = Math.abs(difference);
+            const amount = shortageQty * (rawItem.price || 0);
+
+            await supaFetch("POST", "expenses", {
+              cat: "other",
+              note: `Авто-списание (инвентаризация): ${rawItem.name} (-${shortageQty} ${rawItem.unit}) [Разница при пересчете]`,
+              amount: amount,
+              point: selPoint,
+              paid: true,
+              expense_date: new Date().toLocaleDateString("ru-RU")
+            }).catch(()=>{});
+
+            writeOffsCount++;
+          }
+        }
+      }
+
+      setSemiStock(updatedSemi);
+      setRawStock(updatedRaw);
+
+      if (itemsToInsert.length > 0) {
+        await supaFetch("POST", "inventory_items", itemsToInsert);
+      }
+
+      showToast(`Инвентаризация успешно сохранена! Сформировано авто-списаний: ${writeOffsCount}`);
+      setFacts({});
+    } catch (err) {
+      showToast("Ошибка сохранения инвентаризации", true);
+    }
   };
+
+  const currentList = activeTab === "semi" ? semiStock : rawStock;
 
   return(
     <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:18,fontWeight:800}}>📋 {isCashier ? `Инвентаризация кухни (${myPoint})` : "Инвентаризация кухни"}</div>
+        <div style={{fontSize:18,fontWeight:800}}>📋 {isCashier ? `Инвентаризация остатков (${myPoint})` : "Инвентаризация остатков"}</div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:12,color:C.muted}}>Выберите точку:</span>
           {isCashier ? (
@@ -4349,39 +4879,63 @@ function Inventory({semiStock,setSemiStock,currentUser}){
           )}
         </div>
       </div>
+
+      {/* ТАБЫ */}
+      <div style={{display:"flex",gap:10,marginBottom:20}}>
+        <button onClick={()=>setActiveTab("semi")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:activeTab==="semi"?C.accentSoft:C.card,color:activeTab==="semi"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
+          🥗 Полуфабрикаты (Кухня)
+        </button>
+        <button onClick={()=>setActiveTab("raw")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:activeTab==="raw"?C.accentSoft:C.card,color:activeTab==="raw"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
+          📦 Сырьё (Склад)
+        </button>
+      </div>
+
       <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:500}}>
             <thead>
               <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
-                {["Полуфабрикат","Ед.","Расчётный остаток","Факт (введите)","Действие"].map((h,i)=>
+                {["Наименование","Ед.","Расчётный остаток","Фактический остаток","Разница"].map((h,i)=>
                   <th key={i} style={{padding:"13px 18px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {semiStock.map((s)=>(
-                <tr key={s.id} style={{borderBottom:`1px solid ${C.border}`}}>
-                  <td style={{padding:"13px 18px",fontWeight:600}}>{s.name}</td>
-                  <td style={{padding:"13px 18px",color:C.muted}}>{fmtUnit(s.unit)}</td>
-                  <td style={{padding:"13px 18px",fontWeight:800,color:getQty(s.qty, selPoint)<0?C.red:C.text}}>{fmt(getQty(s.qty, selPoint))}</td>
-                  <td style={{padding:"13px 18px"}}>
-                    <input type="number" id={`inv_fact_${s.id}`} placeholder={fmt(getQty(s.qty, selPoint))} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,outline:"none",width:100}}/>
-                  </td>
-                  <td style={{padding:"13px 18px"}}>
-                    <button onClick={()=>{
-                      const el = document.getElementById(`inv_fact_${s.id}`);
-                      if(el) {
-                        handleSaveInventory(s.id, el.value);
-                        el.value = "";
-                      }
-                    }} style={{background:C.greenSoft,color:C.green,border:`1px solid ${C.green}`,borderRadius:6,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>Сохранить</button>
-                  </td>
-                </tr>
-              ))}
+              {currentList.map((item)=>{
+                const expVal = getQty(item.qty, selPoint);
+                const factVal = facts[item.id] !== undefined ? facts[item.id] : "";
+                const parsedFact = parseFloat(factVal);
+                const diff = !isNaN(parsedFact) ? parsedFact - expVal : null;
+
+                return (
+                  <tr key={item.id} style={{borderBottom:`1px solid ${C.border}`}}>
+                    <td style={{padding:"13px 18px",fontWeight:600}}>{item.name}</td>
+                    <td style={{padding:"13px 18px",color:C.muted}}>{fmtUnit(item.unit)}</td>
+                    <td style={{padding:"13px 18px",fontWeight:800,color:expVal<0?C.red:C.text}}>{fmt(expVal)}</td>
+                    <td style={{padding:"13px 18px"}}>
+                      <input
+                        type="number"
+                        value={factVal}
+                        onChange={e => setFacts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                        placeholder={fmt(expVal)}
+                        style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,outline:"none",width:100}}
+                      />
+                    </td>
+                    <td style={{padding:"13px 18px",fontWeight:800,color:diff === null ? C.muted : diff === 0 ? C.green : diff < 0 ? C.red : C.blue}}>
+                      {diff === null ? "—" : `${diff > 0 ? "+" : ""}${fmt(diff)}`}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
+        <button onClick={handleCommitInventory} style={{padding:"14px 28px",background:C.green,color:"#000",border:"none",borderRadius:10,fontWeight:900,cursor:"pointer",fontSize:15}}>
+          🍓 Зафиксировать инвентаризацию
+        </button>
       </div>
     </div>
   );
@@ -4816,6 +5370,27 @@ export default function App(){
   const [toast,showToast]          = useToast();
   const [currentShift,setCurrentShift] = useState(null);
   const [showOpenShift,setShowOpenShift] = useState(false);
+  const [customers, setCustomers] = useState(() => LS("vb_customers", []));
+
+  const setCustomersWithSync = (updater) => {
+    setCustomers(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(c => supaFetch("POST", "customers", c).catch(()=>{}));
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("PATCH", "customers", { name: newItem.name, phone: newItem.phone, discount_percent: newItem.discount_percent }, `?id=eq.${newItem.id}`).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "customers", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
 
   useEffect(()=>{
     document.title = "VkusBuket";
@@ -4833,14 +5408,16 @@ export default function App(){
   useEffect(()=>{
     const load = async () => {
       try {
-        const [raw,semi,tc,sl,exp,appUsers] = await Promise.all([
+        const [raw,semi,tc,sl,exp,appUsers,custs] = await Promise.all([
           supaFetch("GET","raw_stock"),
           supaFetch("GET","semi_stock"),
           supaFetch("GET","tech_cards"),
           supaFetch("GET","sales","",`?order=created_at.desc&limit=500`),
           supaFetch("GET","expenses"),
           supaFetch("GET","app_users","",`?is_active=eq.true`),
+          supaFetch("GET","customers"),
         ]);
+        if(Array.isArray(custs)&&custs.length) setCustomers(custs);
         if(Array.isArray(raw)&&raw.length)   setRawStock(raw);
         if(Array.isArray(semi)&&semi.length)  setSemiStock(semi);
         if(Array.isArray(tc)&&tc.length)     setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
@@ -4906,6 +5483,11 @@ export default function App(){
     if(loading) return;
     localStorage.setItem("vb_sales",JSON.stringify(sales));
   },[sales,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_customers",JSON.stringify(customers));
+  },[customers,loading]);
 
   useEffect(()=>{
     if(loading) return;
@@ -5302,16 +5884,16 @@ export default function App(){
         </div>
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale}/>}
-          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift}/>}
-          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync}/>}
+          {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
+          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers}/>}
+          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
-          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
           {page==="shifts"     && <Shifts />}
-          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsers}/>}
+          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsers} customers={customers} setCustomers={setCustomersWithSync}/>}
         </div>
       </div>
     </div>
