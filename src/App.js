@@ -2915,10 +2915,9 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                   )}
                   <div style={{display:"flex",gap:10}}>
                     <button onClick={()=>setShowCloseShift(false)} style={{flex:1,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}>Отмена</button>
-                    <button onClick={async()=>{
-                      await supaFetch("PATCH","shifts",{closed_at:new Date().toISOString(),actual_cash:actualCash,expected_cash:expectedCash,discrepancy,status:"closed"},`?id=eq.${currentShift.id}`);
+                    <button onClick={()=>{
                       setShowCloseShift(false);
-                      if(onCloseShift) onCloseShift();
+                      if(onCloseShift) onCloseShift(actualCash, expectedCash, discrepancy);
                     }} style={{flex:1,padding:12,borderRadius:10,border:"none",background:C.red,color:"#fff",cursor:"pointer",fontWeight:800,fontSize:14}}>Закрыть смену</button>
                   </div>
                 </>
@@ -3173,26 +3172,14 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
 }
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
-function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards}){
+function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
-  const [history,setHistory]=useState(() => {
-    try {
-      const saved = localStorage.getItem("vb_warehouse_history");
-      return saved ? JSON.parse(saved) : [];
-    } catch(e) {
-      return [];
-    }
-  });
   const [toast,showToast]=useToast();
-
-  useEffect(() => {
-    localStorage.setItem("vb_warehouse_history", JSON.stringify(history));
-  }, [history]);
 
   const handleDeleteHistory = (itemToDelete) => {
     if (!window.confirm("Удалить эту запись из истории приходов? (Внимание: остатки на складе не изменятся автоматически)")) return;
-    setHistory(prev => prev.filter(h => h !== itemToDelete));
+    setHistory(prev => prev.filter(h => h.id !== itemToDelete.id));
     showToast("Запись удалена из истории");
   };
 
@@ -3237,7 +3224,27 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
     
     const itemName = form.manualEntry ? form.customName.trim() : rawStock.find(r=>r.id===form.itemId)?.name;
     const itemUnit = form.manualEntry ? form.customUnit.trim() : rawStock.find(r=>r.id===form.itemId)?.unit;
-    setHistory(h=>[{date:new Date().toLocaleDateString("ru-RU"),item:itemName,qty,unit:itemUnit,price,supplier:form.supplier||"—",location:form.location},...h]);
+    
+    // UUID-safe history ID generation
+    const generateUUIDLocal = () => {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+    const histId = generateUUIDLocal();
+    const newHistItem = {
+      id: histId,
+      date: new Date().toLocaleDateString("ru-RU"),
+      item: itemName,
+      qty,
+      unit: itemUnit,
+      price,
+      supplier: form.supplier||"—",
+      location: form.location
+    };
+    setHistory(h => [newHistItem, ...h]);
     
     setForm({
       itemId:"r1",
@@ -4955,24 +4962,12 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
 }
 
 // ─── СПИСАНИЯ ────────────────────────────────────────────────────────────────
-function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
+function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog}){
   const [form,setForm]=useState({stock:"semi",itemId:"s1",qty:"",reason:"spoil",note:"",author:""});
-  const [log,setLog]=useState(() => {
-    try {
-      const saved = localStorage.getItem("vb_writeoffs_log");
-      return saved ? JSON.parse(saved) : [];
-    } catch(e) {
-      return [];
-    }
-  });
   const isCashier = currentUser.role === "cashier";
   const myPoint = currentUser.point;
   const [selPoint, setSelPoint] = useState(currentUser.role === "cashier" ? currentUser.point : POINTS[0]);
   const [toast,showToast]=useToast();
-
-  useEffect(() => {
-    localStorage.setItem("vb_writeoffs_log", JSON.stringify(log));
-  }, [log]);
 
   const filteredLog = isCashier ? log.filter(l => l.location === myPoint) : log;
 
@@ -5013,8 +5008,16 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
       }));
     }
     
+    const generateUUIDLocal = () => {
+      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+    const writeOffId = generateUUIDLocal();
     setLog(p=>[{
-      id: Date.now(),
+      id: writeOffId,
       itemId: form.itemId,
       stock: form.stock,
       date: new Date().toLocaleDateString("ru-RU"),
@@ -5136,18 +5139,7 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
 }
 
 // ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
-function Shifts(){
-  const [shifts,setShifts] = useState([]);
-  const [loadingShifts,setLoadingShifts] = useState(true);
-
-  useEffect(()=>{
-    const load = async ()=>{
-      const data = await supaFetch("GET","shifts","",`?order=opened_at.desc&limit=100`);
-      if(Array.isArray(data)) setShifts(data);
-      setLoadingShifts(false);
-    };
-    load();
-  },[]);
+function Shifts({ shifts }){
 
   const fmtDT = (iso) => {
     if(!iso) return "—";
@@ -5158,7 +5150,7 @@ function Shifts(){
   return(
     <div style={{padding:"20px 28px",overflowY:"auto"}}>
       <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>🕐 Журнал смен</div>
-      {loadingShifts ? (
+      {!shifts ? (
         <div style={{color:C.muted,textAlign:"center",padding:40}}>⟳ Загрузка смен...</div>
       ) : shifts.length === 0 ? (
         <div style={{color:C.muted,textAlign:"center",padding:40}}>Нет данных о сменах</div>
@@ -5300,9 +5292,21 @@ const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
 
 const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : null;
 
+const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
+
 const supaFetch = async (method, table, body=null, params="") => {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
+
+  // Оффлайн-очередь для операций записи (POST, PATCH, DELETE)
+  if (method !== "GET" && typeof navigator !== "undefined" && !navigator.onLine) {
+    const queue = LS("vb_sync_queue", []);
+    queue.push({ method, table, body, params, id: Date.now() });
+    localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
+    console.warn(`Устройство оффлайн. Запрос ${method} ${table} добавлен в очередь синхронизации.`);
+    return true;
+  }
+
   try {
     const res = await fetch(url,{
       method,
@@ -5317,6 +5321,13 @@ const supaFetch = async (method, table, body=null, params="") => {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
+      
+      // В случае серверной ошибки (500+) добавляем в очередь на повтор
+      if (method !== "GET" && res.status >= 500) {
+        const queue = LS("vb_sync_queue", []);
+        queue.push({ method, table, body, params, id: Date.now() });
+        localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
+      }
       return method === "GET" ? [] : false;
     }
     if (method === "GET") {
@@ -5326,11 +5337,16 @@ const supaFetch = async (method, table, body=null, params="") => {
     return true;
   } catch (e) {
     console.warn(`supaFetch ${method} ${table} network error:`, e);
+    // При сбое сети добавляем операцию в очередь
+    if (method !== "GET") {
+      const queue = LS("vb_sync_queue", []);
+      queue.push({ method, table, body, params, id: Date.now() });
+      localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
+    }
     return method === "GET" ? [] : false;
   }
 };
 
-const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
 const fmtUnit = (u) => u === "г" ? "гр." : u;
 
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
@@ -5384,6 +5400,78 @@ export default function App(){
   const [currentShift,setCurrentShift] = useState(null);
   const [showOpenShift,setShowOpenShift] = useState(false);
   const [customers, setCustomers] = useState(() => LS("vb_customers", []));
+  const [warehouseHistory, setWarehouseHistory] = useState(() => LS("vb_warehouse_history", []));
+  const [writeOffs, setWriteOffs] = useState(() => LS("vb_writeoffs_log", []));
+  const [shifts, setShifts] = useState(() => LS("vb_shifts", []));
+
+  const generateUUID = () => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
+  const setWarehouseHistoryWithSync = (updater) => {
+    setWarehouseHistory(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(item => supaFetch("POST", "warehouse_history", item).catch(()=>{}));
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "warehouse_history", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+  const setWriteOffsWithSync = (updater) => {
+    setWriteOffs(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(item => supaFetch("POST", "write_offs", {
+        id: item.id,
+        item_id: item.itemId,
+        stock: item.stock,
+        date: item.date,
+        time: item.time,
+        item: item.item,
+        qty: item.qty,
+        unit: item.unit,
+        reason: item.reason,
+        author: item.author,
+        note: item.note,
+        location: item.location
+      }).catch(()=>{}));
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "write_offs", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+  const setUsersWithSync = (updater) => {
+    setUsers(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(u => {
+        const old = prev.find(p => p.id === u.id);
+        if (!old) {
+          supaFetch("POST", "app_users", { id: u.id, name: u.name, role: u.role, point: u.point, pin: u.pin, is_active: true }).catch(()=>{});
+        } else if (JSON.stringify(old) !== JSON.stringify(u)) {
+          supaFetch("PATCH", "app_users", { name: u.name, role: u.role, point: u.point, pin: u.pin }, `?id=eq.${u.id}`).catch(()=>{});
+        }
+      });
+      prev.forEach(old => {
+        if (!next.find(n => n.id === old.id)) {
+          supaFetch("PATCH", "app_users", { is_active: false }, `?id=eq.${old.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
 
   const setCustomersWithSync = (updater) => {
     setCustomers(prev => {
@@ -5405,6 +5493,71 @@ export default function App(){
     });
   };
 
+  const processSyncQueue = async () => {
+    const queue = LS("vb_sync_queue", []);
+    if (!queue.length) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    
+    console.log(`Обработка очереди офлайн-синхронизации: ${queue.length} элементов`);
+    const nextQueue = [];
+    let processedAny = false;
+    
+    for (const item of queue) {
+      try {
+        const url = `${SUPA_URL}/rest/v1/${item.table}${item.params || ""}`;
+        const res = await fetch(url, {
+          method: item.method,
+          headers: {
+            "apikey": SUPA_KEY,
+            "Authorization": `Bearer ${SUPA_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": item.method === "POST" ? "resolution=merge-duplicates" : "return=minimal",
+          },
+          body: item.body ? JSON.stringify(item.body) : null,
+        });
+        
+        if (res.ok) {
+          console.log(`Синхронизировано в фоновом режиме: ${item.method} ${item.table}`);
+          processedAny = true;
+        } else {
+          const errText = await res.text().catch(() => "");
+          console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
+          if (res.status >= 500) {
+            nextQueue.push(item);
+          }
+        }
+      } catch (e) {
+        console.warn(`Сеть недоступна для фоновой синхронизации:`, e);
+        nextQueue.push(item);
+      }
+    }
+    
+    localStorage.setItem("vb_sync_queue", JSON.stringify(nextQueue));
+    if (processedAny) {
+      showToast("Локальные изменения успешно отправлены в облако!");
+    }
+  };
+
+  // Эффект периодической проверки оффлайн очереди синхронизации
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      processSyncQueue();
+    };
+    window.addEventListener("online", handleOnline);
+    
+    // Периодический опрос очереди (каждые 15 секунд)
+    const timer = setInterval(processSyncQueue, 15000);
+    
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Эффект Realtime-подписок на таблицы Supabase объединен ниже с основным эффектом
+
+
   useEffect(()=>{
     document.title = "VkusBuket";
     const handleResize = () => {
@@ -5421,7 +5574,7 @@ export default function App(){
   useEffect(()=>{
     const load = async () => {
       try {
-        const [raw,semi,tc,sl,exp,appUsers,custs] = await Promise.all([
+        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs] = await Promise.all([
           supaFetch("GET","raw_stock"),
           supaFetch("GET","semi_stock"),
           supaFetch("GET","tech_cards"),
@@ -5429,11 +5582,17 @@ export default function App(){
           supaFetch("GET","expenses"),
           supaFetch("GET","app_users","",`?is_active=eq.true`),
           supaFetch("GET","customers"),
+          supaFetch("GET","shifts","",`?order=opened_at.desc&limit=100`),
+          supaFetch("GET","warehouse_history","",`?order=created_at.desc&limit=500`),
+          supaFetch("GET","write_offs","",`?order=created_at.desc&limit=500`),
         ]);
         if(Array.isArray(custs)&&custs.length) setCustomers(custs);
         if(Array.isArray(raw)&&raw.length)   setRawStock(raw);
         if(Array.isArray(semi)&&semi.length)  setSemiStock(semi);
         if(Array.isArray(tc)&&tc.length)     setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
+        if(Array.isArray(sh)&&sh.length)     setShifts(sh);
+        if(Array.isArray(whHist)&&whHist.length) setWarehouseHistory(whHist);
+        if(Array.isArray(wrOffs)&&wrOffs.length) setWriteOffs(wrOffs);
         if(Array.isArray(sl)&&sl.length) {
           const fetchedSales = sl.map(s=>{
             const dObj = s.created_at ? new Date(s.created_at) : new Date();
@@ -5518,9 +5677,25 @@ export default function App(){
     localStorage.setItem("vb_exp",JSON.stringify(expenses));
   },[expenses,loading]);
 
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_shifts",JSON.stringify(shifts));
+  },[shifts,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_warehouse_history",JSON.stringify(warehouseHistory));
+  },[warehouseHistory,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_writeoffs_log",JSON.stringify(writeOffs));
+  },[writeOffs,loading]);
+
   // Realtime subscription
+  // Realtime subscription (consolidated for all tables)
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || loading) return;
 
     const channel = supabase
       .channel("vkusbuket-realtime")
@@ -5627,12 +5802,125 @@ export default function App(){
           });
         }
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "customers" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setCustomers(prev => prev.filter(c => c.id !== oldRow.id));
+        } else {
+          setCustomers(prev => {
+            const idx = prev.findIndex(c => c.id === newRow.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(newRow)) return prev;
+              const next = [...prev];
+              next[idx] = newRow;
+              return next;
+            } else {
+              return [...prev, newRow];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "app_users" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setUsers(prev => prev.filter(u => u.id !== oldRow.id));
+        } else {
+          const parsed = { id: newRow.id, name: newRow.name, role: newRow.role, point: newRow.point, pin: newRow.pin };
+          setUsers(prev => {
+            const idx = prev.findIndex(u => u.id === parsed.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [...prev, parsed];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "warehouse_history" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setWarehouseHistory(prev => prev.filter(h => h.id !== oldRow.id));
+        } else {
+          setWarehouseHistory(prev => {
+            const idx = prev.findIndex(h => h.id === newRow.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(newRow)) return prev;
+              const next = [...prev];
+              next[idx] = newRow;
+              return next;
+            } else {
+              return [newRow, ...prev];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "write_offs" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setWriteOffs(prev => prev.filter(w => w.id !== oldRow.id));
+        } else {
+          const parsed = {
+            id: newRow.id,
+            itemId: newRow.item_id,
+            stock: newRow.stock,
+            date: newRow.date,
+            time: newRow.time,
+            item: newRow.item,
+            qty: parseFloat(newRow.qty),
+            unit: newRow.unit,
+            reason: newRow.reason,
+            author: newRow.author,
+            note: newRow.note,
+            location: newRow.location
+          };
+          setWriteOffs(prev => {
+            const idx = prev.findIndex(w => w.id === parsed.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
+              const next = [...prev];
+              next[idx] = parsed;
+              return next;
+            } else {
+              return [parsed, ...prev];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "shifts" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setShifts(prev => prev.filter(s => s.id !== oldRow.id));
+          setCurrentShift(prev => (prev && prev.id === oldRow.id) ? null : prev);
+        } else {
+          setShifts(prev => {
+            const idx = prev.findIndex(s => s.id === newRow.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(newRow)) return prev;
+              const next = [...prev];
+              next[idx] = newRow;
+              return next;
+            } else {
+              return [newRow, ...prev];
+            }
+          });
+          if (currentUser && newRow.cashier_pin === currentUser.pin && newRow.point === currentUser.point) {
+            if (newRow.status === "open") {
+              setCurrentShift(newRow);
+            } else if (newRow.status === "closed") {
+              setCurrentShift(prev => (prev && prev.id === newRow.id) ? null : prev);
+            }
+          }
+        }
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loading]);
+  }, [supabase, loading, currentUser]);
 
   const setRawStockWithSync = (updater) => {
     setRawStock(prev => {
@@ -5757,45 +6045,64 @@ export default function App(){
     setCurrentUser(u);
     setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);
     if(u.role==="cashier" && u.point) {
-      try {
-        const openShifts = await supaFetch("GET","shifts","",`?cashier_pin=eq.${u.pin}&status=eq.open&select=*`);
-        if(Array.isArray(openShifts) && openShifts.length > 0) {
-          setCurrentShift(openShifts[0]);
-        } else {
-          setShowOpenShift(true);
-        }
-      } catch { setShowOpenShift(true); }
+      const localOpen = shifts.find(s => s.cashier_pin === u.pin && s.point === u.point && s.status === "open");
+      if (localOpen) {
+        setCurrentShift(localOpen);
+      } else {
+        try {
+          const openShifts = await supaFetch("GET","shifts","",`?cashier_pin=eq.${u.pin}&status=eq.open&select=*`);
+          if(Array.isArray(openShifts) && openShifts.length > 0) {
+            setCurrentShift(openShifts[0]);
+            setShifts(prev => {
+              if (!prev.find(s => s.id === openShifts[0].id)) {
+                return [openShifts[0], ...prev];
+              }
+              return prev;
+            });
+          } else {
+            setShowOpenShift(true);
+          }
+        } catch { setShowOpenShift(true); }
+      }
     }
   };
 
   const handleOpenShift = async () => {
     if(!currentUser) return;
+    const shiftId = generateUUID();
     const shift = {
+      id: shiftId,
       point: currentUser.point,
       cashier_name: currentUser.name,
       cashier_pin: currentUser.pin,
       opened_at: new Date().toISOString(),
+      expected_cash: 0,
+      actual_cash: 0,
+      discrepancy: 0,
       status: "open",
     };
-    const res = await fetch(`${SUPA_URL}/rest/v1/shifts`,{
-      method:"POST",
-      headers:{
-        "apikey":SUPA_KEY,
-        "Authorization":`Bearer ${SUPA_KEY}`,
-        "Content-Type":"application/json",
-        "Prefer":"return=representation",
-      },
-      body:JSON.stringify(shift),
-    });
-    if(res.ok) {
-      const arr = await res.json();
-      if(Array.isArray(arr) && arr.length > 0) setCurrentShift(arr[0]);
-    }
+    
+    setCurrentShift(shift);
+    setShifts(prev => [shift, ...prev]);
+
+    await supaFetch("POST", "shifts", shift);
+    
     setShowOpenShift(false);
     showToast("Смена открыта!");
   };
 
-  const handleCloseShift = () => {
+  const handleCloseShift = (actualCash, expectedCash, discrepancy) => {
+    if (currentShift) {
+      const updated = {
+        closed_at: new Date().toISOString(),
+        actual_cash: actualCash,
+        expected_cash: expectedCash,
+        discrepancy,
+        status: "closed"
+      };
+      setShifts(prev => prev.map(s => s.id === currentShift.id ? { ...s, ...updated } : s));
+      supaFetch("PATCH", "shifts", updated, `?id=eq.${currentShift.id}`).catch(()=>{});
+    }
     setCurrentShift(null);
     setCurrentUser(null);
     showToast("Смена закрыта, выход из системы");
@@ -5911,13 +6218,13 @@ export default function App(){
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
-          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
           {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser}/>}
-          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
+          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
-          {page==="shifts"     && <Shifts />}
-          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsers} customers={customers} setCustomers={setCustomersWithSync}/>}
+          {page==="shifts"     && <Shifts     shifts={shifts}/>}
+          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync}/>}
         </div>
       </div>
     </div>
