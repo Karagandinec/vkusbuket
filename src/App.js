@@ -3190,6 +3190,12 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
     localStorage.setItem("vb_warehouse_history", JSON.stringify(history));
   }, [history]);
 
+  const handleDeleteHistory = (itemToDelete) => {
+    if (!window.confirm("Удалить эту запись из истории приходов? (Внимание: остатки на складе не изменятся автоматически)")) return;
+    setHistory(prev => prev.filter(h => h !== itemToDelete));
+    showToast("Запись удалена из истории");
+  };
+
   const handleAdd=(e)=>{
     e.preventDefault();
     const qty=parseFloat(form.qty),price=parseFloat(form.price)||0;
@@ -3574,9 +3580,16 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
                 <div style={{fontWeight:600,fontSize:13}}>{h.item}</div>
                 <div style={{fontSize:11,color:C.muted}}>{h.supplier} · {h.location} · {h.date}</div>
               </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontWeight:800,color:C.green,fontSize:14}}>+{h.qty} {h.unit}</div>
-                {h.price>0&&<div style={{fontSize:11,color:C.muted}}>{fmtM(h.price)}/ед.</div>}
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontWeight:800,color:C.green,fontSize:14}}>+{h.qty} {h.unit}</div>
+                  {h.price>0&&<div style={{fontSize:11,color:C.muted}}>{fmtM(h.price)}/ед.</div>}
+                </div>
+                {!isCashier && (
+                  <button onClick={()=>handleDeleteHistory(h)} style={{background:"transparent",border:"none",color:C.red,cursor:"pointer",fontSize:14,padding:"4px 8px"}} title="Удалить запись">
+                    🗑
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -5421,17 +5434,28 @@ export default function App(){
         if(Array.isArray(raw)&&raw.length)   setRawStock(raw);
         if(Array.isArray(semi)&&semi.length)  setSemiStock(semi);
         if(Array.isArray(tc)&&tc.length)     setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
-        if(Array.isArray(sl)&&sl.length)     setSales(sl.map(s=>{
-          const dObj = s.created_at ? new Date(s.created_at) : new Date();
-          return {
-            ...s,
-            items: s.items || [],
-            payMode: s.pay_mode,
-            time: s.sale_time,
-            cogs: s.cogs || 0,
-            date: s.date || dObj.toLocaleDateString("ru-RU")
-          };
-        }));
+        if(Array.isArray(sl)&&sl.length) {
+          const fetchedSales = sl.map(s=>{
+            const dObj = s.created_at ? new Date(s.created_at) : new Date();
+            return {
+              ...s,
+              items: s.items || [],
+              payMode: s.pay_mode,
+              time: s.sale_time,
+              cogs: s.cogs || 0,
+              date: s.date || dObj.toLocaleDateString("ru-RU")
+            };
+          });
+          setSales(prev => {
+            const merged = [...fetchedSales];
+            prev.forEach(localSale => {
+              if (!merged.find(m => m.no === localSale.no && m.point === localSale.point)) {
+                merged.push(localSale);
+              }
+            });
+            return merged.sort((a,b) => a.no - b.no);
+          });
+        }
         if(Array.isArray(exp)&&exp.length)   setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
 
         // Phase 5: Load users from app_users, populate if empty
