@@ -4780,7 +4780,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
+function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses}){
   const isCashier = currentUser?.role === "cashier";
   const myPoint = currentUser?.point;
   const [selPoint, setSelPoint] = useState(isCashier ? currentUser.point : POINTS[0]);
@@ -4844,7 +4844,7 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
             const cost = calcProductCOGS(semiItem, semiStock, rawStock);
             const amount = shortageQty * cost;
 
-            setExpensesWithSync(prev => [
+            setExpenses(prev => [
               ...prev,
               {
                 id: generateUUID(),
@@ -4883,7 +4883,7 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
             const shortageQty = Math.abs(difference);
             const amount = shortageQty * (rawItem.price || 0);
 
-            setExpensesWithSync(prev => [
+            setExpenses(prev => [
               ...prev,
               {
                 id: generateUUID(),
@@ -5325,7 +5325,7 @@ const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : nul
 
 
 
-const supaFetch = async (method, table, body=null, params="") => {
+async function supaFetch(method, table, body=null, params="") {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
 
@@ -5376,9 +5376,9 @@ const supaFetch = async (method, table, body=null, params="") => {
     }
     return method === "GET" ? [] : false;
   }
-};
+}
 
-const fmtUnit = (u) => u === "г" ? "гр." : u;
+function fmtUnit(u) { return u === "г" ? "гр." : u; }
 
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 export default function App(){
@@ -6326,7 +6326,7 @@ const setExpensesWithSync = (updater) => {
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
-          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
           {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
           {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
           {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
