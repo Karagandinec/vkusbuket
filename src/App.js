@@ -3340,7 +3340,7 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
                 return(
                   <tr key={r.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":C.surface+"30"}}>
                     <td style={{padding:"13px 18px",fontWeight:600}}>{r.name}</td>
-                    <td style={{padding:"13px 18px",color:C.muted}}>{r.unit}</td>
+                    <td style={{padding:"13px 18px",color:C.muted}}>{fmtUnit(r.unit)}</td>
                     {isCashier ? (
                       <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qObj[myPoint])}</td>
                     ) : (
@@ -3399,7 +3399,7 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
                 return(
                   <tr key={s.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"transparent":C.surface+"30"}}>
                     <td style={{padding:"13px 18px",fontWeight:600}}>{s.name}</td>
-                    <td style={{padding:"13px 18px",color:C.muted}}>{s.unit}</td>
+                    <td style={{padding:"13px 18px",color:C.muted}}>{fmtUnit(s.unit)}</td>
                     {isCashier ? (
                       <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qtyObj[myPoint])}</td>
                     ) : (
@@ -4363,7 +4363,7 @@ function Inventory({semiStock,setSemiStock,currentUser}){
               {semiStock.map((s)=>(
                 <tr key={s.id} style={{borderBottom:`1px solid ${C.border}`}}>
                   <td style={{padding:"13px 18px",fontWeight:600}}>{s.name}</td>
-                  <td style={{padding:"13px 18px",color:C.muted}}>{s.unit}</td>
+                  <td style={{padding:"13px 18px",color:C.muted}}>{fmtUnit(s.unit)}</td>
                   <td style={{padding:"13px 18px",fontWeight:800,color:getQty(s.qty, selPoint)<0?C.red:C.text}}>{fmt(getQty(s.qty, selPoint))}</td>
                   <td style={{padding:"13px 18px"}}>
                     <input type="number" id={`inv_fact_${s.id}`} placeholder={fmt(getQty(s.qty, selPoint))} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",color:C.text,outline:"none",width:100}}/>
@@ -4749,6 +4749,7 @@ const supaFetch = async (method, table, body=null, params="") => {
 };
 
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
+const fmtUnit = (u) => u === "г" ? "гр." : u;
 
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 export default function App(){
