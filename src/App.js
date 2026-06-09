@@ -25,15 +25,14 @@ const ROLES = {
 };
 
 const INIT_USERS = [
-  { id:1, name:"Владелец",          role:"owner",    point:null,          pin:"7663" },
-  { id:2, name:"Директор",          role:"director", point:null,          pin:"8888" },
-  { id:3, name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"1111" },
-  { id:4, name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"2222" },
-  { id:5, name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"3333" },
-  { id:6, name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"4444" },
+  { id:1, name:"Владелец",          role:"owner",    point:null,          pin:"" },
+  { id:2, name:"Директор",          role:"director", point:null,          pin:"" },
+  { id:3, name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"" },
+  { id:4, name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"" },
+  { id:5, name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"" },
+  { id:6, name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"" },
 ];
 
-// ─── СЫРЬЁ ───────────────────────────────────────────────────────────────────
 // Инициализируем остатки на "Склад" согласно данным из Excel
 const initRawStock = [
   { id:"r1",  name:"Клубника свежая",              unit:"г",    price:2.5,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
@@ -4717,7 +4716,7 @@ const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
 const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : null;
 
 const supaFetch = async (method, table, body=null, params="") => {
-  if (!SUPA_URL || !SUPA_KEY) return null;
+  if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
   try {
     const res = await fetch(url,{
@@ -4730,10 +4729,19 @@ const supaFetch = async (method, table, body=null, params="") => {
       },
       body: body?JSON.stringify(body):null,
     });
-    if(method==="GET") return res.json();
-    return res.ok;
-  } catch {
-    return null;
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
+      return method === "GET" ? [] : false;
+    }
+    if (method === "GET") {
+      const data = await res.json().catch(() => []);
+      return Array.isArray(data) ? data : [];
+    }
+    return true;
+  } catch (e) {
+    console.warn(`supaFetch ${method} ${table} network error:`, e);
+    return method === "GET" ? [] : false;
   }
 };
 
@@ -4751,6 +4759,19 @@ export default function App(){
     return (window.innerWidth < 1024) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   };
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
+  const [isOffline, setIsOffline]     = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const [rawStock,  setRawStock]   = useState(() => {
     const loaded = LS("vb_raw", initRawStock);
@@ -5062,6 +5083,10 @@ export default function App(){
   };
 
   const handleCancelSale = async (saleNo) => {
+    if (currentUser?.role !== "owner" && currentUser?.role !== "director") {
+      showToast("Доступ ограничен. Только Владелец или Директор могут аннулировать продажи.", true);
+      return;
+    }
     const sale = sales.find(s => s.no === saleNo);
     if (!sale) return;
     const { newRaw, newSemi } = restoreStockForSale(sale, rawStock, semiStock, techCards);
@@ -5235,6 +5260,11 @@ export default function App(){
               <button onClick={()=>setSidebarOpen(true)} style={{background:"transparent",border:"none",color:C.text,fontSize:22,cursor:"pointer",padding:0}}>☰</button>
             )}
             <div style={{fontSize:16,fontWeight:800}}>{NAV.find(n=>n.id===page)?.label}</div>
+            {isOffline && (
+              <div style={{background:C.redSoft, border:`1px solid ${C.red}`, color:C.red, borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, marginLeft:10}}>
+                ⚠️ Нет связи, работаем автономно
+              </div>
+            )}
           </div>
           <div style={{display:"flex",gap:10}}>
             <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 14px",fontSize:12}}>
