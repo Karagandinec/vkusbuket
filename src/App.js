@@ -1,6 +1,42 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
+const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
+
+const generateUUID = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+const getMergedList = (fetched, local, tableName) => {
+  const queue = LS("vb_sync_queue", []);
+  const merged = [...fetched];
+  
+  local.forEach(localItem => {
+    const idx = merged.findIndex(m => m.id === localItem.id);
+    if (idx >= 0) {
+      const hasPendingSync = queue.some(q => 
+        q.table === tableName && 
+        (
+          (q.body && q.body.id === localItem.id) || 
+          (q.params && q.params.includes(`id=eq.${localItem.id}`)) ||
+          (q.body && q.body.no === localItem.no && tableName === "sales") ||
+          (q.params && q.params.includes(`no=eq.${localItem.no}`) && tableName === "sales")
+        )
+      );
+      if (hasPendingSync) {
+        merged[idx] = localItem;
+      }
+    } else {
+      merged.push(localItem);
+    }
+  });
+  return merged;
+};
+
 // ─── ЦВЕТА ───────────────────────────────────────────────────────────────────
 const C = {
   bg:"#0F0F13", surface:"#16161D", card:"#1C1C26", border:"#2A2A38",
@@ -5283,41 +5319,11 @@ const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
 
 const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : null;
 
-const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
 
-const generateUUID = () => {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
 
-const getMergedList = (fetched, local, tableName) => {
-  const queue = LS("vb_sync_queue", []);
-  const merged = [...fetched];
-  
-  local.forEach(localItem => {
-    const idx = merged.findIndex(m => m.id === localItem.id);
-    if (idx >= 0) {
-      const hasPendingSync = queue.some(q => 
-        q.table === tableName && 
-        (
-          (q.body && q.body.id === localItem.id) || 
-          (q.params && q.params.includes(`id=eq.${localItem.id}`)) ||
-          (q.body && q.body.no === localItem.no && tableName === "sales") ||
-          (q.params && q.params.includes(`no=eq.${localItem.no}`) && tableName === "sales")
-        )
-      );
-      if (hasPendingSync) {
-        merged[idx] = localItem;
-      }
-    } else {
-      merged.push(localItem);
-    }
-  });
-  return merged;
-};
+
+
+
 
 const supaFetch = async (method, table, body=null, params="") => {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
@@ -5416,10 +5422,13 @@ export default function App(){
     const loaded = LS("vb_sales", []);
     return Array.isArray(loaded) ? loaded.map(s => {
       const dObj = s.created_at ? new Date(s.created_at) : new Date();
-      return { ...s, date: s.date || dObj.toLocaleDateString("ru-RU") };
+      return { ...s, id: s.id || generateUUID(), date: s.date || dObj.toLocaleDateString("ru-RU") };
     }) : [];
   });
-  const [expenses,  setExpenses]   = useState(() => LS("vb_exp", []));
+  const [expenses,  setExpenses]   = useState(() => {
+    const loaded = LS("vb_exp", []);
+    return Array.isArray(loaded) ? loaded.map(e => ({ ...e, id: e.id || generateUUID() })) : [];
+  });
   const [users,     setUsers]      = useState(() => LS("vb_users", INIT_USERS));
   const [toast,showToast]          = useToast();
   const [currentShift,setCurrentShift] = useState(null);
@@ -5428,10 +5437,7 @@ export default function App(){
   const [warehouseHistory, setWarehouseHistory] = useState(() => LS("vb_warehouse_history", []));
   const [writeOffs, setWriteOffs] = useState(() => LS("vb_writeoffs_log", []));
   const [shifts, setShifts] = useState(() => LS("vb_shifts", []));
-
-
-
-  const setWarehouseHistoryWithSync = (updater) => {
+const setWarehouseHistoryWithSync = (updater) => {
     setWarehouseHistory(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const added = next.filter(n => !prev.find(p => p.id === n.id));
@@ -5445,7 +5451,7 @@ export default function App(){
     });
   };
 
-  const setWriteOffsWithSync = (updater) => {
+const setWriteOffsWithSync = (updater) => {
     setWriteOffs(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const added = next.filter(n => !prev.find(p => p.id === n.id));
@@ -5472,7 +5478,7 @@ export default function App(){
     });
   };
 
-  const setUsersWithSync = (updater) => {
+const setUsersWithSync = (updater) => {
     setUsers(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       next.forEach(u => {
@@ -5492,7 +5498,7 @@ export default function App(){
     });
   };
 
-  const setCustomersWithSync = (updater) => {
+const setCustomersWithSync = (updater) => {
     setCustomers(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       const added = next.filter(n => !prev.find(p => p.id === n.id));
@@ -5512,6 +5518,161 @@ export default function App(){
     });
   };
 
+const setRawStockWithSync = (updater) => {
+    setRawStock(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("POST", "raw_stock", newItem).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "raw_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+const setSemiStockWithSync = (updater) => {
+    setSemiStock(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("POST", "semi_stock", newItem).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "semi_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+const setTechCardsWithSync = (updater) => {
+    setTechCards(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          supaFetch("POST", "tech_cards", newItem).catch(()=>{});
+        }
+      });
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "tech_cards", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      return next;
+    });
+  };
+
+const setSalesWithSync = (updater) => {
+    setSales(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      
+      // Added sales
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(newSale => {
+        supaFetch("POST", "sales", {
+          id: newSale.id,
+          no: newSale.no,
+          point: newSale.point,
+          items: newSale.items,
+          total: newSale.total,
+          subtotal: newSale.subtotal || newSale.total,
+          disc_amt: newSale.discAmt || 0,
+          discount: newSale.discount || 0,
+          cogs: newSale.cogs || 0,
+          pay_mode: newSale.payMode,
+          payments: newSale.payments || [],
+          cash_given: newSale.cashGiven || 0,
+          change_amt: newSale.change || 0,
+          sale_time: newSale.time,
+          date: newSale.date,
+          shift_id: newSale.shift_id || null,
+          status: newSale.status || "active",
+        }).catch(()=>{});
+      });
+      
+      // Modified sales
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && (oldItem.status !== newItem.status || oldItem.delete_requested_by !== newItem.delete_requested_by || oldItem.delete_approved_by !== newItem.delete_approved_by)) {
+          supaFetch("PATCH", "sales", {
+            status: newItem.status,
+            delete_requested_by: newItem.delete_requested_by,
+            delete_approved_by: newItem.delete_approved_by,
+          }, `?id=eq.${newItem.id}`).catch(()=>{});
+        }
+      });
+      
+      // Deleted sales
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "sales", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      
+      return next;
+    });
+  };
+
+const setExpensesWithSync = (updater) => {
+    setExpenses(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      
+      // Added expenses
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(e => supaFetch("POST", "expenses", {
+        id: e.id,
+        cat: e.cat,
+        note: e.desc || e.note,
+        amount: e.amount,
+        point: e.point,
+        paid: e.paid,
+        expense_date: e.date,
+      }).catch(()=>{}));
+      
+      // Modified expenses
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && (oldItem.paid !== newItem.paid || oldItem.amount !== newItem.amount || oldItem.desc !== newItem.desc || oldItem.note !== newItem.note || oldItem.cat !== newItem.cat || oldItem.date !== newItem.date || oldItem.point !== newItem.point)) {
+          supaFetch("PATCH", "expenses", {
+            cat: newItem.cat,
+            note: newItem.desc || newItem.note,
+            amount: newItem.amount,
+            point: newItem.point,
+            paid: newItem.paid,
+            expense_date: newItem.date,
+          }, `?id=eq.${newItem.id}`).catch(()=>{});
+        }
+      });
+      
+      // Deleted expenses
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "expenses", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      
+      return next;
+    });
+  };
+
+
+
+
+
+  
+  
+  
+  
   const processSyncQueue = async () => {
     const queue = LS("vb_sync_queue", []);
     if (!queue.length) return;
@@ -5956,111 +6117,10 @@ export default function App(){
     };
   }, [supabase, loading, currentUser]);
 
-  const setRawStockWithSync = (updater) => {
-    setRawStock(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      next.forEach(newItem => {
-        const oldItem = prev.find(p => p.id === newItem.id);
-        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          supaFetch("POST", "raw_stock", newItem).catch(()=>{});
-        }
-      });
-      prev.forEach(oldItem => {
-        if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "raw_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
-        }
-      });
-      return next;
-    });
-  };
-
-  const setSemiStockWithSync = (updater) => {
-    setSemiStock(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      next.forEach(newItem => {
-        const oldItem = prev.find(p => p.id === newItem.id);
-        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          supaFetch("POST", "semi_stock", newItem).catch(()=>{});
-        }
-      });
-      prev.forEach(oldItem => {
-        if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "semi_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
-        }
-      });
-      return next;
-    });
-  };
-
-  const setTechCardsWithSync = (updater) => {
-    setTechCards(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      next.forEach(newItem => {
-        const oldItem = prev.find(p => p.id === newItem.id);
-        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          supaFetch("POST", "tech_cards", newItem).catch(()=>{});
-        }
-      });
-      prev.forEach(oldItem => {
-        if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "tech_cards", null, `?id=eq.${oldItem.id}`).catch(()=>{});
-        }
-      });
-      return next;
-    });
-  };
-
-  const setSalesWithSync = (updater) => {
-    setSales(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      
-      // Added sales
-      const added = next.filter(n => !prev.find(p => p.id === n.id));
-      added.forEach(newSale => {
-        supaFetch("POST", "sales", {
-          id: newSale.id,
-          no: newSale.no,
-          point: newSale.point,
-          items: newSale.items,
-          total: newSale.total,
-          subtotal: newSale.subtotal || newSale.total,
-          disc_amt: newSale.discAmt || 0,
-          discount: newSale.discount || 0,
-          cogs: newSale.cogs || 0,
-          pay_mode: newSale.payMode,
-          payments: newSale.payments || [],
-          cash_given: newSale.cashGiven || 0,
-          change_amt: newSale.change || 0,
-          sale_time: newSale.time,
-          date: newSale.date,
-          shift_id: newSale.shift_id || null,
-          status: newSale.status || "active",
-        }).catch(()=>{});
-      });
-      
-      // Modified sales
-      next.forEach(newItem => {
-        const oldItem = prev.find(p => p.id === newItem.id);
-        if (oldItem && (oldItem.status !== newItem.status || oldItem.delete_requested_by !== newItem.delete_requested_by || oldItem.delete_approved_by !== newItem.delete_approved_by)) {
-          supaFetch("PATCH", "sales", {
-            status: newItem.status,
-            delete_requested_by: newItem.delete_requested_by,
-            delete_approved_by: newItem.delete_approved_by,
-          }, `?id=eq.${newItem.id}`).catch(()=>{});
-        }
-      });
-      
-      // Deleted sales
-      prev.forEach(oldItem => {
-        if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "sales", null, `?id=eq.${oldItem.id}`).catch(()=>{});
-        }
-      });
-      
-      return next;
-    });
-  };
-
+  
+  
+  
+  
   const handleCancelSale = async (saleNo) => {
     if (currentUser?.role !== "owner" && currentUser?.role !== "director") {
       showToast("Доступ ограничен. Только Владелец или Директор могут аннулировать продажи.", true);
@@ -6075,48 +6135,7 @@ export default function App(){
     showToast("Продажа #" + saleNo + " аннулирована!");
   };
 
-  const setExpensesWithSync = (updater) => {
-    setExpenses(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      
-      // Added expenses
-      const added = next.filter(n => !prev.find(p => p.id === n.id));
-      added.forEach(e => supaFetch("POST", "expenses", {
-        id: e.id,
-        cat: e.cat,
-        note: e.desc || e.note,
-        amount: e.amount,
-        point: e.point,
-        paid: e.paid,
-        expense_date: e.date,
-      }).catch(()=>{}));
-      
-      // Modified expenses
-      next.forEach(newItem => {
-        const oldItem = prev.find(p => p.id === newItem.id);
-        if (oldItem && (oldItem.paid !== newItem.paid || oldItem.amount !== newItem.amount || oldItem.desc !== newItem.desc || oldItem.note !== newItem.note || oldItem.cat !== newItem.cat || oldItem.date !== newItem.date || oldItem.point !== newItem.point)) {
-          supaFetch("PATCH", "expenses", {
-            cat: newItem.cat,
-            note: newItem.desc || newItem.note,
-            amount: newItem.amount,
-            point: newItem.point,
-            paid: newItem.paid,
-            expense_date: newItem.date,
-          }, `?id=eq.${newItem.id}`).catch(()=>{});
-        }
-      });
-      
-      // Deleted expenses
-      prev.forEach(oldItem => {
-        if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "expenses", null, `?id=eq.${oldItem.id}`).catch(()=>{});
-        }
-      });
-      
-      return next;
-    });
-  };
-
+  
   // ── ЭКРАН ЗАГРУЗКИ ──
   if(loading) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
