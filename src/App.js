@@ -3826,9 +3826,12 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
                       <span style={{fontWeight:600,fontSize:13}}>{p.name}</span>
-                      <span style={{fontSize:11,color:C.muted}}>{p.orders} заказов</span>
+                      <span style={{fontSize:11,color:C.muted}}>{p.orders} зак.</span>
                     </div>
-                    <span style={{fontWeight:800,color:p.color}}>{fmtS(p.rev)}</span>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontWeight:800,color:p.color,fontSize:13}}>{fmtS(p.rev)}</div>
+                      <div style={{fontSize:10,color:C.muted,marginTop:2}}>Кост (COGS): <span style={{color:C.yellow,fontWeight:700}}>{fmtS(p.cogs)}</span> | Прибыль: <span style={{color:C.green,fontWeight:700}}>{fmtS(p.rev - p.cogs)}</span></div>
+                    </div>
                   </div>
                   <div style={{height:5,background:C.dimmed,borderRadius:3,overflow:"hidden"}}>
                     <div style={{height:5,width:`${Math.round(p.rev/Math.max(totalRev,1)*100)}%`,background:p.color,borderRadius:3}}/>
