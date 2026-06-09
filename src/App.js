@@ -7041,8 +7041,8 @@ const setExpensesWithSync = (updater) => {
         top:0,
         zIndex:999
       }}>
-        <div style={{padding:"18px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>
+        <div style={{padding:(sidebarOpen || isMobile)?"18px 14px":"18px 0",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"space-between":"center"}}>
+          {(sidebarOpen || isMobile) && <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>}
           <button onClick={()=>setSidebarOpen(v=>!v)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0}}>{sidebarOpen?"←":"→"}</button>
         </div>
 
@@ -7050,7 +7050,7 @@ const setExpensesWithSync = (updater) => {
           {allowedNav.map(n=>{
             const active=page===n.id;
             return(
-              <button key={n.id} onClick={()=>{setPage(n.id); if(isMobile) setSidebarOpen(false);}} title={!sidebarOpen?n.label:""} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:active?C.accentSoft:"transparent",color:active?C.accent:C.muted,fontWeight:active?700:400,width:"100%",textAlign:"left",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden"}}>
+              <button key={n.id} onClick={()=>{setPage(n.id); if(isMobile) setSidebarOpen(false);}} title={!sidebarOpen?n.label:""} style={{display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"flex-start":"center",gap:10,padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:active?C.accentSoft:"transparent",color:active?C.accent:C.muted,fontWeight:active?700:400,width:"100%",textAlign:"left",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden"}}>
                 <span style={{fontSize:18,flexShrink:0}}>{n.icon}</span>
                 {(sidebarOpen || isMobile) &&<span style={{fontSize:13}}>{n.label}</span>}
               </button>
@@ -7059,7 +7059,7 @@ const setExpensesWithSync = (updater) => {
         </div>
 
         <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
-          <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
+          <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"flex-start":"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
             <div style={{width:32,height:32,borderRadius:16,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{role.icon}</div>
             {(sidebarOpen || isMobile) &&<div>
               <div style={{fontSize:12,fontWeight:700}}>{currentUser.name}</div>
