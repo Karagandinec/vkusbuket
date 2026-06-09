@@ -5495,7 +5495,6 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
   const [checkoutPreorder, setCheckoutPreorder] = useState(null);
   const [checkoutPayMode, setCheckoutPayMode] = useState("cash");
 
-  const isAdmin = currentUser.role === "owner" || currentUser.role === "director" || currentUser.role === "admin";
 
   // Filtered preorders (always filtered to "Мастерская" because "только в мастерской")
   const filtered = preorders.filter(p => {
@@ -5809,7 +5808,7 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
                         </button>
                         <button
                           onClick={() => {
-                            if(confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
+                            if(window.confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
                           }}
                           style={{padding:"8px 12px",background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}
                         >
@@ -5827,7 +5826,7 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
                         </button>
                         <button
                           onClick={() => {
-                            if(confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
+                            if(window.confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
                           }}
                           style={{padding:"8px 12px",background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}
                         >
