@@ -2168,7 +2168,7 @@ function useToast(){
 }
 
 // ─── ДАШБОРД ─────────────────────────────────────────────────────────────────
-function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
+function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
   const [pointFilter, setPointFilter] = useState("Все");
   const [periodFilter, setPeriodFilter] = useState("За все время");
   const [selPoint, setSelPoint] = useState(POINTS[0]);
@@ -2265,7 +2265,7 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale,u
   const isOwnerOrDirector = currentUser?.role === "owner" || currentUser?.role === "director";
 
   return (
-    <div style={{padding:"24px 28px",overflowY:"auto",height:"calc(100vh - 57px)",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",height:"calc(100vh - 57px)",boxSizing:"border-box"}}>
       {/* ЗАПРОСЫ НА УДАЛЕНИЕ */}
       {isOwnerOrDirector && pendingDeletions.length > 0 && (
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.red}`,padding:22,marginBottom:22,boxSizing:"border-box"}}>
@@ -2771,13 +2771,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   );
 
   const renderCart = () => (
-    <div style={{width:isMobile?"100%":340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px solid ${C.border}`,height:"100%"}}>
+    <div style={{width:isMobile?"100%":340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px solid ${C.border}`,height:"100%",overflowY:isMobile?"auto":"hidden"}}>
       <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{fontWeight:700,fontSize:15}}>Корзина ({selPoint})</span>
         {cart.length>0&&<button onClick={()=>setCart([])} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:700}}>Очистить</button>}
       </div>
 
-      <div style={{flex:1,overflowY:"auto",padding:10}}>
+      <div style={{flex:isMobile?"none":1,overflowY:isMobile?"visible":"auto",padding:10}}>
         {cart.length===0
           ? <div style={{textAlign:"center",color:C.muted,marginTop:40,fontSize:13}}>🍓 Выберите товар</div>
           : cart.map(item=>{
@@ -3034,7 +3034,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
       {/* Модалка закрытия смены */}
       {showCloseShift && currentShift && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🔒 Закрытие смены</div>
             {(()=>{
               const shiftSales = sales.filter(s=>s.shift_id===currentShift.id);
@@ -3268,7 +3268,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 }
 
 // ─── ПРОИЗВОДСТВО И ПЕРЕМЕЩЕНИЕ ──────────────────────────────────────────────
-function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
+function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
   const [modal,setModal]=useState(null);
   const [form,setForm]=useState({targetId:"s1",qty:"",point:"Мастерская"});
@@ -3346,7 +3346,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   };
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       
       {/* РЕЖИМЫ */}
@@ -3357,7 +3357,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
 
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:420,border:`1px solid ${C.border}`}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:420,border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
             <h3 style={{marginTop:0,marginBottom:16}}>Передать на кухню</h3>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:12,color:C.muted,marginBottom:6}}>ПОЛУФАБРИКАТ</div>
@@ -3474,7 +3474,7 @@ function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
 }
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
-function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
+function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
   const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
   const [toast,showToast]=useToast();
@@ -3630,7 +3630,7 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
   } catch (e) {}
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <h2 style={{margin:0}}>▣ Складской учёт {isCashier ? `(${myPoint})` : ""}</h2>
@@ -3912,7 +3912,7 @@ const EXP_CATS = [
   {id:"other",     label:"Прочее",    icon:"📝", color:C.muted},
 ];
 
-function Expenses({expenses,setExpenses}){
+function Expenses({isMobile,expenses,setExpenses}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point:"Вся компания",paid:true,type:"expense"});
   const [toast,showToast]=useToast();
@@ -3931,7 +3931,7 @@ function Expenses({expenses,setExpenses}){
   };
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
@@ -4075,7 +4075,7 @@ function Expenses({expenses,setExpenses}){
 }
 
 // ─── ОТЧЕТЫ ──────────────────────────────────────────────────────────────────
-function Reports({sales,expenses,rawStock,semiStock,currentUser}){
+function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
   const isCashier = currentUser?.role === "cashier";
   const isAdmin = currentUser?.role === "admin";
   const myPoint = currentUser?.point;
@@ -4235,7 +4235,7 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
   const fcLimit = 30;
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       {/* ФИЛЬТРЫ */}
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",background:C.surface,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
         {!isCashier ? (
@@ -4559,7 +4559,7 @@ function Reports({sales,expenses,rawStock,semiStock,currentUser}){
 }
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
-function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers}){
+function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers}){
   const [tab,setTab]=useState("products");
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
@@ -4633,7 +4633,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
   };
 
   return(
-    <div style={{padding:"20px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"],["loyalty","👥 Клиенты (Лояльность)"]].map(([id,label])=>(
@@ -5047,7 +5047,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses}){
+function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses}){
   const isCashier = currentUser?.role === "cashier";
   const myPoint = currentUser?.point;
   const [selPoint, setSelPoint] = useState(isCashier ? currentUser.point : POINTS[0]);
@@ -5185,7 +5185,7 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser,setE
   const currentList = activeTab === "semi" ? semiStock : rawStock;
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>📋 {isCashier ? `Инвентаризация остатков (${myPoint})` : "Инвентаризация остатков"}</div>
@@ -5263,7 +5263,7 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser,setE
 }
 
 // ─── СПИСАНИЯ ────────────────────────────────────────────────────────────────
-function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog}){
+function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog}){
   const [form,setForm]=useState({stock:"semi",itemId:"s1",qty:"",reason:"spoil",note:"",author:""});
   const isCashier = currentUser.role === "cashier";
   const myPoint = currentUser.point;
@@ -5358,7 +5358,7 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,s
   };
 
   return(
-    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>✕ Коррекционное списание остатков</div>
@@ -5433,7 +5433,7 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,s
 }
 
 // ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
-function Shifts({ shifts }){
+function Shifts({isMobile, shifts }){
 
   const fmtDT = (iso) => {
     if(!iso) return "—";
@@ -5442,7 +5442,7 @@ function Shifts({ shifts }){
   };
 
   return(
-    <div style={{padding:"20px 28px",overflowY:"auto"}}>
+    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto"}}>
       <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>🕐 Журнал смен</div>
       {!shifts ? (
         <div style={{color:C.muted,textAlign:"center",padding:40}}>⟳ Загрузка смен...</div>
@@ -5484,7 +5484,7 @@ function Shifts({ shifts }){
 }
 
 // ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
-function Preorders({preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
+function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
   const [statusFilter, setStatusFilter] = useState("all_active"); // "all_active", "pending", "ready", "completed", "cancelled"
   const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "tomorrow"
   const [searchQuery, setSearchQuery] = useState("");
@@ -5703,7 +5703,7 @@ function Preorders({preorders, setPreorders, sales, setSales, semiStock, setSemi
   };
 
   return (
-    <div style={{padding:"20px 28px",overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}}>
+    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div style={{fontSize:22,fontWeight:900,color:C.accent}}>📅 Журнал предзаказов (Мастерская)</div>
         <div style={{display:"flex",gap:10}}>
@@ -5843,7 +5843,7 @@ function Preorders({preorders, setPreorders, sales, setSales, semiStock, setSemi
 
       {checkoutPreorder && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:24,width:350,maxWidth:"90vw",border:`1px solid ${C.border}`}}>
+          <div style={{background:C.card,borderRadius:16,padding:24,width:350,maxWidth:"90vw",border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🛍️ Выдача предзаказа</div>
             <div style={{background:C.surface,borderRadius:10,padding:12,marginBottom:16}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:C.muted,fontSize:12}}>Сумма заказа:</span><span style={{fontWeight:700}}>{fmtM(checkoutPreorder.total)}</span></div>
@@ -5916,7 +5916,7 @@ function PinScreen({users, onLogin, onClose}){
       <div style={{fontSize:28,fontWeight:900,letterSpacing:-1,color:"#E8A0B4"}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
 
       {!selected ? (
-        <div style={{display:"flex",flexDirection:"column",gap:12,width:280}}>
+        <div style={{display:"flex",flexDirection:"column",gap:12,width:280,maxHeight:"65vh",overflowY:"auto",paddingRight:4}}>
           <div style={{color:"#7A7A94",fontSize:13,textAlign:"center",marginBottom:4}}>Выберите профиль сотрудника</div>
           {[...users].sort((a, b) => {
             const getWeight = (u) => {
@@ -6048,16 +6048,17 @@ async function supaFetch(method, table, body=null, params="") {
 function fmtUnit(u) { return u === "г" ? "гр." : u; }
 
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
+const checkIsMobile = () => {
+  if (typeof window === "undefined") return false;
+  return (window.innerWidth < 1024) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 export default function App(){
   const [currentUser,setCurrentUser] = useState(null);
   const [page,setPage]               = useState("dashboard");
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
   const [loading,setLoading]         = useState(true);
-  const checkIsMobile = () => {
-    if (typeof window === "undefined") return false;
-    return (window.innerWidth < 1024) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  };
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
   const [isOffline, setIsOffline]     = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
 
@@ -7006,7 +7007,7 @@ const setExpensesWithSync = (updater) => {
       {/* Модалка открытия смены */}
       {showOpenShift && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:340,maxWidth:"90vw",border:`1px solid ${C.border}`,textAlign:"center"}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:340,maxWidth:"90vw",border:`1px solid ${C.border}`,textAlign:"center",maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontSize:36,marginBottom:12}}>🔓</div>
             <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Открыть смену?</div>
             <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Точка: <b>{currentUser?.point}</b><br/>Кассир: <b>{currentUser?.name}</b></div>
@@ -7091,17 +7092,17 @@ const setExpensesWithSync = (updater) => {
         </div>
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-          {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
+          {page==="dashboard"  && <Dashboard  isMobile={isMobile} sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
-          {page==="preorders"  && <Preorders preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
-          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
-          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
-          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
-          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
-          {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
-          {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
-          {page==="shifts"     && <Shifts     shifts={shifts}/>}
-          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync}/>}
+          {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
+          {page==="production" && <Production isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
+          {page==="warehouse"  && <Warehouse  isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
+          {page==="inventory"  && <Inventory  isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
+          {page==="writeoff"   && <WriteOff   isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
+          {page==="expenses"   && <Expenses   isMobile={isMobile} expenses={expenses} setExpenses={setExpensesWithSync}/>}
+          {page==="reports"    && <Reports    isMobile={isMobile} sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
+          {page==="shifts"     && <Shifts     isMobile={isMobile} shifts={shifts}/>}
+          {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync}/>}
         </div>
       </div>
     </div>
