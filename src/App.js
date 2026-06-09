@@ -6,7 +6,7 @@ const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON
 const generateUUID = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    const r = (Math.random() * 16) | 0, v = c === 'x' ? r : ((r & 0x3) | 0x8);
     return v.toString(16);
   });
 };
@@ -5733,6 +5733,7 @@ const setExpensesWithSync = (updater) => {
       window.removeEventListener("online", handleOnline);
       clearInterval(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Эффект Realtime-подписок на таблицы Supabase объединен ниже с основным эффектом
@@ -6115,7 +6116,8 @@ const setExpensesWithSync = (updater) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, loading, currentUser]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, currentUser]);
 
   
   
