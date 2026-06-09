@@ -25,12 +25,12 @@ const ROLES = {
 };
 
 const INIT_USERS = [
-  { id:1, name:"Владелец",          role:"owner",    point:null,          pin:"" },
-  { id:2, name:"Директор",          role:"director", point:null,          pin:"" },
-  { id:3, name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"" },
-  { id:4, name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"" },
-  { id:5, name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"" },
-  { id:6, name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"" },
+  { id:"00000000-0000-4000-a000-000000000001", name:"Владелец",          role:"owner",    point:null,          pin:"" },
+  { id:"00000000-0000-4000-a000-000000000002", name:"Директор",          role:"director", point:null,          pin:"" },
+  { id:"00000000-0000-4000-a000-000000000003", name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"" },
+  { id:"00000000-0000-4000-a000-000000000004", name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"" },
+  { id:"00000000-0000-4000-a000-000000000005", name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"" },
+  { id:"00000000-0000-4000-a000-000000000006", name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"" },
 ];
 
 // Инициализируем остатки на "Склад" согласно данным из Excel
@@ -2255,8 +2255,7 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale,u
                     }} style={{background:C.green,color:"#000",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer",fontSize:13}}>Одобрить</button>
                     <button onClick={async () => {
                       if (window.confirm(`Отклонить удаление чека #${s.no}?`)) {
-                        setSales(prev => prev.map(x => x.no === s.no ? { ...x, status: "active" } : x));
-                        await supaFetch("PATCH", "sales", { status: "active", delete_requested_by: null }, `?no=eq.${s.no}`);
+                        setSales(prev => prev.map(x => x.id === s.id ? { ...x, status: "active", delete_requested_by: null } : x));
                         showToast("Запрос на удаление отклонен.");
                       }
                     }} style={{background:"transparent",color:C.muted,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 14px",fontWeight:600,cursor:"pointer",fontSize:13}}>Отклонить</button>
@@ -2502,6 +2501,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     const effectiveChange = (payMode==="cash" && !splitMode) ? cashGiven-total : 0;
 
     const receipt={
+      id: generateUUID(),
       no:1001+sales.length, point:selPoint,
       items:cart.map(i=>({name:i.product,qty:i.qty,price:i.price,extras:i.extras})),
       total, subtotal, discAmt, discount, cogs,
@@ -2573,8 +2573,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                           const reason = window.prompt("Укажите причину удаления чека:");
                           if (reason) {
                             try {
-                              setSales(prev => prev.map(x => x.no === s.no ? { ...x, status: "pending", delete_requested_by: currentUser.id } : x));
-                              await supaFetch("PATCH", "sales", { status: "pending", delete_requested_by: currentUser.id }, `?no=eq.${s.no}`);
+                              setSales(prev => prev.map(x => x.id === s.id ? { ...x, status: "pending", delete_requested_by: currentUser.id } : x));
                               showToast("Запрос на удаление отправлен владельцу.");
                             } catch (e) {
                               showToast("Ошибка при отправке запроса", true);
@@ -3225,15 +3224,7 @@ function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sale
     const itemName = form.manualEntry ? form.customName.trim() : rawStock.find(r=>r.id===form.itemId)?.name;
     const itemUnit = form.manualEntry ? form.customUnit.trim() : rawStock.find(r=>r.id===form.itemId)?.unit;
     
-    // UUID-safe history ID generation
-    const generateUUIDLocal = () => {
-      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    };
-    const histId = generateUUIDLocal();
+    const histId = generateUUID();
     const newHistItem = {
       id: histId,
       date: new Date().toLocaleDateString("ru-RU"),
@@ -3630,7 +3621,7 @@ function Expenses({expenses,setExpenses}){
     ev.preventDefault();
     if(!form.desc||!form.amount){showToast("Заполните поля",true);return;}
     const catVal = form.type && form.type !== "expense" ? form.type : form.cat;
-    setExpenses(p=>[...p,{id:Date.now(),...form,cat:catVal,amount:parseInt(form.amount)||0,date:new Date().toLocaleDateString("ru-RU")}]);
+    setExpenses(p=>[...p,{id:generateUUID(),...form,cat:catVal,amount:parseInt(form.amount)||0,date:new Date().toLocaleDateString("ru-RU")}]);
     setForm({cat:"rent",desc:"",amount:"",point:"Вся компания",paid:true,type:"expense"});
     setShowForm(false);
     showToast(form.type === "deposit" ? "Средства внесены" : form.type === "safe" ? "Наличные сняты (Сейф)" : "Расход добавлен");
@@ -4599,10 +4590,9 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{
                     if(!newUser.name || newUser.pin.length!==4){ showToast("Введите имя и 4-значный PIN",true); return; }
-                    const newId = Date.now();
-                    const usr = { id: newId, ...newUser };
+                    const newId = generateUUID();
+                    const usr = { id: newId, name: newUser.name, role: newUser.role, pin: newUser.pin, point: newUser.point };
                     setUsers(p=>[...p, usr]);
-                    supaFetch("POST","app_users",{id:newId,name:newUser.name,role:newUser.role,point:newUser.point,pin:newUser.pin,is_active:true}).catch(()=>{});
                     setNewUser({ name: "", role: "cashier", pin: "", point: "Мастерская" });
                     setShowAddUser(false);
                     showToast("Сотрудник добавлен!");
@@ -4699,7 +4689,7 @@ function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,s
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{
                     if(!newCustomer.name || !newCustomer.phone){ showToast("Введите имя и телефон клиента",true); return; }
-                    const newId = Date.now();
+                    const newId = generateUUID();
                     const cust = { id: newId, name: newCustomer.name, phone: newCustomer.phone, discount_percent: newCustomer.discount_percent };
                     setCustomers(p=>[...p, cust]);
                     setNewCustomer({ name: "", phone: "", discount_percent: 0 });
@@ -4771,7 +4761,7 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
 
     if (!window.confirm(`Зафиксировать результаты инвентаризации по ${auditedKeys.length} позициям?`)) return;
 
-    const invId = (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const invId = generateUUID();
 
     try {
       await supaFetch("POST", "inventory", {
@@ -4818,14 +4808,18 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
             const cost = calcProductCOGS(semiItem, semiStock, rawStock);
             const amount = shortageQty * cost;
 
-            await supaFetch("POST", "expenses", {
-              cat: "other",
-              note: `Авто-списание (инвентаризация): ${semiItem.name} (-${shortageQty} ${semiItem.unit}) [Разница при пересчете]`,
-              amount: amount,
-              point: selPoint,
-              paid: true,
-              expense_date: new Date().toLocaleDateString("ru-RU")
-            }).catch(()=>{});
+            setExpensesWithSync(prev => [
+              ...prev,
+              {
+                id: generateUUID(),
+                cat: "other",
+                desc: `Авто-списание (инвентаризация): ${semiItem.name} (-${shortageQty} ${semiItem.unit}) [Разница при пересчете]`,
+                amount: amount,
+                point: selPoint,
+                paid: true,
+                date: new Date().toLocaleDateString("ru-RU")
+              }
+            ]);
 
             writeOffsCount++;
           }
@@ -4853,14 +4847,18 @@ function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser}){
             const shortageQty = Math.abs(difference);
             const amount = shortageQty * (rawItem.price || 0);
 
-            await supaFetch("POST", "expenses", {
-              cat: "other",
-              note: `Авто-списание (инвентаризация): ${rawItem.name} (-${shortageQty} ${rawItem.unit}) [Разница при пересчете]`,
-              amount: amount,
-              point: selPoint,
-              paid: true,
-              expense_date: new Date().toLocaleDateString("ru-RU")
-            }).catch(()=>{});
+            setExpensesWithSync(prev => [
+              ...prev,
+              {
+                id: generateUUID(),
+                cat: "other",
+                desc: `Авто-списание (инвентаризация): ${rawItem.name} (-${shortageQty} ${rawItem.unit}) [Разница при пересчете]`,
+                amount: amount,
+                point: selPoint,
+                paid: true,
+                date: new Date().toLocaleDateString("ru-RU")
+              }
+            ]);
 
             writeOffsCount++;
           }
@@ -5008,14 +5006,7 @@ function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,s
       }));
     }
     
-    const generateUUIDLocal = () => {
-      if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    };
-    const writeOffId = generateUUIDLocal();
+    const writeOffId = generateUUID();
     setLog(p=>[{
       id: writeOffId,
       itemId: form.itemId,
@@ -5294,6 +5285,40 @@ const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : nul
 
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
 
+const generateUUID = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
+const getMergedList = (fetched, local, tableName) => {
+  const queue = LS("vb_sync_queue", []);
+  const merged = [...fetched];
+  
+  local.forEach(localItem => {
+    const idx = merged.findIndex(m => m.id === localItem.id);
+    if (idx >= 0) {
+      const hasPendingSync = queue.some(q => 
+        q.table === tableName && 
+        (
+          (q.body && q.body.id === localItem.id) || 
+          (q.params && q.params.includes(`id=eq.${localItem.id}`)) ||
+          (q.body && q.body.no === localItem.no && tableName === "sales") ||
+          (q.params && q.params.includes(`no=eq.${localItem.no}`) && tableName === "sales")
+        )
+      );
+      if (hasPendingSync) {
+        merged[idx] = localItem;
+      }
+    } else {
+      merged.push(localItem);
+    }
+  });
+  return merged;
+};
+
 const supaFetch = async (method, table, body=null, params="") => {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
@@ -5404,13 +5429,7 @@ export default function App(){
   const [writeOffs, setWriteOffs] = useState(() => LS("vb_writeoffs_log", []));
   const [shifts, setShifts] = useState(() => LS("vb_shifts", []));
 
-  const generateUUID = () => {
-    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  };
+
 
   const setWarehouseHistoryWithSync = (updater) => {
     setWarehouseHistory(prev => {
@@ -5586,14 +5605,30 @@ export default function App(){
           supaFetch("GET","warehouse_history","",`?order=created_at.desc&limit=500`),
           supaFetch("GET","write_offs","",`?order=created_at.desc&limit=500`),
         ]);
-        if(Array.isArray(custs)&&custs.length) setCustomers(custs);
-        if(Array.isArray(raw)&&raw.length)   setRawStock(raw);
-        if(Array.isArray(semi)&&semi.length)  setSemiStock(semi);
-        if(Array.isArray(tc)&&tc.length)     setTechCards(tc.map(t=>({...t,ings:t.ings||[]})));
-        if(Array.isArray(sh)&&sh.length)     setShifts(sh);
-        if(Array.isArray(whHist)&&whHist.length) setWarehouseHistory(whHist);
-        if(Array.isArray(wrOffs)&&wrOffs.length) setWriteOffs(wrOffs);
-        if(Array.isArray(sl)&&sl.length) {
+        
+        if (Array.isArray(custs)) {
+          setCustomers(prev => getMergedList(custs, prev, "customers"));
+        }
+        if (Array.isArray(raw)) {
+          setRawStock(prev => getMergedList(raw, prev, "raw_stock"));
+        }
+        if (Array.isArray(semi)) {
+          setSemiStock(prev => getMergedList(semi, prev, "semi_stock"));
+        }
+        if (Array.isArray(tc)) {
+          const mapped = tc.map(t=>({...t,ings:t.ings||[]}));
+          setTechCards(prev => getMergedList(mapped, prev, "tech_cards"));
+        }
+        if (Array.isArray(sh)) {
+          setShifts(prev => getMergedList(sh, prev, "shifts"));
+        }
+        if (Array.isArray(whHist)) {
+          setWarehouseHistory(prev => getMergedList(whHist, prev, "warehouse_history"));
+        }
+        if (Array.isArray(wrOffs)) {
+          setWriteOffs(prev => getMergedList(wrOffs, prev, "write_offs"));
+        }
+        if (Array.isArray(sl)) {
           const fetchedSales = sl.map(s=>{
             const dObj = s.created_at ? new Date(s.created_at) : new Date();
             return {
@@ -5606,21 +5641,20 @@ export default function App(){
             };
           });
           setSales(prev => {
-            const merged = [...fetchedSales];
-            prev.forEach(localSale => {
-              if (!merged.find(m => m.no === localSale.no && m.point === localSale.point)) {
-                merged.push(localSale);
-              }
-            });
+            const merged = getMergedList(fetchedSales, prev, "sales");
             return merged.sort((a,b) => a.no - b.no);
           });
         }
-        if(Array.isArray(exp)&&exp.length)   setExpenses(exp.map(e=>({...e,desc:e.note,date:e.expense_date})));
+        if (Array.isArray(exp)) {
+          const mapped = exp.map(e=>({...e,desc:e.note,date:e.expense_date}));
+          setExpenses(prev => getMergedList(mapped, prev, "expenses"));
+        }
 
         // Phase 5: Load users from app_users, populate if empty
-        if(Array.isArray(appUsers)&&appUsers.length) {
-          setUsers(appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin})));
-        } else {
+        if (Array.isArray(appUsers) && appUsers.length) {
+          const mapped = appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin}));
+          setUsers(prev => getMergedList(mapped, prev, "app_users"));
+        } else if (Array.isArray(appUsers) && appUsers.length === 0) {
           // Populate app_users from INIT_USERS (one-time)
           for(const u of INIT_USERS) {
             supaFetch("POST","app_users",{id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin,is_active:true}).catch(()=>{});
@@ -5759,7 +5793,7 @@ export default function App(){
       .on("postgres_changes", { event: "*", schema: "public", table: "sales" }, (payload) => {
         const { eventType, new: newRow, old: oldRow } = payload;
         if (eventType === "DELETE") {
-          setSales(prev => prev.filter(s => s.no !== oldRow.no));
+          setSales(prev => prev.filter(s => s.id !== oldRow.id));
         } else {
           const dObj = newRow.created_at ? new Date(newRow.created_at) : new Date();
           const parsed = {
@@ -5771,7 +5805,7 @@ export default function App(){
             date: newRow.date || dObj.toLocaleDateString("ru-RU")
           };
           setSales(prev => {
-            const idx = prev.findIndex(s => s.no === parsed.no);
+            const idx = prev.findIndex(s => s.id === parsed.id);
             if (idx >= 0) {
               if (JSON.stringify(prev[idx]) === JSON.stringify(parsed)) return prev;
               const next = [...prev];
@@ -5977,20 +6011,52 @@ export default function App(){
   };
 
   const setSalesWithSync = (updater) => {
-    setSales(prev=>{
-      const next = typeof updater==="function"?updater(prev):updater;
-      const newSale = next[next.length-1];
-      if(newSale) supaFetch("POST","sales",{
-        no:newSale.no, point:newSale.point, items:newSale.items,
-        total:newSale.total, subtotal:newSale.subtotal||newSale.total,
-        disc_amt:newSale.discAmt||0, discount:newSale.discount||0,
-        cogs:newSale.cogs||0, pay_mode:newSale.payMode,
-        payments:newSale.payments||[],
-        cash_given:newSale.cashGiven||0, change_amt:newSale.change||0,
-        sale_time:newSale.time,
-        date:newSale.date,
-        shift_id:newSale.shift_id||null,
-      }).catch(()=>{});
+    setSales(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      
+      // Added sales
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(newSale => {
+        supaFetch("POST", "sales", {
+          id: newSale.id,
+          no: newSale.no,
+          point: newSale.point,
+          items: newSale.items,
+          total: newSale.total,
+          subtotal: newSale.subtotal || newSale.total,
+          disc_amt: newSale.discAmt || 0,
+          discount: newSale.discount || 0,
+          cogs: newSale.cogs || 0,
+          pay_mode: newSale.payMode,
+          payments: newSale.payments || [],
+          cash_given: newSale.cashGiven || 0,
+          change_amt: newSale.change || 0,
+          sale_time: newSale.time,
+          date: newSale.date,
+          shift_id: newSale.shift_id || null,
+          status: newSale.status || "active",
+        }).catch(()=>{});
+      });
+      
+      // Modified sales
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && (oldItem.status !== newItem.status || oldItem.delete_requested_by !== newItem.delete_requested_by || oldItem.delete_approved_by !== newItem.delete_approved_by)) {
+          supaFetch("PATCH", "sales", {
+            status: newItem.status,
+            delete_requested_by: newItem.delete_requested_by,
+            delete_approved_by: newItem.delete_approved_by,
+          }, `?id=eq.${newItem.id}`).catch(()=>{});
+        }
+      });
+      
+      // Deleted sales
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "sales", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      
       return next;
     });
   };
@@ -6005,26 +6071,48 @@ export default function App(){
     const { newRaw, newSemi } = restoreStockForSale(sale, rawStock, semiStock, techCards);
     setRawStockWithSync(newRaw);
     setSemiStockWithSync(newSemi);
-    setSales(prev => {
-      const next = prev.filter(s => s.no !== saleNo);
-      return next;
-    });
-    try {
-      await supaFetch("DELETE", "sales", null, `?no=eq.${saleNo}`);
-      showToast("Продажа #" + saleNo + " аннулирована!");
-    } catch (e) {
-      showToast("Продажа #" + saleNo + " удалена локально");
-    }
+    setSalesWithSync(prev => prev.filter(s => s.id !== sale.id));
+    showToast("Продажа #" + saleNo + " аннулирована!");
   };
 
   const setExpensesWithSync = (updater) => {
-    setExpenses(prev=>{
-      const next = typeof updater==="function"?updater(prev):updater;
-      const added = next.filter(n=>!prev.find(p=>p.id===n.id));
-      added.forEach(e=>supaFetch("POST","expenses",{
-        cat:e.cat, note:e.desc||e.note, amount:e.amount,
-        point:e.point, paid:e.paid, expense_date:e.date,
+    setExpenses(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      
+      // Added expenses
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(e => supaFetch("POST", "expenses", {
+        id: e.id,
+        cat: e.cat,
+        note: e.desc || e.note,
+        amount: e.amount,
+        point: e.point,
+        paid: e.paid,
+        expense_date: e.date,
       }).catch(()=>{}));
+      
+      // Modified expenses
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && (oldItem.paid !== newItem.paid || oldItem.amount !== newItem.amount || oldItem.desc !== newItem.desc || oldItem.note !== newItem.note || oldItem.cat !== newItem.cat || oldItem.date !== newItem.date || oldItem.point !== newItem.point)) {
+          supaFetch("PATCH", "expenses", {
+            cat: newItem.cat,
+            note: newItem.desc || newItem.note,
+            amount: newItem.amount,
+            point: newItem.point,
+            paid: newItem.paid,
+            expense_date: newItem.date,
+          }, `?id=eq.${newItem.id}`).catch(()=>{});
+        }
+      });
+      
+      // Deleted expenses
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "expenses", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+      
       return next;
     });
   };
