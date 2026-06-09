@@ -2426,8 +2426,10 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [lastReceipt,setLast]   = useState(null);
   const [catFilter,setCatFilter] = useState("Все");
   const [search,setSearch]      = useState("");
-    const [posTab,setPosTab]          = useState("products");
+  const [posTab,setPosTab]          = useState("products");
   const [toast,showToast]           = useToast();
+  const [splitMode,setSplitMode]    = useState(false);
+  const [payments,setPayments]      = useState([]);
 
   const [showPreorderModal, setShowPreorderModal] = useState(false);
   const [preorderDate, setPreorderDate] = useState("");
