@@ -54,10 +54,10 @@ const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
 const ALL_LOCATIONS = ["Склад", ...POINTS];
 
 const ROLES = {
-  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
-  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
-  admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff","expenses"] },
-  cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","writeoff","inventory"] },
+  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","preorders","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
+  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","preorders","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
+  admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","preorders","warehouse","inventory","writeoff","expenses"] },
+  cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","preorders","writeoff","inventory"] },
 };
 
 const INIT_USERS = [
@@ -1880,6 +1880,7 @@ const CAT_COLORS = {
 const NAV = [
   { id:"dashboard",   icon:"📈", label:"Дашборд",       desc:"Аналитика и финансы" },
   { id:"pos",         icon:"🛒", label:"Касса",          desc:"Продажи и списания" },
+  { id:"preorders",   icon:"📅", label:"Предзаказы",     desc:"Управление предзаказами" },
   { id:"production",  icon:"🍓", label:"Производство",  desc:"Сырье → Кухня" },
   { id:"warehouse",   icon:"📦", label:"Склад",          desc:"Закупки и остатки" },
   { id:"inventory",   icon:"📋", label:"Инвентаризация", desc:"Пересчёт остатков" },
@@ -2413,7 +2414,7 @@ function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale,u
 }
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
-function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers}){
+function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers,preorders,setPreorders,setCustomers}){
   const [cart,setCart]          = useState([]);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [loyaltyCustomer, setLoyaltyCustomer] = useState(null);
@@ -2425,10 +2426,28 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [lastReceipt,setLast]   = useState(null);
   const [catFilter,setCatFilter] = useState("Все");
   const [search,setSearch]      = useState("");
-  const [posTab,setPosTab]      = useState("products"); // "products" или "cart" на мобильных
-  const [splitMode,setSplitMode] = useState(false);
-  const [payments,setPayments]   = useState([]); // [{method:"cash",amount:5000},{method:"kaspi",amount:2500}]
-  const [toast,showToast]       = useToast();
+    const [posTab,setPosTab]          = useState("products");
+  const [toast,showToast]           = useToast();
+
+  const [showPreorderModal, setShowPreorderModal] = useState(false);
+  const [preorderDate, setPreorderDate] = useState("");
+  const [preorderTime, setPreorderTime] = useState("");
+  const [preorderClientName, setPreorderClientName] = useState("");
+  const [preorderClientPhone, setPreorderClientPhone] = useState("");
+  const [preorderPrepayment, setPreorderPrepayment] = useState("");
+  const [preorderPayMode, setPreorderPayMode] = useState("cash");
+  const [preorderNotes, setPreorderNotes] = useState("");
+
+  useEffect(() => {
+    if (showPreorderModal) {
+      if (loyaltyCustomer) {
+        setPreorderClientPhone(loyaltyCustomer.phone);
+        setPreorderClientName(loyaltyCustomer.name);
+      } else if (phoneSearch) {
+        setPreorderClientPhone(phoneSearch);
+      }
+    }
+  }, [showPreorderModal, loyaltyCustomer, phoneSearch]);
   const [showCloseShift,setShowCloseShift] = useState(false);
   const [actualCashInput,setActualCashInput] = useState("");
 
@@ -2465,6 +2484,74 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const discAmt  = Math.round(subtotal*discount/100);
   const total    = subtotal - discAmt;
   const cashGiven= parseInt(cashInput.replace(/\D/g,""))||0;
+
+  const handleCreatePreorder = () => {
+    if (!preorderDate) { showToast("Выберите дату выдачи", true); return; }
+    if (!preorderTime) { showToast("Укажите время выдачи", true); return; }
+    if (!preorderClientPhone) { showToast("Укажите телефон клиента", true); return; }
+
+    const phoneClean = preorderClientPhone.replace(/\D/g,"");
+    if (phoneClean.length < 10) { showToast("Некорректный номер телефона", true); return; }
+
+    // Register customer if new
+    const existing = (customers || []).find(c => c.phone === phoneClean);
+    let customerId = existing ? existing.id : null;
+    if (!existing) {
+      customerId = generateUUID();
+      const newCust = {
+        id: customerId,
+        name: preorderClientName || `Клиент ${phoneClean}`,
+        phone: phoneClean,
+        discount_percent: 5,
+        created_at: new Date().toISOString()
+      };
+      if (typeof setCustomers === "function") {
+        setCustomers(prev => [...prev, newCust]);
+      }
+    }
+
+    const prepayAmt = parseInt(preorderPrepayment) || 0;
+    if (prepayAmt > total) { showToast("Предоплата не может превышать сумму заказа", true); return; }
+
+    const newPreorder = {
+      id: generateUUID(),
+      point: "Мастерская", // Locked to Мастерская ("только в мастерской")
+      customer_id: customerId,
+      customer_name: preorderClientName || (existing ? existing.name : `Клиент ${phoneClean}`),
+      customer_phone: phoneClean,
+      items: cart.map(i=>({name:i.product,qty:i.qty,price:i.price,extras:i.extras})),
+      subtotal: subtotal,
+      discount: discount,
+      disc_amt: discAmt,
+      total: total,
+      prepayment: prepayAmt,
+      prepayment_method: prepayAmt > 0 ? preorderPayMode : null,
+      prepayment_shift_id: prepayAmt > 0 ? (currentShift?.id || null) : null,
+      target_date: preorderDate,
+      target_time: preorderTime,
+      status: "pending",
+      notes: preorderNotes,
+      created_by: currentUser?.id || null,
+      created_at: new Date().toISOString(),
+      completed_shift_id: null,
+      completed_at: null,
+      remaining_payment: 0,
+      remaining_method: null
+    };
+
+    setPreorders(prev => [newPreorder, ...prev]);
+    showToast("Предзаказ успешно оформлен!");
+    setCart([]);
+    setShowPreorderModal(false);
+    
+    // Reset fields
+    setPreorderDate("");
+    setPreorderTime("");
+    setPreorderClientName("");
+    setPreorderClientPhone("");
+    setPreorderPrepayment("");
+    setPreorderNotes("");
+  };
 
   const handlePay=()=>{
     // Валидация
@@ -2912,6 +2999,15 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           >
             ✓ Принять оплату
           </button>
+          {selPoint === "Мастерская" && (
+            <button
+              type="button"
+              onClick={() => setShowPreorderModal(true)}
+              style={{width:"100%",padding:12,marginTop:8,background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,borderRadius:10,fontWeight:900,cursor:"pointer",fontSize:13}}
+            >
+              📅 Оформить предзаказ
+            </button>
+          )}
         </div>
       )}
 
@@ -2942,17 +3038,25 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🔒 Закрытие смены</div>
             {(()=>{
               const shiftSales = sales.filter(s=>s.shift_id===currentShift.id);
+              const shiftPreorders = (preorders || []).filter(p => p.prepayment_shift_id === currentShift.id);
+              const expectedPreordersCash = shiftPreorders.reduce((sum, p) => {
+                if (p.prepayment_method === "cash") return sum + (p.prepayment || 0);
+                return sum;
+              }, 0);
               const expectedCash = shiftSales.reduce((sum,s)=>{
                 if(s.payMode==="cash") return sum+s.total;
                 if(s.payMode==="split" && s.payments) return sum+s.payments.filter(p=>p.method==="cash").reduce((a,p)=>a+p.amount,0);
                 return sum;
-              },0);
+              },0) + expectedPreordersCash;
               const actualCash = parseInt(actualCashInput.replace(/\D/g,""))||0;
               const discrepancy = actualCash - expectedCash;
               return (
                 <>
                   <div style={{background:C.surface,borderRadius:10,padding:14,marginBottom:14}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Продаж за смену:</span><span style={{fontWeight:700}}>{shiftSales.length}</span></div>
+                    {expectedPreordersCash > 0 && (
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Авансы по предзаказам (нал):</span><span style={{fontWeight:700,color:C.accent}}>+{fmtM(expectedPreordersCash)}</span></div>
+                    )}
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Ожидаемая наличка:</span><span style={{fontWeight:700,color:C.green}}>{fmtM(expectedCash)}</span></div>
                   </div>
                   <div style={{marginBottom:14}}>
@@ -3011,6 +3115,152 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
               Оформить ({cart.reduce((s,i)=>s+i.qty,0)} шт) · {fmtM(subtotal)} →
             </button>
           )}
+        </div>
+      )}
+
+      {showPreorderModal && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div style={{background:C.card,borderRadius:16,padding:24,width:400,maxWidth:"95vw",border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:C.accent,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span>📅 Оформление предзаказа</span>
+              <button onClick={()=>setShowPreorderModal(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
+            </div>
+
+            <div style={{background:C.surface,borderRadius:10,padding:12,marginBottom:14,fontSize:13}}>
+              <div style={{fontWeight:700,marginBottom:4,color:C.muted}}>Товары:</div>
+              {cart.map(item => (
+                <div key={item.id} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span>{item.product} x{item.qty}</span>
+                  <span style={{fontWeight:600}}>{fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:8,marginTop:6,fontWeight:800}}>
+                <span>Итого к оплате:</span>
+                <span style={{color:C.accent}}>{fmtM(total)}</span>
+              </div>
+            </div>
+
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div>
+                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ТЕЛЕФОН КЛИЕНТА *</label>
+                <input
+                  type="text"
+                  value={preorderClientPhone}
+                  onChange={e => {
+                    const phone = e.target.value.replace(/[^0-9+]/g, "");
+                    setPreorderClientPhone(phone);
+                    const phoneClean = phone.replace(/\D/g,"");
+                    if (phoneClean.length >= 6) {
+                      const found = customers.find(c => c.phone === phone || c.phone.endsWith(phoneClean));
+                      if (found) {
+                        setPreorderClientName(found.name);
+                        setDiscount(found.discount_percent);
+                        setLoyaltyCustomer(found);
+                        setPhoneSearch(found.phone);
+                      }
+                    }
+                  }}
+                  placeholder="87011234567"
+                  style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
+                />
+              </div>
+
+              <div>
+                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ИМЯ КЛИЕНТА</label>
+                <input
+                  type="text"
+                  value={preorderClientName}
+                  onChange={e => setPreorderClientName(e.target.value)}
+                  placeholder="Введите имя..."
+                  style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
+                />
+              </div>
+
+              <div style={{display:"flex",gap:10}}>
+                <div style={{flex:1}}>
+                  <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ДАТА ВЫДАЧИ *</label>
+                  <input
+                    type="date"
+                    value={preorderDate}
+                    onChange={e => setPreorderDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
+                  />
+                </div>
+                <div style={{flex:1}}>
+                  <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ВРЕМЯ ВЫДАЧИ *</label>
+                  <input
+                    type="time"
+                    value={preorderTime}
+                    onChange={e => setPreorderTime(e.target.value)}
+                    style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ТОЧКА ВЫДАЧИ</label>
+                <div style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,boxSizing:"border-box",fontSize:13,fontWeight:700}}>
+                  Мастерская (только в мастерской)
+                </div>
+              </div>
+
+              <div style={{display:"flex",gap:10}}>
+                <div style={{flex:1}}>
+                  <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ПРЕДОПЛАТА (₸)</label>
+                  <input
+                    type="number"
+                    value={preorderPrepayment}
+                    onChange={e => setPreorderPrepayment(e.target.value)}
+                    placeholder="0"
+                    style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13,fontWeight:700}}
+                  />
+                </div>
+                {parseInt(preorderPrepayment) > 0 && (
+                  <div style={{flex:1}}>
+                    <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>СПОСОБ ОПЛАТЫ</label>
+                    <select
+                      value={preorderPayMode}
+                      onChange={e => setPreorderPayMode(e.target.value)}
+                      style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
+                    >
+                      <option value="cash">💵 Наличные</option>
+                      <option value="kaspi">📱 Kaspi</option>
+                      <option value="halyk">🏦 Халык</option>
+                      <option value="bck">🏛️ БЦК</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>КОММЕНТАРИЙ К ЗАКАЗУ</label>
+                <textarea
+                  value={preorderNotes}
+                  onChange={e => setPreorderNotes(e.target.value)}
+                  placeholder="Особые пожелания..."
+                  style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13,height:60,resize:"none"}}
+                />
+              </div>
+
+              <div style={{display:"flex",gap:10,marginTop:8}}>
+                <button
+                  type="button"
+                  onClick={()=>setShowPreorderModal(false)}
+                  style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreatePreorder}
+                  style={{flex:1,padding:12,border:"none",background:C.accent,color:"#000",borderRadius:8,cursor:"pointer",fontWeight:900}}
+                >
+                  Создать предзаказ
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -5234,6 +5484,406 @@ function Shifts({ shifts }){
 }
 
 // ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
+function Preorders({preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
+  const [statusFilter, setStatusFilter] = useState("all_active"); // "all_active", "pending", "ready", "completed", "cancelled"
+  const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "tomorrow"
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // States for finishing preorder (pick up / check out)
+  const [checkoutPreorder, setCheckoutPreorder] = useState(null);
+  const [checkoutPayMode, setCheckoutPayMode] = useState("cash");
+
+  const isAdmin = currentUser.role === "owner" || currentUser.role === "director" || currentUser.role === "admin";
+
+  // Filtered preorders (always filtered to "Мастерская" because "только в мастерской")
+  const filtered = preorders.filter(p => {
+    // Only show "Мастерская" preorders
+    if (p.point !== "Мастерская") return false;
+
+    // 2. Status filter
+    if (statusFilter === "all_active") {
+      if (p.status !== "pending" && p.status !== "ready") return false;
+    } else if (p.status !== statusFilter) {
+      return false;
+    }
+
+    // 3. Date filter
+    const todayStr = new Date().toLocaleDateString("ru-RU");
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toLocaleDateString("ru-RU");
+
+    let dateNorm = p.target_date; // YYYY-MM-DD
+    if (p.target_date && p.target_date.includes("-")) {
+      const parts = p.target_date.split("-");
+      dateNorm = `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+
+    if (dateFilter === "today" && dateNorm !== todayStr) return false;
+    if (dateFilter === "tomorrow" && dateNorm !== tomorrowStr) return false;
+
+    // 4. Search query
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = p.customer_name && p.customer_name.toLowerCase().includes(q);
+      const phoneMatch = p.customer_phone && p.customer_phone.includes(q);
+      const itemsMatch = p.items && p.items.some(i => i.name.toLowerCase().includes(q));
+      if (!nameMatch && !phoneMatch && !itemsMatch) return false;
+    }
+
+    return true;
+  });
+
+  // Sort by target_date + target_time (nearest first)
+  const sorted = [...filtered].sort((a, b) => {
+    const da = `${a.target_date}T${a.target_time || "00:00"}`;
+    const db = `${b.target_date}T${b.target_time || "00:00"}`;
+    return da.localeCompare(db);
+  });
+
+  const handleStatusChange = (preorderId, newStatus) => {
+    setPreorders(prev => prev.map(p => {
+      if (p.id !== preorderId) return p;
+      return { ...p, status: newStatus };
+    }));
+    showToast(`Статус предзаказа изменен на: ${newStatus === "ready" ? "Собран" : "Отменен"}`);
+  };
+
+  const handleOpenCheckout = (preorder) => {
+    if (!currentShift && currentUser.role === "cashier") {
+      showToast("Смена не открыта! Откройте смену в кассе.", true);
+      return;
+    }
+    setCheckoutPreorder(preorder);
+    setCheckoutPayMode("cash");
+  };
+
+  const handleCompletePreorder = () => {
+    if (!checkoutPreorder) return;
+    
+    const p = checkoutPreorder;
+    const remaining = p.total - p.prepayment;
+    
+    // Create sales receipt
+    const receiptPayments = [];
+    if (p.prepayment > 0) {
+      receiptPayments.push({ method: "preorder_prepayment", amount: p.prepayment });
+    }
+    if (remaining > 0) {
+      receiptPayments.push({ method: checkoutPayMode, amount: remaining });
+    }
+
+    // Determine effective pay_mode
+    const effectivePayMode = receiptPayments.length > 1 ? "split" : (remaining > 0 ? checkoutPayMode : "preorder_prepayment");
+
+    // Deduct stock
+    const newSemi = [...semiStock];
+    const newRaw = [...rawStock];
+
+    for (const item of p.items) {
+      const tc = techCards.find(t => t.product === item.name);
+      if (tc && tc.ings) {
+        for (const ing of tc.ings) {
+          const spend = ing.qty * item.qty * (1 + (ing.loss || 0) / 100);
+          if (ing.rid) {
+            const idx = newRaw.findIndex(r => r.id === ing.rid);
+            if (idx >= 0) {
+              const qtyObj = parseQtyObj(newRaw[idx].qty);
+              qtyObj[p.point] = Math.round((qtyObj[p.point] - spend) * 1000) / 1000;
+              newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
+            }
+          } else {
+            const idx = newSemi.findIndex(s => s.id === ing.sid);
+            if (idx >= 0) {
+              const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+              qtyObj[p.point] = Math.round((qtyObj[p.point] - spend) * 1000) / 1000;
+              newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+            }
+          }
+        }
+      }
+
+      // Deduct packaging
+      const packaging = getPackagingItems(item.name);
+      for (const pkg of packaging) {
+        const idx = newRaw.findIndex(r => r.id === pkg.rawId);
+        if (idx >= 0) {
+          const qtyObj = parseQtyObj(newRaw[idx].qty);
+          qtyObj[p.point] = Math.round((qtyObj[p.point] - pkg.qty * item.qty) * 1000) / 1000;
+          newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
+        }
+      }
+
+      // Deduct extras
+      if (item.extras) {
+        if (item.extras.s6 > 0) {
+          const idx = newSemi.findIndex(s => s.id === "s6");
+          if (idx >= 0) {
+            const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s6 * 50 * item.qty) * 1000) / 1000;
+            newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+          }
+        }
+        if (item.extras.s7 > 0) {
+          const idx = newSemi.findIndex(s => s.id === "s7");
+          if (idx >= 0) {
+            const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s7 * 50 * item.qty) * 1000) / 1000;
+            newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+          }
+        }
+        if (item.extras.s2 > 0) {
+          const idx = newSemi.findIndex(s => s.id === "s2");
+          if (idx >= 0) {
+            const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s2 * 30 * item.qty) * 1000) / 1000;
+            newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+          }
+        }
+      }
+    }
+
+    setSemiStock(newSemi);
+    setRawStock(newRaw);
+
+    // Calculate COGS
+    const cogs = p.items.reduce((s, item) => {
+      const tc = techCards.find(t => t.product === item.name);
+      const itemCogs = tc ? calcCartItemCOGS({ ...tc, qty: 1, extras: item.extras }, semiStock, rawStock) : 0;
+      return s + itemCogs * item.qty;
+    }, 0);
+
+    const sale = {
+      id: generateUUID(),
+      no: 1001 + sales.length,
+      point: p.point,
+      items: p.items,
+      total: p.total,
+      subtotal: p.subtotal || p.total,
+      discAmt: p.disc_amt || 0,
+      discount: p.discount || 0,
+      cogs: cogs,
+      payMode: effectivePayMode,
+      payments: receiptPayments,
+      cashGiven: remaining > 0 && checkoutPayMode === "cash" ? remaining : 0,
+      change: 0,
+      shift_id: currentShift?.id || null,
+      date: new Date().toLocaleDateString("ru-RU"),
+      time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      status: "active",
+      created_at: new Date().toISOString()
+    };
+
+    setSales(prev => [...prev, sale]);
+
+    setPreorders(prev => prev.map(item => {
+      if (item.id !== p.id) return item;
+      return {
+        ...item,
+        status: "completed",
+        completed_shift_id: currentShift?.id || null,
+        completed_at: new Date().toISOString(),
+        remaining_payment: remaining,
+        remaining_method: remaining > 0 ? checkoutPayMode : null
+      };
+    }));
+
+    showToast("Предзаказ успешно выдан и закрыт!");
+    setCheckoutPreorder(null);
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "pending": return <span style={{background:C.yellowSoft,color:C.yellow,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>В ожидании</span>;
+      case "ready": return <span style={{background:C.blueSoft,color:C.blue,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>Собран</span>;
+      case "completed": return <span style={{background:C.greenSoft,color:C.green,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>Выдан</span>;
+      case "cancelled": return <span style={{background:C.redSoft,color:C.red,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>Отменен</span>;
+      default: return null;
+    }
+  };
+
+  return (
+    <div style={{padding:"20px 28px",overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div style={{fontSize:22,fontWeight:900,color:C.accent}}>📅 Журнал предзаказов (Мастерская)</div>
+        <div style={{display:"flex",gap:10}}>
+          <input
+            value={searchQuery}
+            onChange={e=>setSearchQuery(e.target.value)}
+            placeholder="Поиск по имени, тел, товару..."
+            style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,padding:"8px 12px",borderRadius:8,fontSize:13,outline:"none",width:200}}
+          />
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{display:"flex",background:C.surface,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>
+          {[
+            {id:"all_active",label:"Активные"},
+            {id:"pending",label:"В ожидании"},
+            {id:"ready",label:"Собраны"},
+            {id:"completed",label:"Выданы"},
+            {id:"cancelled",label:"Отменены"}
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={()=>setStatusFilter(f.id)}
+              style={{padding:"6px 12px",borderRadius:6,border:"none",background:statusFilter===f.id?C.card:"transparent",color:statusFilter===f.id?C.accent:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{display:"flex",background:C.surface,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>
+          {[
+            {id:"all",label:"Все даты"},
+            {id:"today",label:"На сегодня"},
+            {id:"tomorrow",label:"На завтра"}
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={()=>setDateFilter(f.id)}
+              style={{padding:"6px 12px",borderRadius:6,border:"none",background:dateFilter===f.id?C.card:"transparent",color:dateFilter===f.id?C.accent:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:60,textAlign:"center",color:C.muted}}>
+          Предзаказы не найдены
+        </div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:16}}>
+          {sorted.map(p => {
+            const isPending = p.status === "pending";
+            const isReady = p.status === "ready";
+            const remaining = p.total - p.prepayment;
+            return (
+              <div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:10}}>
+                    <div>
+                      <span style={{fontSize:11,color:C.muted,background:C.surface,padding:"2px 6px",borderRadius:4,marginRight:6}}>{p.point}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:C.text}}>{p.target_date} в {p.target_time}</span>
+                    </div>
+                    {getStatusBadge(p.status)}
+                  </div>
+
+                  <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>{p.customer_name || "Без имени"}</div>
+                  <div style={{fontSize:12,color:C.muted,marginBottom:10}}>📞 {p.customer_phone}</div>
+
+                  <div style={{background:C.surface,borderRadius:8,padding:8,marginBottom:12}}>
+                    {p.items?.map((item, idx) => (
+                      <div key={idx} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
+                        <span style={{color:C.text}}>{item.name} x{item.qty}</span>
+                        <span style={{fontWeight:600}}>{fmtM(item.price * item.qty)}</span>
+                      </div>
+                    ))}
+                    {p.notes && (
+                      <div style={{fontSize:11,color:C.accent,borderTop:`1px solid ${C.border}`,paddingTop:6,marginTop:6,fontStyle:"italic"}}>
+                        💬 {p.notes}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{color:C.muted}}>Сумма:</span><span style={{fontWeight:700}}>{fmtM(p.total)}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{color:C.muted}}>Внесено (предоплата):</span><span style={{fontWeight:700,color:C.green}}>{fmtM(p.prepayment)} {p.prepayment_method && `(${PAY_LABELS[p.prepayment_method] || p.prepayment_method})`}</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:12,borderTop:`1px solid ${C.border}`,paddingTop:4}}><span style={{fontWeight:700}}>Осталось:</span><span style={{fontWeight:800,color:remaining>0?C.yellow:C.green}}>{fmtM(remaining)}</span></div>
+
+                  <div style={{display:"flex",gap:8}}>
+                    {isPending && (
+                      <>
+                        <button
+                          onClick={()=>handleStatusChange(p.id, "ready")}
+                          style={{flex:1,padding:"8px 10px",background:C.accent,color:"#000",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}
+                        >
+                          Собрать / Готов
+                        </button>
+                        <button
+                          onClick={() => {
+                            if(confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
+                          }}
+                          style={{padding:"8px 12px",background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}
+                        >
+                          Отменить
+                        </button>
+                      </>
+                    )}
+                    {isReady && (
+                      <>
+                        <button
+                          onClick={()=>handleOpenCheckout(p)}
+                          style={{flex:1,padding:"8px 10px",background:C.green,color:"#000",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}
+                        >
+                          Выдать клиенту
+                        </button>
+                        <button
+                          onClick={() => {
+                            if(confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
+                          }}
+                          style={{padding:"8px 12px",background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}
+                        >
+                          Отменить
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {checkoutPreorder && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div style={{background:C.card,borderRadius:16,padding:24,width:350,maxWidth:"90vw",border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🛍️ Выдача предзаказа</div>
+            <div style={{background:C.surface,borderRadius:10,padding:12,marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:C.muted,fontSize:12}}>Сумма заказа:</span><span style={{fontWeight:700}}>{fmtM(checkoutPreorder.total)}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:C.muted,fontSize:12}}>Предоплата:</span><span style={{fontWeight:700,color:C.green}}>-{fmtM(checkoutPreorder.prepayment)}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:6}}><span style={{fontWeight:700,fontSize:13}}>К доплате:</span><span style={{fontWeight:900,color:C.yellow,fontSize:15}}>{fmtM(checkoutPreorder.total - checkoutPreorder.prepayment)}</span></div>
+            </div>
+
+            {checkoutPreorder.total - checkoutPreorder.prepayment > 0 && (
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,color:C.muted,marginBottom:6}}>МЕТОД ДОПЛАТЫ</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                  {[
+                    {id:"cash",label:"💵 Нал",color:C.green,soft:C.greenSoft},
+                    {id:"kaspi",label:"📱 Kaspi",color:C.blue,soft:C.blueSoft},
+                    {id:"halyk",label:"🏦 Халык",color:C.purple,soft:C.purpleSoft},
+                    {id:"bck",label:"🏛️ БЦК",color:C.yellow,soft:C.yellowSoft},
+                  ].map(m=>(
+                    <button
+                      key={m.id}
+                      onClick={()=>setCheckoutPayMode(m.id)}
+                      style={{padding:8,background:checkoutPayMode===m.id?m.soft:C.card,color:checkoutPayMode===m.id?m.color:C.text,border:`1px solid ${checkoutPayMode===m.id?m.color:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setCheckoutPreorder(null)} style={{flex:1,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}>Отмена</button>
+              <button onClick={handleCompletePreorder} style={{flex:1,padding:12,borderRadius:10,border:"none",background:C.green,color:"#000",cursor:"pointer",fontWeight:800,fontSize:13}}>Подтвердить выдачу</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PinScreen({users, onLogin, onClose}){
   const [selected, setSelected] = useState(null);
   const [pin, setPin]           = useState("");
@@ -5458,6 +6108,10 @@ export default function App(){
   const [warehouseHistory, setWarehouseHistory] = useState(() => LS("vb_warehouse_history", []));
   const [writeOffs, setWriteOffs] = useState(() => LS("vb_writeoffs_log", []));
   const [shifts, setShifts] = useState(() => LS("vb_shifts", []));
+  const [preorders, setPreorders] = useState(() => {
+    const loaded = LS("vb_preorders", []);
+    return Array.isArray(loaded) ? loaded : [];
+  });
 const setWarehouseHistoryWithSync = (updater) => {
     setWarehouseHistory(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -5686,6 +6340,71 @@ const setExpensesWithSync = (updater) => {
     });
   };
 
+  const setPreordersWithSync = (updater) => {
+    setPreorders(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+
+      // Added preorders
+      const added = next.filter(n => !prev.find(p => p.id === n.id));
+      added.forEach(p => {
+        supaFetch("POST", "preorders", {
+          id: p.id,
+          point: p.point,
+          customer_id: p.customer_id || null,
+          customer_name: p.customer_name,
+          customer_phone: p.customer_phone,
+          items: p.items,
+          subtotal: p.subtotal,
+          discount: p.discount || 0,
+          disc_amt: p.disc_amt || 0,
+          total: p.total,
+          prepayment: p.prepayment || 0,
+          prepayment_method: p.prepayment_method || null,
+          prepayment_shift_id: p.prepayment_shift_id || null,
+          target_date: p.target_date,
+          target_time: p.target_time,
+          status: p.status || "pending",
+          notes: p.notes || "",
+          created_by: p.created_by || null,
+          created_at: p.created_at || new Date().toISOString(),
+          completed_shift_id: p.completed_shift_id || null,
+          completed_at: p.completed_at || null,
+          remaining_payment: p.remaining_payment || 0,
+          remaining_method: p.remaining_method || null,
+        }).catch(()=>{});
+      });
+
+      // Modified preorders
+      next.forEach(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && (
+          oldItem.status !== newItem.status ||
+          oldItem.completed_shift_id !== newItem.completed_shift_id ||
+          oldItem.completed_at !== newItem.completed_at ||
+          oldItem.remaining_payment !== newItem.remaining_payment ||
+          oldItem.remaining_method !== newItem.remaining_method
+        )) {
+          supaFetch("PATCH", "preorders", {
+            status: newItem.status,
+            completed_shift_id: newItem.completed_shift_id,
+            completed_at: newItem.completed_at,
+            remaining_payment: newItem.remaining_payment,
+            remaining_method: newItem.remaining_method,
+          }, `?id=eq.${newItem.id}`).catch(()=>{});
+        }
+      });
+
+      // Deleted preorders
+      prev.forEach(oldItem => {
+        if (!next.find(n => n.id === oldItem.id)) {
+          supaFetch("DELETE", "preorders", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+        }
+      });
+
+      return next;
+    });
+  };
+
 
 
 
@@ -5776,7 +6495,7 @@ const setExpensesWithSync = (updater) => {
   useEffect(()=>{
     const load = async () => {
       try {
-        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs] = await Promise.all([
+        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs,preords] = await Promise.all([
           supaFetch("GET","raw_stock"),
           supaFetch("GET","semi_stock"),
           supaFetch("GET","tech_cards"),
@@ -5787,6 +6506,7 @@ const setExpensesWithSync = (updater) => {
           supaFetch("GET","shifts","",`?order=opened_at.desc&limit=100`),
           supaFetch("GET","warehouse_history","",`?order=created_at.desc&limit=500`),
           supaFetch("GET","write_offs","",`?order=created_at.desc&limit=500`),
+          supaFetch("GET","preorders","",`?order=created_at.desc&limit=500`),
         ]);
         
         if (Array.isArray(custs)) {
@@ -5831,6 +6551,9 @@ const setExpensesWithSync = (updater) => {
         if (Array.isArray(exp)) {
           const mapped = exp.map(e=>({...e,desc:e.note,date:e.expense_date}));
           setExpenses(prev => getMergedList(mapped, prev, "expenses"));
+        }
+        if (Array.isArray(preords)) {
+          setPreorders(prev => getMergedList(preords, prev, "preorders"));
         }
 
         // Phase 5: Load users from app_users, populate if empty
@@ -5908,6 +6631,11 @@ const setExpensesWithSync = (updater) => {
     if(loading) return;
     localStorage.setItem("vb_writeoffs_log",JSON.stringify(writeOffs));
   },[writeOffs,loading]);
+
+  useEffect(()=>{
+    if(loading) return;
+    localStorage.setItem("vb_preorders",JSON.stringify(preorders));
+  },[preorders,loading]);
 
   // Realtime subscription
   // Realtime subscription (consolidated for all tables)
@@ -6102,6 +6830,24 @@ const setExpensesWithSync = (updater) => {
               return next;
             } else {
               return [parsed, ...prev];
+            }
+          });
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "preorders" }, (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === "DELETE") {
+          setPreorders(prev => prev.filter(p => p.id !== oldRow.id));
+        } else {
+          setPreorders(prev => {
+            const idx = prev.findIndex(p => p.id === newRow.id);
+            if (idx >= 0) {
+              if (JSON.stringify(prev[idx]) === JSON.stringify(newRow)) return prev;
+              const next = [...prev];
+              next[idx] = newRow;
+              return next;
+            } else {
+              return [...prev, newRow];
             }
           });
         }
@@ -6346,7 +7092,8 @@ const setExpensesWithSync = (updater) => {
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
           {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
-          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers}/>}
+          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
+          {page==="preorders"  && <Preorders preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
           {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
           {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
