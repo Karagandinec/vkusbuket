@@ -5429,7 +5429,11 @@ export default function App(){
     const loaded = LS("vb_exp", []);
     return Array.isArray(loaded) ? loaded.map(e => ({ ...e, id: e.id || generateUUID() })) : [];
   });
-  const [users,     setUsers]      = useState(() => LS("vb_users", INIT_USERS));
+  const [users,     setUsers]      = useState(() => {
+    const loaded = LS("vb_users", INIT_USERS);
+    const clean = Array.isArray(loaded) ? loaded.filter(u => u.id && u.id.length >= 36) : [];
+    return clean.length ? clean : INIT_USERS;
+  });
   const [toast,showToast]          = useToast();
   const [currentShift,setCurrentShift] = useState(null);
   const [showOpenShift,setShowOpenShift] = useState(false);
