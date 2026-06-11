@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
@@ -2178,12 +2178,13 @@ const restoreStockForSale = (sale, rawStock, semiStock, techCards) => {
 };
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
-function Toast({toast}){
+// React.memo: Toast перерендерится только при изменении toast-объекта
+const Toast = React.memo(function Toast({toast}){
   if(!toast) return null;
   return <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:toast.err?C.red:C.green,color:"#fff",padding:"12px 22px",borderRadius:12,fontWeight:700,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,0.4)"}}>
     {toast.err?"✕ ":"✓ "}{toast.msg}
   </div>;
-}
+});
 
 function useToast(){
   const [toast,setToast]=useState(null);
@@ -2507,13 +2508,21 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     (search===""||t.product.toLowerCase().includes(search.toLowerCase()))
   ), [finalCards, catFilter, search]);
 
-  const addToCart=(tc)=>setCart(p=>p.find(i=>i.id===tc.id)?p.map(i=>i.id===tc.id?{...i,qty:i.qty+1}:i):[...p,{...tc,qty:1,extras:{s6:0,s7:0,s2:0}}]);
-  const chgQty=(id,d)=>setCart(p=>p.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0));
+  // useCallback: стабильные ссылки — не создают новые объекты при каждом рендере
+  const addToCart = useCallback((tc) =>
+    setCart(p => p.find(i => i.id === tc.id)
+      ? p.map(i => i.id === tc.id ? {...i, qty: i.qty+1} : i)
+      : [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}}]
+    ), []);
 
-  const subtotal = cart.reduce((s,i)=>{
+  const chgQty = useCallback((id, d) =>
+    setCart(p => p.map(i => i.id===id ? {...i, qty:Math.max(0,i.qty+d)} : i).filter(i => i.qty > 0))
+  , []);
+
+  const subtotal = useMemo(() => cart.reduce((s,i) => {
     const extrasCost = ((i.extras?.s6 || 0) + (i.extras?.s7 || 0) + (i.extras?.s2 || 0)) * 500;
     return s + (i.price + extrasCost) * i.qty;
-  },0);
+  }, 0), [cart]);
   const discAmt  = Math.round(subtotal*discount/100);
   const total    = subtotal - discAmt;
   const cashGiven= parseInt(cashInput.replace(/\D/g,""))||0;
@@ -5449,7 +5458,8 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
 }
 
 // ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
-function Shifts({isMobile, shifts }){
+// React.memo: перерендерится только при изменении списка смен
+const Shifts = React.memo(function Shifts({isMobile, shifts }){
 
   const fmtDT = (iso) => {
     if(!iso) return "—";
@@ -5497,7 +5507,7 @@ function Shifts({isMobile, shifts }){
       )}
     </div>
   );
-}
+});
 
 // ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
 function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
