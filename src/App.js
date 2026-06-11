@@ -6093,7 +6093,7 @@ async function supaFetch(method, table, body=null, params="") {
   };
 
   // Оффлайн-очередь для операций записи (POST, PATCH, DELETE)
-  if (method !== "GET" && typeof navigator !== "undefined" && !navigator.onLine) {
+  if (method !== "GET" && typeof window !== "undefined" && window.navigator && !window.navigator.onLine) {
     enqueueOp();
     console.warn(`Устройство оффлайн. Запрос ${method} ${table} добавлен в очередь синхронизации.`);
     return true;
@@ -6135,18 +6135,18 @@ function fmtUnit(u) { return u === "г" ? "гр." : u; }
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 const checkIsMobile = () => {
   if (typeof window === "undefined") return false;
-  // screen.width/height — физический размер, не зависит от ориентации
-  const minDim = Math.min(screen.width || 0, screen.height || 0);
-  const isPhone = minDim < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  // window.screen.width/height — физический размер, не зависит от ориентации
+  const minDim = Math.min((window.screen && window.screen.width) || 0, (window.screen && window.screen.height) || 0);
+  const isPhone = minDim < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test((window.navigator && window.navigator.userAgent) || "");
   return isPhone;
 };
 
 // Портретный режим: используем screen.orientation если доступно, иначе innerWidth/innerHeight
 const checkIsPortrait = () => {
   if (typeof window === "undefined") return false;
-  // screen.orientation — наиболее надёжный способ
-  if (screen.orientation) {
-    return screen.orientation.type.startsWith("portrait");
+  // window.screen.orientation — наиболее надёжный способ
+  if (window.screen && window.screen.orientation) {
+    return window.screen.orientation.type.startsWith("portrait");
   }
   // Fallback: window.orientation (устаревший, но широкая поддержка)
   if (typeof window.orientation !== "undefined") {
@@ -6176,7 +6176,7 @@ export default function App(){
   const [loading,setLoading]         = useState(true);
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
   const [isPortrait, setIsPortrait]   = useState(checkIsPortrait());
-  const [isOffline, setIsOffline]     = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
+  const [isOffline, setIsOffline]     = useState(typeof window !== "undefined" && window.navigator ? !window.navigator.onLine : false);
 
   // useRef для currentUser — решает stale closure в Realtime-подписке
   const currentUserRef = useRef(currentUser);
@@ -6553,7 +6553,7 @@ const setExpensesWithSync = (updater) => {
   const processSyncQueue = async () => {
     const queue = LS("vb_sync_queue", []);
     if (!queue.length) return;
-    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    if (typeof window !== "undefined" && window.navigator && !window.navigator.onLine) return;
     
     console.log(`Обработка очереди офлайн-синхронизации: ${queue.length} элементов`);
     const nextQueue = [];
@@ -6626,21 +6626,21 @@ const setExpensesWithSync = (updater) => {
       if (mobile) setSidebarOpen(false);
       else setSidebarOpen(true);
     };
-    // Небольшая задержка при orientationchange — браузер обновляет screen.orientation асинхронно
+    // Задержка при orientationchange — браузер обновляет window.screen.orientation асинхронно
     const handleOrientationChange = () => setTimeout(handleResize, 100);
 
     window.addEventListener("resize", handleResize);
     window.addEventListener("orientationchange", handleOrientationChange);
     // Современный API (Chrome Android, Safari iOS 16.4+)
-    if (screen.orientation) {
-      screen.orientation.addEventListener("change", handleOrientationChange);
+    if (window.screen && window.screen.orientation) {
+      window.screen.orientation.addEventListener("change", handleOrientationChange);
     }
     handleResize();
     return () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("orientationchange", handleOrientationChange);
-      if (screen.orientation) {
-        screen.orientation.removeEventListener("change", handleOrientationChange);
+      if (window.screen && window.screen.orientation) {
+        window.screen.orientation.removeEventListener("change", handleOrientationChange);
       }
     };
   }, []);
