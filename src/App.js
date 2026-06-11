@@ -3070,8 +3070,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
       {/* Модалка закрытия смены */}
       {showCloseShift && currentShift && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,overflowY:"auto",padding:"40px 0"}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`,margin:"auto"}}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🔒 Закрытие смены</div>
             {(()=>{
               const shiftSales = sales.filter(s=>s.shift_id===currentShift.id);
@@ -3156,8 +3156,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
       )}
 
       {showPreorderModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:24,width:400,maxWidth:"95vw",border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,overflowY:"auto",padding:"40px 0"}}>
+          <div style={{background:C.card,borderRadius:16,padding:24,width:400,maxWidth:"95vw",border:`1px solid ${C.border}`,margin:"auto"}}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:C.accent,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <span>📅 Оформление предзаказа</span>
               <button onClick={()=>setShowPreorderModal(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
