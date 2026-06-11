@@ -2191,6 +2191,8 @@ function useToast(){
 function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
   const [pointFilter, setPointFilter] = useState("Все");
   const [periodFilter, setPeriodFilter] = useState("За все время");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [selPoint, setSelPoint] = useState(POINTS[0]);
 
   const now = new Date();
@@ -2213,6 +2215,17 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
       return diffDays <= 7;
     } else if (periodFilter === "Месяц") {
       return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
+    } else if (periodFilter === "Свой период") {
+      if (customStart) {
+        const cs = new Date(customStart);
+        cs.setHours(0,0,0,0);
+        if (sDate < cs) return false;
+      }
+      if (customEnd) {
+        const ce = new Date(customEnd);
+        ce.setHours(23,59,59,999);
+        if (sDate > ce) return false;
+      }
     }
     return true;
   });
@@ -2239,6 +2252,17 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
       return diffDays <= 7;
     } else if (periodFilter === "Месяц") {
       return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
+    } else if (periodFilter === "Свой период") {
+      if (customStart) {
+        const cs = new Date(customStart);
+        cs.setHours(0,0,0,0);
+        if (eDate < cs) return false;
+      }
+      if (customEnd) {
+        const ce = new Date(customEnd);
+        ce.setHours(23,59,59,999);
+        if (eDate > ce) return false;
+      }
     }
     return true;
   });
@@ -2341,7 +2365,14 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
             <option>Вчера</option>
             <option>Неделя</option>
             <option>Месяц</option>
+            <option>Свой период</option>
           </select>
+          {periodFilter === "Свой период" && (
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
+              <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -4120,6 +4151,8 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
   const myPoint = currentUser?.point;
   const [pointFilter, setPointFilter] = useState(isCashier ? currentUser.point : "Все");
   const [periodFilter, setPeriodFilter] = useState("За все время");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [reportType, setReportType] = useState("finance");
 
   const now = new Date();
@@ -4136,8 +4169,20 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
     else if (periodFilter === "Вчера") return s.date === yesterdayStr;
     else if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - sDate) / 86400000) <= 7;
     else if (periodFilter === "Месяц") return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
+    else if (periodFilter === "Свой период") {
+      if (customStart) {
+        const cs = new Date(customStart);
+        cs.setHours(0,0,0,0);
+        if (sDate < cs) return false;
+      }
+      if (customEnd) {
+        const ce = new Date(customEnd);
+        ce.setHours(23,59,59,999);
+        if (sDate > ce) return false;
+      }
+    }
     return true;
-  }), [sales, pointFilter, periodFilter, todayStr, yesterdayStr]);
+  }), [sales, pointFilter, periodFilter, todayStr, yesterdayStr, customStart, customEnd]);
 
   const { totalRev, totalCOGS } = useMemo(() => ({
     totalRev:  filteredSales.reduce((s,i)=>s+i.total,0),
@@ -4155,8 +4200,20 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
     else if (periodFilter === "Вчера") return e.date === yesterdayStr;
     else if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 7;
     else if (periodFilter === "Месяц") return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
+    else if (periodFilter === "Свой период") {
+      if (customStart) {
+        const cs = new Date(customStart);
+        cs.setHours(0,0,0,0);
+        if (eDate < cs) return false;
+      }
+      if (customEnd) {
+        const ce = new Date(customEnd);
+        ce.setHours(23,59,59,999);
+        if (eDate > ce) return false;
+      }
+    }
     return true;
-  }), [expenses, isCashier, myPoint, pointFilter, periodFilter, todayStr, yesterdayStr]);
+  }), [expenses, isCashier, myPoint, pointFilter, periodFilter, todayStr, yesterdayStr, customStart, customEnd]);
 
   const rpActivePointsCount = POINTS.length;
   const { totalExp, totalInflow, totalSafe } = useMemo(() => ({
@@ -4284,7 +4341,14 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
             <option>Вчера</option>
             <option>Неделя</option>
             <option>Месяц</option>
+            <option>Свой период</option>
           </select>
+          {periodFilter === "Свой период" && (
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
+              <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -5509,7 +5573,9 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
 // ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
 function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
   const [statusFilter, setStatusFilter] = useState("all_active"); // "all_active", "pending", "ready", "completed", "cancelled"
-  const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "tomorrow"
+  const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "tomorrow", "custom"
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   
   // States for finishing preorder (pick up / check out)
@@ -5543,6 +5609,20 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
 
     if (dateFilter === "today" && dateNorm !== todayStr) return false;
     if (dateFilter === "tomorrow" && dateNorm !== tomorrowStr) return false;
+    if (dateFilter === "custom") {
+      const pDate = new Date(p.target_date); // p.target_date is YYYY-MM-DD
+      pDate.setHours(0,0,0,0);
+      if (customStart) {
+        const cs = new Date(customStart);
+        cs.setHours(0,0,0,0);
+        if (pDate < cs) return false;
+      }
+      if (customEnd) {
+        const ce = new Date(customEnd);
+        ce.setHours(23,59,59,999);
+        if (pDate > ce) return false;
+      }
+    }
 
     // 4. Search query
     if (searchQuery) {
@@ -5761,7 +5841,8 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
           {[
             {id:"all",label:"Все даты"},
             {id:"today",label:"На сегодня"},
-            {id:"tomorrow",label:"На завтра"}
+            {id:"tomorrow",label:"На завтра"},
+            {id:"custom",label:"Свой период"}
           ].map(f => (
             <button
               key={f.id}
@@ -5772,6 +5853,12 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
             </button>
           ))}
         </div>
+        {dateFilter === "custom" && (
+          <div style={{display:"flex",gap:8}}>
+            <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12}} />
+            <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12}} />
+          </div>
+        )}
       </div>
 
       {sorted.length === 0 ? (
