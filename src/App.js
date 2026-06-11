@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
@@ -11,30 +11,54 @@ const generateUUID = () => {
   });
 };
 
+// getMergedList: O(n) через Map вместо O(n²) через findIndex
 const getMergedList = (fetched, local, tableName) => {
   const queue = LS("vb_sync_queue", []);
-  const merged = [...fetched];
-  
+  // Строим Set ID записей с pending-синхронизацией для O(1) проверки
+  const pendingIds = new Set(
+    queue
+      .filter(q => q.table === tableName)
+      .flatMap(q => {
+        const ids = [];
+        if (q.body?.id) ids.push(q.body.id);
+        if (q.params) {
+          const m = q.params.match(/id=eq\.([^&]+)/);
+          if (m) ids.push(m[1]);
+        }
+        return ids;
+      })
+  );
+
+  // Строим Map из fetched для O(1) lookup
+  const mergedMap = new Map(fetched.map(item => [item.id, item]));
+
+  // Local-записи с pending sync имеют приоритет; остальные local-only добавляем
   local.forEach(localItem => {
-    const idx = merged.findIndex(m => m.id === localItem.id);
-    if (idx >= 0) {
-      const hasPendingSync = queue.some(q => 
-        q.table === tableName && 
-        (
-          (q.body && q.body.id === localItem.id) || 
-          (q.params && q.params.includes(`id=eq.${localItem.id}`)) ||
-          (q.body && q.body.no === localItem.no && tableName === "sales") ||
-          (q.params && q.params.includes(`no=eq.${localItem.no}`) && tableName === "sales")
-        )
-      );
-      if (hasPendingSync) {
-        merged[idx] = localItem;
-      }
-    } else {
-      merged.push(localItem);
+    if (!mergedMap.has(localItem.id)) {
+      mergedMap.set(localItem.id, localItem);
+    } else if (pendingIds.has(localItem.id)) {
+      mergedMap.set(localItem.id, localItem); // local-версия актуальнее
     }
   });
-  return merged;
+
+  return Array.from(mergedMap.values());
+};
+
+// Срок жизни сессии — 8 часов
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+// Проверяет, не истекла ли сессия
+const isSessionValid = () => {
+  try {
+    const ts = localStorage.getItem("vb_session_ts");
+    if (!ts) return false;
+    return (Date.now() - parseInt(ts, 10)) < SESSION_TTL_MS;
+  } catch { return false; }
+};
+
+// Сохраняет метку времени входа
+const touchSession = () => {
+  try { localStorage.setItem("vb_session_ts", String(Date.now())); } catch {}
 };
 
 // ─── ЦВЕТА ───────────────────────────────────────────────────────────────────
@@ -2463,28 +2487,25 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [showCloseShift,setShowCloseShift] = useState(false);
   const [actualCashInput,setActualCashInput] = useState("");
 
-  const displayCards = techCards.map(t => {
-    if (t.cat === "Макси стаканы") {
-      return { ...t, cat: "Креманки" };
-    }
-    return t;
-  });
+  // useMemo: пересчитываем только при изменении techCards, catFilter, search или точки
+  const displayCards = useMemo(() => techCards.map(t =>
+    t.cat === "Макси стаканы" ? { ...t, cat: "Креманки" } : t
+  ), [techCards]);
 
   const isRestrictedPoint = ["Парк", "Фуд Трак", "Жара"].includes(currentUser?.point);
   const isRestrictedCashier = currentUser?.role === "cashier" && isRestrictedPoint;
 
-  const finalCards = displayCards.filter(t => {
-    if (isRestrictedCashier && (t.cat === "Наборы" || t.cat === "Букеты")) {
-      return false;
-    }
+  const finalCards = useMemo(() => displayCards.filter(t => {
+    if (isRestrictedCashier && (t.cat === "Наборы" || t.cat === "Букеты")) return false;
     return true;
-  });
+  }), [displayCards, isRestrictedCashier]);
 
-  const cats = ["Все",...new Set(finalCards.map(t=>t.cat))];
-  const filtered = finalCards.filter(t =>
+  const cats = useMemo(() => ["Все",...new Set(finalCards.map(t=>t.cat))], [finalCards]);
+
+  const filtered = useMemo(() => finalCards.filter(t =>
     (catFilter==="Все"||t.cat===catFilter)&&
     (search===""||t.product.toLowerCase().includes(search.toLowerCase()))
-  );
+  ), [finalCards, catFilter, search]);
 
   const addToCart=(tc)=>setCart(p=>p.find(i=>i.id===tc.id)?p.map(i=>i.id===tc.id?{...i,qty:i.qty+1}:i):[...p,{...tc,qty:1,extras:{s6:0,s7:0,s2:0}}]);
   const chgQty=(id,d)=>setCart(p=>p.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0));
@@ -4101,74 +4122,57 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
   yesterday.setDate(now.getDate() - 1);
   const yesterdayStr = yesterday.toLocaleDateString("ru-RU");
 
-  const filteredSales = sales.filter(s => {
+  // useMemo: фильтрация при изменении входных данных, а не при каждом рендере
+  const filteredSales = useMemo(() => sales.filter(s => {
     if (pointFilter !== "Все" && s.point !== pointFilter) return false;
-    
     const sDate = parseLocalDate(s.date);
-    if (periodFilter === "Сегодня") {
-      return s.date === todayStr;
-    } else if (periodFilter === "Вчера") {
-      return s.date === yesterdayStr;
-    } else if (periodFilter === "Неделя") {
-      const diffTime = Math.abs(now - sDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays <= 7;
-    } else if (periodFilter === "Месяц") {
-      return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
-    }
+    if (periodFilter === "Сегодня") return s.date === todayStr;
+    else if (periodFilter === "Вчера") return s.date === yesterdayStr;
+    else if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - sDate) / 86400000) <= 7;
+    else if (periodFilter === "Месяц") return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
     return true;
-  });
+  }), [sales, pointFilter, periodFilter, todayStr, yesterdayStr]);
 
-  const totalRev  = filteredSales.reduce((s,i)=>s+i.total,0);
-  const totalCOGS = filteredSales.reduce((s,i)=>s+(i.cogs||0),0);
+  const { totalRev, totalCOGS } = useMemo(() => ({
+    totalRev:  filteredSales.reduce((s,i)=>s+i.total,0),
+    totalCOGS: filteredSales.reduce((s,i)=>s+(i.cogs||0),0),
+  }), [filteredSales]);
 
-  const filteredExpenses = expenses.filter(e => {
+  const filteredExpenses = useMemo(() => expenses.filter(e => {
     if (isCashier) {
       if (e.point !== myPoint) return false;
     } else {
       if (pointFilter !== "Все" && e.point !== pointFilter && e.point !== "Вся компания") return false;
     }
-    
     const eDate = parseLocalDate(e.date);
-    if (periodFilter === "Сегодня") {
-      return e.date === todayStr;
-    } else if (periodFilter === "Вчера") {
-      return e.date === yesterdayStr;
-    } else if (periodFilter === "Неделя") {
-      const diffTime = Math.abs(now - eDate);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays <= 7;
-    } else if (periodFilter === "Месяц") {
-      return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
-    }
+    if (periodFilter === "Сегодня") return e.date === todayStr;
+    else if (periodFilter === "Вчера") return e.date === yesterdayStr;
+    else if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 7;
+    else if (periodFilter === "Месяц") return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
     return true;
-  });
-  
-  // Исключаем внесение личных средств (deposit) и сейф (safe) из операционных расходов P&L
-  // Если выбрана конкретная точка, расходы "Вся компания" делим пропорционально на кол-во точек
-  const rpActivePointsCount = POINTS.length;
-  const totalExp = filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e) => {
-    if (pointFilter !== "Все" && e.point === "Вся компания") {
-      return s + e.amount / rpActivePointsCount;
-    }
-    return s + e.amount;
-  }, 0);
-  
-  const grossP    = totalRev-totalCOGS;
-  const netP      = grossP-totalExp;
-  const margin    = totalRev>0?Math.round(netP/totalRev*100):0;
+  }), [expenses, isCashier, myPoint, pointFilter, periodFilter, todayStr, yesterdayStr]);
 
-  // Расчет приходов личных средств и сейфа для Cash Flow
-  const totalInflow = filteredExpenses.filter(e => e.paid && e.cat === "deposit").reduce((s,e)=>s+e.amount,0);
-  const totalSafe   = filteredExpenses.filter(e => e.paid && e.cat === "safe").reduce((s,e)=>s+e.amount,0);
+  const rpActivePointsCount = POINTS.length;
+  const { totalExp, totalInflow, totalSafe } = useMemo(() => ({
+    totalExp: filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e) => {
+      if (pointFilter !== "Все" && e.point === "Вся компания") return s + e.amount / rpActivePointsCount;
+      return s + e.amount;
+    }, 0),
+    totalInflow: filteredExpenses.filter(e=>e.paid && e.cat === "deposit").reduce((s,e)=>s+e.amount,0),
+    totalSafe:   filteredExpenses.filter(e=>e.paid && e.cat === "safe").reduce((s,e)=>s+e.amount,0),
+  }), [filteredExpenses, pointFilter, rpActivePointsCount]);
+
+  const grossP  = totalRev - totalCOGS;
+  const netP    = grossP - totalExp;
+  const margin  = totalRev > 0 ? Math.round(netP / totalRev * 100) : 0;
   const netCashFlow = totalRev + totalInflow - totalExp - totalSafe;
 
-  const byPoint=POINTS.map((p,i)=>({
-    name:p,color:POINT_COLORS[i],
-    rev:filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+s.total,0),
-    orders:filteredSales.filter(s=>s.point===p).length,
-    cogs:filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+(s.cogs||0),0),
-  }));
+  const byPoint = useMemo(() => POINTS.map((p,i) => ({
+    name:p, color:POINT_COLORS[i],
+    rev:    filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+s.total,0),
+    orders: filteredSales.filter(s=>s.point===p).length,
+    cogs:   filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+(s.cogs||0),0),
+  })), [filteredSales]);
 
   const stockLoc = isCashier ? myPoint : "Склад";
   const stockValue = rawStock.reduce((s,r)=>s + (parseQtyObj(r.qty)[stockLoc] * r.price),0);
@@ -4209,7 +4213,7 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
     });
   };
 
-  const abcRows = getAbcData();
+  const abcRows = useMemo(() => getAbcData(), [filteredSales]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const getFoodcostData = () => {
     return POINTS.map((p, idx) => {
@@ -5899,27 +5903,69 @@ function PinScreen({users, onLogin, onClose}){
   const [selected, setSelected] = useState(null);
   const [pin, setPin]           = useState("");
   const [error, setError]       = useState("");
+  const [locked, setLocked]     = useState(false);
+  const [lockSecsLeft, setLockSecsLeft] = useState(0);
+
+  const MAX_ATTEMPTS = 5;
+  const LOCKOUT_MS   = 30_000;
+
+  const getBFState = (userId) => {
+    try { const s = JSON.parse(localStorage.getItem(`vb_bf_${userId}`) || "{}"); return { attempts: s.attempts||0, lockedUntil: s.lockedUntil||0 }; }
+    catch { return { attempts: 0, lockedUntil: 0 }; }
+  };
+  const setBFState = (userId, state) => { try { localStorage.setItem(`vb_bf_${userId}`, JSON.stringify(state)); } catch {} };
+  const clearBFState = (userId) => { try { localStorage.removeItem(`vb_bf_${userId}`); } catch {} };
+
+  const handleSelectUser = (u) => {
+    setPin(""); setError("");
+    const { lockedUntil } = getBFState(u.id);
+    setSelected(u);
+    setLocked(Date.now() < lockedUntil);
+  };
+
+  useEffect(() => {
+    if (!locked || !selected) return;
+    const update = () => {
+      const { lockedUntil } = getBFState(selected.id);
+      const rem = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+      setLockSecsLeft(rem);
+      if (rem === 0) { setLocked(false); setError(""); }
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, selected]);
 
   const handleDigit = (d) => {
-    if(pin.length >= 4) return;
+    if (locked || pin.length >= 4) return;
     const next = pin + d;
     setPin(next);
     setError("");
-    if(next.length === 4){
-      setTimeout(()=>{
-        if(next === selected.pin){
+    if (next.length === 4) {
+      setTimeout(() => {
+        if (next === selected.pin) {
+          clearBFState(selected.id);
           onLogin(selected);
-          setPin("");
-          setSelected(null);
+          setPin(""); setSelected(null); setLocked(false);
         } else {
-          setError("Неверный PIN");
+          const bf = getBFState(selected.id);
+          const newAttempts = bf.attempts + 1;
+          if (newAttempts >= MAX_ATTEMPTS) {
+            setBFState(selected.id, { attempts: 0, lockedUntil: Date.now() + LOCKOUT_MS });
+            setLocked(true);
+            setError(`Слишком много попыток. Блокировка ${LOCKOUT_MS/1000} сек.`);
+          } else {
+            setBFState(selected.id, { attempts: newAttempts, lockedUntil: 0 });
+            setError(`Неверный PIN. Осталось попыток: ${MAX_ATTEMPTS - newAttempts}`);
+          }
           setPin("");
         }
       }, 200);
     }
   };
 
-  const handleBack = () => { setPin(p=>p.slice(0,-1)); setError(""); };
+  const handleBack = () => { if (!locked) { setPin(p=>p.slice(0,-1)); setError(""); } };
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(15,15,19,0.97)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,flexDirection:"column",gap:24}}>
@@ -5946,15 +5992,17 @@ function PinScreen({users, onLogin, onClose}){
             return getWeight(a) - getWeight(b);
           }).map(u=>{
             const r = ROLES[u.role] || { label: u.role||"Неизвестно", icon:"👤", color:C.muted, nav:["dashboard"] };
+            const { lockedUntil } = getBFState(u.id);
+            const isUserLocked = Date.now() < lockedUntil;
             return(
-              <button key={u.id} onClick={()=>{setSelected(u);setPin("");setError("");}}
-                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left"}}
+              <button key={u.id} onClick={()=>handleSelectUser(u)}
+                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left",opacity:isUserLocked?0.6:1}}
                 onMouseEnter={e=>e.currentTarget.style.borderColor="#E8A0B4"}
                 onMouseLeave={e=>e.currentTarget.style.borderColor="#2A2A38"}>
                 <div style={{width:40,height:40,borderRadius:20,background:r.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{r.icon}</div>
                 <div>
                   <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
-                  <div style={{fontSize:12,color:"#7A7A94"}}>{r.label}{u.point?" · "+u.point:""}</div>
+                  <div style={{fontSize:12,color:"#7A7A94"}}>{r.label}{u.point?" · "+u.point:""}{isUserLocked?" 🔒":""}</div>
                 </div>
               </button>
             );
@@ -5962,29 +6010,39 @@ function PinScreen({users, onLogin, onClose}){
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:20,width:280}}>
-          <button onClick={()=>{setSelected(null);setPin("");setError("");}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
+          <button onClick={()=>{setSelected(null);setPin("");setError("");setLocked(false);}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             {(()=>{ const sr = ROLES[selected.role] || { color:C.muted, icon:"👤" }; return (
             <div style={{width:40,height:40,borderRadius:20,background:sr.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{sr.icon}</div>
             ); })()}
             <div style={{fontWeight:700}}>{selected.name}</div>
           </div>
-          <div style={{color:"#7A7A94",fontSize:13}}>Введите PIN-код</div>
-          <div style={{display:"flex",gap:14}}>
-            {[0,1,2,3].map(i=>(
-              <div key={i} style={{width:16,height:16,borderRadius:8,background:pin.length>i?"#E8A0B4":"#2A2A38",transition:"background .15s"}}/>
-            ))}
-          </div>
-          {error&&<div style={{color:"#E74C3C",fontSize:13,fontWeight:600}}>{error}</div>}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
-            {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
-              <button key={i} onClick={()=> d==="⌫"?handleBack():d!==""?handleDigit(String(d)):null}
-                disabled={d===""}
-                style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background:d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
-                {d}
-              </button>
-            ))}
-          </div>
+          {locked ? (
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:40,marginBottom:8}}>🔒</div>
+              <div style={{color:"#E74C3C",fontSize:14,fontWeight:700}}>Слишком много попыток</div>
+              <div style={{color:"#7A7A94",fontSize:13,marginTop:4}}>Повторите через <b style={{color:"#EAEAF0"}}>{lockSecsLeft}</b> сек.</div>
+            </div>
+          ) : (
+            <>
+              <div style={{color:"#7A7A94",fontSize:13}}>Введите PIN-код</div>
+              <div style={{display:"flex",gap:14}}>
+                {[0,1,2,3].map(i=>(
+                  <div key={i} style={{width:16,height:16,borderRadius:8,background:pin.length>i?"#E8A0B4":"#2A2A38",transition:"background .15s"}}/>
+                ))}
+              </div>
+              {error&&<div style={{color:"#E74C3C",fontSize:13,fontWeight:600,textAlign:"center"}}>{error}</div>}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
+                {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
+                  <button key={i} onClick={()=> d==="⌫"?handleBack():d!==""?handleDigit(String(d)):null}
+                    disabled={d===""}
+                    style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background:d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -6007,11 +6065,26 @@ async function supaFetch(method, table, body=null, params="") {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
 
+  // Вспомогательная функция добавления в очередь с UUID и дедупликацией PATCH
+  const enqueueOp = () => {
+    try {
+      const queue = LS("vb_sync_queue", []);
+      const op = { method, table, body, params, id: generateUUID(), enqueuedAt: Date.now() };
+      // Дедупликация: для PATCH/DELETE заменяем существующую операцию для той же записи
+      if (method === "PATCH" || method === "DELETE") {
+        const existIdx = queue.findIndex(q => q.table === table && q.params === params && q.method === method);
+        if (existIdx >= 0) { queue[existIdx] = op; }
+        else { queue.push(op); }
+      } else {
+        queue.push(op);
+      }
+      localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
+    } catch {}
+  };
+
   // Оффлайн-очередь для операций записи (POST, PATCH, DELETE)
   if (method !== "GET" && typeof navigator !== "undefined" && !navigator.onLine) {
-    const queue = LS("vb_sync_queue", []);
-    queue.push({ method, table, body, params, id: Date.now() });
-    localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
+    enqueueOp();
     console.warn(`Устройство оффлайн. Запрос ${method} ${table} добавлен в очередь синхронизации.`);
     return true;
   }
@@ -6030,13 +6103,8 @@ async function supaFetch(method, table, body=null, params="") {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
-      
-      // В случае серверной ошибки (500+) добавляем в очередь на повтор
-      if (method !== "GET" && res.status >= 500) {
-        const queue = LS("vb_sync_queue", []);
-        queue.push({ method, table, body, params, id: Date.now() });
-        localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
-      }
+      // В случае серверной ошибки (500+) добавляем в очередь на повтор; 4xx — ошибка данных, не повторяем
+      if (method !== "GET" && res.status >= 500) { enqueueOp(); }
       return method === "GET" ? [] : false;
     }
     if (method === "GET") {
@@ -6046,15 +6114,11 @@ async function supaFetch(method, table, body=null, params="") {
     return true;
   } catch (e) {
     console.warn(`supaFetch ${method} ${table} network error:`, e);
-    // При сбое сети добавляем операцию в очередь
-    if (method !== "GET") {
-      const queue = LS("vb_sync_queue", []);
-      queue.push({ method, table, body, params, id: Date.now() });
-      localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
-    }
+    if (method !== "GET") { enqueueOp(); }
     return method === "GET" ? [] : false;
   }
 }
+
 
 function fmtUnit(u) { return u === "г" ? "гр." : u; }
 
@@ -6065,14 +6129,45 @@ const checkIsMobile = () => {
 };
 
 export default function App(){
-  // Восстанавливаем сессию из localStorage (на случай авто-перезагрузки при обновлении PWA)
-  const [currentUser,setCurrentUser] = useState(() => LS("vb_session_user", null));
-  const [page,setPage]               = useState(() => LS("vb_session_page", "dashboard"));
+  // Восстанавливаем сессию из localStorage (с проверкой TTL 8 часов)
+  const [currentUser,setCurrentUser] = useState(() => {
+    if (!isSessionValid()) {
+      // Сессия истекла — чистим хранилище и показываем PIN-экран
+      localStorage.removeItem("vb_session_user");
+      localStorage.removeItem("vb_session_page");
+      localStorage.removeItem("vb_session_shift");
+      return null;
+    }
+    return LS("vb_session_user", null);
+  });
+  const [page,setPage]               = useState(() =>
+    isSessionValid() ? LS("vb_session_page", "dashboard") : "dashboard"
+  );
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
   const [loading,setLoading]         = useState(true);
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
   const [isOffline, setIsOffline]     = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
+
+  // useRef для currentUser — решает stale closure в Realtime-подписке
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+
+  // Периодическая проверка истечения сессии (каждые 5 минут)
+  useEffect(() => {
+    const checkSession = () => {
+      if (currentUserRef.current && !isSessionValid()) {
+        console.log("[Session] TTL истёк — авто-выход");
+        localStorage.removeItem("vb_session_user");
+        localStorage.removeItem("vb_session_page");
+        localStorage.removeItem("vb_session_shift");
+        localStorage.removeItem("vb_pos_cart");
+        setCurrentUser(null);
+      }
+    };
+    const interval = setInterval(checkSession, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -6907,7 +7002,9 @@ const setExpensesWithSync = (updater) => {
               return [newRow, ...prev];
             }
           });
-          if (currentUser && newRow.cashier_pin === currentUser.pin && newRow.point === currentUser.point) {
+          // Используем currentUserRef.current вместо currentUser из замыкания (stale closure fix)
+          const cu = currentUserRef.current;
+          if (cu && newRow.cashier_pin === cu.pin && newRow.point === cu.point) {
             if (newRow.status === "open") {
               setCurrentShift(newRow);
             } else if (newRow.status === "closed") {
@@ -6955,8 +7052,10 @@ const setExpensesWithSync = (updater) => {
   const ROLE_FALLBACK = { label:"?", icon:"👤", color:C.muted, nav:["dashboard","pos"] };
 
   // Phase 3: handle login with shift check for cashiers
+  // ── Stale closure fix: используем Ref вместо переменной из замыкания
   const handleLogin = async (u) => {
     setCurrentUser(u);
+    touchSession(); // Записываем timestamp входа для TTL
     setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);
     if(u.role==="cashier" && u.point) {
       const localOpen = shifts.find(s => s.cashier_pin === u.pin && s.point === u.point && s.status === "open");
