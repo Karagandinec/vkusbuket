@@ -2,6 +2,9 @@
   "name": "vkusweb",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0 <20.0.0"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.0",
     "@testing-library/dom": "^10.4.1",
