@@ -6135,7 +6135,16 @@ function fmtUnit(u) { return u === "г" ? "гр." : u; }
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 const checkIsMobile = () => {
   if (typeof window === "undefined") return false;
-  return (window.innerWidth < 1024) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  // screen.width и screen.height не меняются при повороте — это физический размер экрана
+  const minDim = Math.min(screen.width, screen.height);
+  const isPhone = minDim < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  return isPhone;
+};
+
+// Портретный режим: ширина окна меньше высоты
+const checkIsPortrait = () => {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < window.innerHeight;
 };
 
 export default function App(){
@@ -6157,6 +6166,7 @@ export default function App(){
   const [showUserMenu,setUserMenu]   = useState(false);
   const [loading,setLoading]         = useState(true);
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
+  const [isPortrait, setIsPortrait]   = useState(checkIsPortrait());
   const [isOffline, setIsOffline]     = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
 
   // useRef для currentUser — решает stale closure в Realtime-подписке
@@ -6601,13 +6611,20 @@ const setExpensesWithSync = (updater) => {
     document.title = "VkusBuket";
     const handleResize = () => {
       const mobile = checkIsMobile();
+      const portrait = checkIsPortrait();
       setIsMobile(mobile);
+      setIsPortrait(portrait);
+      // Только в ландшафтном режиме на мобильном — авто-открываем боковую панель
       if (mobile) setSidebarOpen(false);
       else setSidebarOpen(true);
     };
     window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
     handleResize();
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+    };
   }, []);
 
   useEffect(()=>{
@@ -7151,7 +7168,7 @@ const setExpensesWithSync = (updater) => {
   const totalOrd = sales.length;
 
   return(
-    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",color:C.text,overflow:"hidden",position:"relative"}}>
+    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100dvh",display:"flex",flexDirection: (isMobile && isPortrait) ? "column" : "row",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{handleLogin(u);setUserMenu(false);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
@@ -7171,12 +7188,13 @@ const setExpensesWithSync = (updater) => {
       )}
 
       {/* САЙДБАР (МОБИЛЬНЫЙ ВЫЕЗДНОЙ ИЛИ ДЕКСТОПНЫЙ СТАТИЧЕСКИЙ) */}
-      {isMobile && sidebarOpen && (
+      {/* В портретном режиме на телефоне — сайдбар скрыт, навигация снизу */}
+      {isMobile && sidebarOpen && !isPortrait && (
         <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:998}} />
       )}
       
       <div style={{
-        width:sidebarOpen?220:isMobile?0:58,
+        width: (isMobile && isPortrait) ? 0 : (sidebarOpen ? 220 : isMobile ? 0 : 58),
         background:C.surface,
         borderRight:`1px solid ${C.border}`,
         display:"flex",
@@ -7185,8 +7203,8 @@ const setExpensesWithSync = (updater) => {
         transition:"width .2s, left .2s",
         overflow:"hidden",
         height:"100vh",
-        position:isMobile?"fixed":"sticky",
-        left:isMobile ? (sidebarOpen ? 0 : -220) : 0,
+        position: isMobile ? "fixed" : "sticky",
+        left: (isMobile && isPortrait) ? -220 : (isMobile ? (sidebarOpen ? 0 : -220) : 0),
         top:0,
         zIndex:999
       }}>
@@ -7242,7 +7260,7 @@ const setExpensesWithSync = (updater) => {
           </div>
         </div>
 
-        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 64 : 0}}>
           {page==="dashboard"  && <Dashboard  isMobile={isMobile} sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
           {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
@@ -7256,6 +7274,41 @@ const setExpensesWithSync = (updater) => {
           {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync}/>}
         </div>
       </div>
+
+      {/* НИЖНЯЯ НАВИГАЦИЯ ДЛЯ ПОРТРЕТНОГО МОБИЛЬНОГО */}
+      {isMobile && isPortrait && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,height:64,background:C.surface,borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-around",zIndex:999,paddingBottom:"env(safe-area-inset-bottom)"}}>
+          {allowedNav.slice(0,5).map(n => (
+            <button key={n.id} onClick={()=>setPage(n.id)}
+              style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:page===n.id?C.accent:C.muted,transition:"color .15s"}}>
+              <span style={{fontSize:20}}>{n.icon}</span>
+              <span style={{fontSize:9,fontWeight:page===n.id?700:400,letterSpacing:0}}>{n.label}</span>
+            </button>
+          ))}
+          {allowedNav.length > 5 && (
+            <button onClick={()=>setSidebarOpen(v=>!v)}
+              style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:C.muted}}>
+              <span style={{fontSize:20}}>☰</span>
+              <span style={{fontSize:9,fontWeight:400}}>Ещё</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ВЫЕЗДНОЕ МЕНЮ «ЕЩЁ» в портрете */}
+      {isMobile && isPortrait && sidebarOpen && (
+        <>
+          <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000}}/>
+          <div style={{position:"fixed",bottom:64,left:0,right:0,background:C.surface,borderTop:`1px solid ${C.border}`,zIndex:1001,display:"flex",flexWrap:"wrap",padding:"12px 8px",gap:8}}>
+            {allowedNav.slice(5).map(n => (
+              <button key={n.id} onClick={()=>{setPage(n.id);setSidebarOpen(false);}}
+                style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:page===n.id?C.accentSoft:C.card,border:`1px solid ${page===n.id?C.accent:C.border}`,borderRadius:10,color:page===n.id?C.accent:C.text,cursor:"pointer",fontSize:13,fontWeight:page===n.id?700:400}}>
+                {n.icon} {n.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
