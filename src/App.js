@@ -7354,7 +7354,7 @@ const setExpensesWithSync = (updater) => {
   const totalOrd = sales.length;
 
   return(
-    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100dvh",height:(isMobile && isPortrait)?"100dvh":"auto",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative"}}>
+    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,height:"100dvh",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{handleLogin(u);setUserMenu(false);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
