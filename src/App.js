@@ -2415,7 +2415,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
 function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers,preorders,setPreorders,setCustomers}){
-  const [cart,setCart]          = useState([]);
+  const [cart,setCart]          = useState(() => LS("vb_pos_cart", []));
   const [phoneSearch, setPhoneSearch] = useState("");
   const [loyaltyCustomer, setLoyaltyCustomer] = useState(null);
   const [payMode,setPayMode]    = useState(null);
@@ -2439,6 +2439,16 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [preorderPrepayment, setPreorderPrepayment] = useState("");
   const [preorderPayMode, setPreorderPayMode] = useState("cash");
   const [preorderNotes, setPreorderNotes] = useState("");
+
+  // Сохраняем корзину в localStorage, чтобы она пережила авто-перезагрузку при обновлении приложения
+  useEffect(() => {
+    if (done) {
+      // После оплаты корзина очищается
+      localStorage.removeItem("vb_pos_cart");
+    } else {
+      localStorage.setItem("vb_pos_cart", JSON.stringify(cart));
+    }
+  }, [cart, done]);
 
   useEffect(() => {
     if (showPreorderModal) {
@@ -6055,8 +6065,9 @@ const checkIsMobile = () => {
 };
 
 export default function App(){
-  const [currentUser,setCurrentUser] = useState(null);
-  const [page,setPage]               = useState("dashboard");
+  // Восстанавливаем сессию из localStorage (на случай авто-перезагрузки при обновлении PWA)
+  const [currentUser,setCurrentUser] = useState(() => LS("vb_session_user", null));
+  const [page,setPage]               = useState(() => LS("vb_session_page", "dashboard"));
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
   const [loading,setLoading]         = useState(true);
@@ -6104,7 +6115,7 @@ export default function App(){
     return clean.length ? clean : INIT_USERS;
   });
   const [toast,showToast]          = useToast();
-  const [currentShift,setCurrentShift] = useState(null);
+  const [currentShift,setCurrentShift] = useState(() => LS("vb_session_shift", null));
   const [showOpenShift,setShowOpenShift] = useState(false);
   const [customers, setCustomers] = useState(() => LS("vb_customers", []));
   const [warehouseHistory, setWarehouseHistory] = useState(() => LS("vb_warehouse_history", []));
@@ -6639,6 +6650,31 @@ const setExpensesWithSync = (updater) => {
     localStorage.setItem("vb_preorders",JSON.stringify(preorders));
   },[preorders,loading]);
 
+  // Сохраняем сессию пользователя в localStorage для восстановления после авто-перезагрузки PWA
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem("vb_session_user", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("vb_session_user");
+      localStorage.removeItem("vb_session_page");
+      localStorage.removeItem("vb_session_shift");
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (page) {
+      localStorage.setItem("vb_session_page", JSON.stringify(page));
+    }
+  }, [page]);
+
+  useEffect(() => {
+    if (currentShift) {
+      localStorage.setItem("vb_session_shift", JSON.stringify(currentShift));
+    } else {
+      localStorage.removeItem("vb_session_shift");
+    }
+  }, [currentShift]);
+
   // Realtime subscription
   // Realtime subscription (consolidated for all tables)
   useEffect(() => {
@@ -6981,6 +7017,11 @@ const setExpensesWithSync = (updater) => {
       setShifts(prev => prev.map(s => s.id === currentShift.id ? { ...s, ...updated } : s));
       supaFetch("PATCH", "shifts", updated, `?id=eq.${currentShift.id}`).catch(()=>{});
     }
+    // Очищаем сессию при закрытии смены
+    localStorage.removeItem("vb_session_user");
+    localStorage.removeItem("vb_session_page");
+    localStorage.removeItem("vb_session_shift");
+    localStorage.removeItem("vb_pos_cart");
     setCurrentShift(null);
     setCurrentUser(null);
     showToast("Смена закрыта, выход из системы");
