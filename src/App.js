@@ -4649,6 +4649,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
   const [tab,setTab]=useState("products");
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
+  const [showAddTechCard,setShowAddTechCard]=useState(false);
   const [newProduct,setNewProduct]=useState({product:"",cat:"Наборы",price:""});
   
   // Управление сотрудниками
@@ -4679,6 +4680,14 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
     setNewProduct({product:"",cat:"Наборы",price:""});
     setShowAddProduct(false);
     showToast("Товар добавлен!");
+  };
+
+  const addTechCard=()=>{
+    if(!newProduct.product||!newProduct.price){showToast("Заполните название и цену",true);return;}
+    setTechCards(p=>[...p,{id:`tc_${Date.now()}`,product:newProduct.product,cat:newProduct.cat,price:parseInt(newProduct.price)||0,ings:[]}]);
+    setNewProduct({product:"",cat:"Наборы",price:""});
+    setShowAddTechCard(false);
+    showToast("Тех. карта добавлена!");
   };
 
   const updateRaw=(id,field,val)=>{
@@ -4814,15 +4823,44 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               <div style={{fontSize:18,fontWeight:800}}>Технологические карты</div>
               <div style={{fontSize:12,color:C.muted}}>Норма расхода и процент отходов по ингредиентам</div>
             </div>
-            <button onClick={()=>{
-              if(window.confirm("Вы уверены, что хотите сбросить все тех. карты на заводские настройки из Excel? Все ваши ручные изменения будут заменены.")) {
-                setTechCards(INIT_TECH_CARDS);
-                showToast("Технологические карты сброшены к значениям из Excel!");
-              }
-            }} style={{padding:"8px 16px",borderRadius:10,border:`1px solid ${C.red}`,background:"transparent",color:C.red,fontWeight:700,cursor:"pointer",fontSize:13}}>
-              🔄 Сбросить к Excel
-            </button>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              <button onClick={()=>setShowAddTechCard(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>
+                + Добавить тех. карту
+              </button>
+              <button onClick={()=>{
+                if(window.confirm("Вы уверены, что хотите сбросить все тех. карты на заводские настройки из Excel? Все ваши ручные изменения будут заменены.")) {
+                  setTechCards(INIT_TECH_CARDS);
+                  showToast("Технологические карты сброшены к значениям из Excel!");
+                }
+              }} style={{padding:"8px 16px",borderRadius:10,border:`1px solid ${C.red}`,background:"transparent",color:C.red,fontWeight:700,cursor:"pointer",fontSize:13}}>
+                🔄 Сбросить к Excel
+              </button>
+            </div>
           </div>
+          {showAddTechCard&&(
+            <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.accent}`,padding:20,marginBottom:16}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
+                <div style={{flex:2}}>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>НАЗВАНИЕ</div>
+                  <input value={newProduct.product} onChange={e=>setNewProduct(f=>({...f,product:e.target.value}))} placeholder="Напр. Букет РОЗА" style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ЦЕНА (₸)</div>
+                  <input type="number" value={newProduct.price} onChange={e=>setNewProduct(f=>({...f,price:e.target.value}))} placeholder="0" style={inputStyle}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КАТЕГОРИЯ</div>
+                  <select value={newProduct.cat} onChange={e=>setNewProduct(f=>({...f,cat:e.target.value}))} style={inputStyle}>
+                    {cats.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={addTechCard} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>+ Добавить</button>
+                  <button onClick={()=>setShowAddTechCard(false)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
+                </div>
+              </div>
+            </div>
+          )}
           {techCards.map(tc=>(
             <div key={tc.id} style={{background:C.card,borderRadius:12,border:`1.5px solid ${editId===tc.id?C.accent:C.border}`,padding:"14px 18px",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(editId===tc.id?null:tc.id)}>
