@@ -44,15 +44,10 @@ const getMergedList = (fetched, local, tableName) => {
   return Array.from(mergedMap.values());
 };
 
-// Срок жизни сессии — 8 часов
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-
-// Проверяет, не истекла ли сессия
+// Проверяет, не истекла ли сессия (всегда валидна, если пользователь авторизован)
 const isSessionValid = () => {
   try {
-    const ts = localStorage.getItem("vb_session_ts");
-    if (!ts) return false;
-    return (Date.now() - parseInt(ts, 10)) < SESSION_TTL_MS;
+    return !!localStorage.getItem("vb_session_user");
   } catch { return false; }
 };
 
@@ -6185,21 +6180,7 @@ export default function App(){
   const currentUserRef = useRef(currentUser);
   useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
 
-  // Периодическая проверка истечения сессии (каждые 5 минут)
-  useEffect(() => {
-    const checkSession = () => {
-      if (currentUserRef.current && !isSessionValid()) {
-        console.log("[Session] TTL истёк — авто-выход");
-        localStorage.removeItem("vb_session_user");
-        localStorage.removeItem("vb_session_page");
-        localStorage.removeItem("vb_session_shift");
-        localStorage.removeItem("vb_pos_cart");
-        setCurrentUser(null);
-      }
-    };
-    const interval = setInterval(checkSession, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Временная метка сессии touchSession() сохранена для совместимости, автоматический выход отключен по требованию пользователя.
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -6717,9 +6698,16 @@ const setExpensesWithSync = (updater) => {
 
         // Phase 5: Load users from app_users, populate if empty
         if (Array.isArray(appUsers) && appUsers.length) {
-          // pin может приходить как integer из Supabase — всегда приводим к String
-          const mapped = appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:String(u.pin||"")}));
-          setUsers(prev => getMergedList(mapped, prev, "app_users"));
+          setUsers(prev => {
+            const mapped = appUsers.map(u => {
+              const localUser = prev.find(p => p.id === u.id);
+              const pinVal = String(u.pin || "");
+              // Если в БД пин пустой, но локально есть сохраненный пин — не затираем его
+              const finalPin = (pinVal === "" && localUser && localUser.pin) ? String(localUser.pin) : pinVal;
+              return { id: u.id, name: u.name, role: u.role, point: u.point, pin: finalPin };
+            });
+            return getMergedList(mapped, prev, "app_users");
+          });
         } else if (Array.isArray(appUsers) && appUsers.length === 0) {
           // Populate app_users from INIT_USERS (one-time)
           for(const u of INIT_USERS) {
@@ -6807,6 +6795,17 @@ const setExpensesWithSync = (updater) => {
       localStorage.removeItem("vb_session_user");
       localStorage.removeItem("vb_session_page");
       localStorage.removeItem("vb_session_shift");
+      localStorage.removeItem("vb_pos_cart");
+      // Очищаем локальные кэши таблиц для исключения утечек состояний между кассирами
+      localStorage.removeItem("vb_raw");
+      localStorage.removeItem("vb_semi");
+      localStorage.removeItem("vb_sales");
+      localStorage.removeItem("vb_exp");
+      localStorage.removeItem("vb_customers");
+      localStorage.removeItem("vb_warehouse_history");
+      localStorage.removeItem("vb_writeoffs_log");
+      localStorage.removeItem("vb_shifts");
+      localStorage.removeItem("vb_preorders");
     }
   }, [currentUser]);
 
