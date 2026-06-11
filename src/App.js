@@ -6141,19 +6141,22 @@ const checkIsMobile = () => {
   return isPhone;
 };
 
-// Портретный режим: используем screen.orientation если доступно, иначе innerWidth/innerHeight
+// Портретный режим: надёжное определение для Android (включая Samsung One UI)
 const checkIsPortrait = () => {
   if (typeof window === "undefined") return false;
-  // window.screen.orientation — наиболее надёжный способ
+  // Наиболее надёжный: сравниваем innerWidth vs innerHeight — всегда актуально
+  if (window.innerWidth > 0 && window.innerHeight > 0) {
+    return window.innerWidth < window.innerHeight;
+  }
+  // Современный API (Chrome Android, Safari iOS 16.4+)
   if (window.screen && window.screen.orientation) {
     return window.screen.orientation.type.startsWith("portrait");
   }
-  // Fallback: window.orientation (устаревший, но широкая поддержка)
+  // Fallback: устаревший window.orientation
   if (typeof window.orientation !== "undefined") {
     return window.orientation === 0 || window.orientation === 180;
   }
-  // Последний резерв: сравнение размеров
-  return window.innerWidth < window.innerHeight;
+  return true;
 };
 
 export default function App(){
