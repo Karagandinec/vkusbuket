@@ -2309,7 +2309,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
   const isOwnerOrDirector = currentUser?.role === "owner" || currentUser?.role === "director";
 
   return (
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",height:"calc(100vh - 57px)",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       {/* ЗАПРОСЫ НА УДАЛЕНИЕ */}
       {isOwnerOrDirector && pendingDeletions.length > 0 && (
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.red}`,padding:22,marginBottom:22,boxSizing:"border-box"}}>
@@ -3416,7 +3416,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       
       {/* РЕЖИМЫ */}
@@ -3700,7 +3700,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
   } catch (e) {}
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <h2 style={{margin:0}}>▣ Складской учёт {isCashier ? `(${myPoint})` : ""}</h2>
@@ -4001,7 +4001,7 @@ function Expenses({isMobile,expenses,setExpenses}){
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
@@ -4314,7 +4314,7 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
   const fcLimit = 30;
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       {/* ФИЛЬТРЫ */}
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",background:C.surface,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
         {!isCashier ? (
@@ -4719,7 +4719,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"20px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"],["loyalty","👥 Клиенты (Лояльность)"]].map(([id,label])=>(
@@ -5271,7 +5271,7 @@ function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,current
   const currentList = activeTab === "semi" ? semiStock : rawStock;
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>📋 {isCashier ? `Инвентаризация остатков (${myPoint})` : "Инвентаризация остатков"}</div>
@@ -5444,7 +5444,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
+    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>✕ Коррекционное списание остатков</div>
@@ -5529,7 +5529,7 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto"}}>
+    <div style={{padding:isMobile?"12px 14px":"20px 28px"}}>
       <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>🕐 Журнал смен</div>
       {!shifts ? (
         <div style={{color:C.muted,textAlign:"center",padding:40}}>⟳ Загрузка смен...</div>
@@ -5805,7 +5805,7 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
   };
 
   return (
-    <div style={{padding:isMobile?"12px 14px":"20px 28px",overflowY:"auto",flex:1,display:"flex",flexDirection:"column"}}>
+    <div style={{padding:isMobile?"12px 14px":"20px 28px",flex:1,display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div style={{fontSize:22,fontWeight:900,color:C.accent}}>📅 Журнал предзаказов (Мастерская)</div>
         <div style={{display:"flex",gap:10}}>
