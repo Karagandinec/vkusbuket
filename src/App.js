@@ -76,7 +76,7 @@ const ROLES = {
   owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","preorders","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
   director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","preorders","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
   admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","preorders","warehouse","inventory","writeoff","expenses"] },
-  cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","preorders","writeoff","inventory"] },
+  cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","writeoff","inventory"] },
 };
 
 const INIT_USERS = [
@@ -2846,44 +2846,46 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 </div>
                 
                 {/* Добавки (Extras) */}
-                <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
-                  {[
-                    { key: "s6", label: "🍦 Слив. 50г", price: 500 },
-                    { key: "s7", label: "🍦 Шок. 50г", price: 500 },
-                    { key: "s2", label: "🍫 Шок. 15г", price: 500 }
-                  ].map(ext => {
-                    const active = (item.extras?.[ext.key] || 0) > 0;
-                    return (
-                      <button
-                        key={ext.key}
-                        type="button"
-                        onClick={() => {
-                          setCart(prev => prev.map(i => {
-                            if (i.id !== item.id) return i;
-                            const ex = { s6: 0, s7: 0, s2: 0, ...i.extras };
-                            ex[ext.key] = ex[ext.key] ? 0 : 1;
-                            return { ...i, extras: ex };
-                          }));
-                        }}
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: 6,
-                          border: `1px solid ${active ? C.accent : C.border}`,
-                          background: active ? C.accentSoft : "transparent",
-                          color: active ? C.accent : C.muted,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4
-                        }}
-                      >
-                        {ext.label} (+{ext.price} ₸)
-                      </button>
-                    );
-                  })}
-                </div>
+                {!(item.cat === "Наборы" || item.cat === "Букеты") && (
+                  <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+                    {[
+                      { key: "s6", label: "🍦 Слив. 50г", price: 500 },
+                      { key: "s7", label: "🍦 Шок. 50г", price: 500 },
+                      { key: "s2", label: "🍫 Шок. 15г", price: 500 }
+                    ].map(ext => {
+                      const active = (item.extras?.[ext.key] || 0) > 0;
+                      return (
+                        <button
+                          key={ext.key}
+                          type="button"
+                          onClick={() => {
+                            setCart(prev => prev.map(i => {
+                              if (i.id !== item.id) return i;
+                              const ex = { s6: 0, s7: 0, s2: 0, ...i.extras };
+                              ex[ext.key] = ex[ext.key] ? 0 : 1;
+                              return { ...i, extras: ex };
+                            }));
+                          }}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            border: `1px solid ${active ? C.accent : C.border}`,
+                            background: active ? C.accentSoft : "transparent",
+                            color: active ? C.accent : C.muted,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          {ext.label} (+{ext.price} ₸)
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })
@@ -7254,6 +7256,9 @@ const setExpensesWithSync = (updater) => {
   if (currentUser.role === "cashier" && currentUser.point === "Мастерская") {
     if (!userNav.includes("production")) {
       userNav.push("production");
+    }
+    if (!userNav.includes("preorders")) {
+      userNav.push("preorders");
     }
   }
   const allowedNav = NAV.filter(n=>userNav.includes(n.id));
