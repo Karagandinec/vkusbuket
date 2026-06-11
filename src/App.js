@@ -80,12 +80,12 @@ const ROLES = {
 };
 
 const INIT_USERS = [
-  { id:"00000000-0000-4000-a000-000000000001", name:"Владелец",          role:"owner",    point:null,          pin:"" },
-  { id:"00000000-0000-4000-a000-000000000002", name:"Директор",          role:"director", point:null,          pin:"" },
-  { id:"00000000-0000-4000-a000-000000000003", name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"" },
-  { id:"00000000-0000-4000-a000-000000000004", name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"" },
-  { id:"00000000-0000-4000-a000-000000000005", name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"" },
-  { id:"00000000-0000-4000-a000-000000000006", name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"" },
+  { id:"00000000-0000-4000-a000-000000000001", name:"Владелец",          role:"owner",    point:null,          pin:"7663" },
+  { id:"00000000-0000-4000-a000-000000000002", name:"Директор",          role:"director", point:null,          pin:"8888" },
+  { id:"00000000-0000-4000-a000-000000000003", name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"1111" },
+  { id:"00000000-0000-4000-a000-000000000004", name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"2222" },
+  { id:"00000000-0000-4000-a000-000000000005", name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"3333" },
+  { id:"00000000-0000-4000-a000-000000000006", name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"4444" },
 ];
 
 // Инициализируем остатки на "Склад" согласно данным из Excel
@@ -5949,9 +5949,10 @@ function PinScreen({users, onLogin, onClose}){
     setError("");
     if (next.length === 4) {
       setTimeout(() => {
-        if (String(next) === String(selected.pin)) {
+        const latestUser = users.find(u => u.id === selected.id) || selected;
+        if (String(next) === String(latestUser.pin)) {
           clearBFState(selected.id);
-          onLogin(selected);
+          onLogin(latestUser);
           setPin(""); setSelected(null); setLocked(false);
         } else {
           const bf = getBFState(selected.id);
@@ -6108,8 +6109,11 @@ async function supaFetch(method, table, body=null, params="") {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
-      // В случае серверной ошибки (500+) добавляем в очередь на повтор; 4xx — ошибка данных, не повторяем
-      if (method !== "GET" && res.status >= 500) { enqueueOp(); }
+      if (method !== "GET") {
+        if (!(res.status === 404 && method === "DELETE")) {
+          enqueueOp();
+        }
+      }
       return method === "GET" ? [] : false;
     }
     if (method === "GET") {
@@ -6124,6 +6128,21 @@ async function supaFetch(method, table, body=null, params="") {
   }
 }
 
+// Проверка наличия RPC для атомарного списания (защита от гонки данных)
+let RPC_ENABLED = false;
+async function checkRpcExists() {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/rpc/update_raw_stock_atomic`, {
+      method: "POST", headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ p_raw_id: "test", p_point: "test", p_delta: 0 })
+    });
+    RPC_ENABLED = res.status !== 404;
+  } catch(e) {}
+}
+// Запускаем проверку при загрузке
+if (typeof window !== "undefined") {
+  checkRpcExists();
+}
 
 function fmtUnit(u) { return u === "г" ? "гр." : u; }
 
@@ -6323,7 +6342,26 @@ const setRawStockWithSync = (updater) => {
       next.forEach(newItem => {
         const oldItem = prev.find(p => p.id === newItem.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          supaFetch("POST", "raw_stock", newItem).catch(()=>{});
+          let qtyChangedOnly = false;
+          if (RPC_ENABLED && oldItem) {
+            const oldNoQty = {...oldItem, qty:null};
+            const newNoQty = {...newItem, qty:null};
+            if (JSON.stringify(oldNoQty) === JSON.stringify(newNoQty)) {
+              qtyChangedOnly = true;
+              const qtyOld = typeof oldItem.qty === 'string' ? JSON.parse(oldItem.qty) : (oldItem.qty || {});
+              const qtyNew = typeof newItem.qty === 'string' ? JSON.parse(newItem.qty) : (newItem.qty || {});
+              const allPts = new Set([...Object.keys(qtyOld), ...Object.keys(qtyNew)]);
+              for (const pt of allPts) {
+                const diff = (qtyNew[pt] || 0) - (qtyOld[pt] || 0);
+                if (diff !== 0) {
+                  supaFetch("POST", "rpc/update_raw_stock_atomic", { p_raw_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
+                }
+              }
+            }
+          }
+          if (!qtyChangedOnly) {
+            supaFetch("POST", "raw_stock", newItem).catch(()=>{});
+          }
         }
       });
       prev.forEach(oldItem => {
@@ -6341,7 +6379,26 @@ const setSemiStockWithSync = (updater) => {
       next.forEach(newItem => {
         const oldItem = prev.find(p => p.id === newItem.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          supaFetch("POST", "semi_stock", newItem).catch(()=>{});
+          let qtyChangedOnly = false;
+          if (RPC_ENABLED && oldItem) {
+            const oldNoQty = {...oldItem, qty:null};
+            const newNoQty = {...newItem, qty:null};
+            if (JSON.stringify(oldNoQty) === JSON.stringify(newNoQty)) {
+              qtyChangedOnly = true;
+              const qtyOld = typeof oldItem.qty === 'string' ? JSON.parse(oldItem.qty) : (oldItem.qty || {});
+              const qtyNew = typeof newItem.qty === 'string' ? JSON.parse(newItem.qty) : (newItem.qty || {});
+              const allPts = new Set([...Object.keys(qtyOld), ...Object.keys(qtyNew)]);
+              for (const pt of allPts) {
+                const diff = (qtyNew[pt] || 0) - (qtyOld[pt] || 0);
+                if (diff !== 0) {
+                  supaFetch("POST", "rpc/update_semi_stock_atomic", { p_semi_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
+                }
+              }
+            }
+          }
+          if (!qtyChangedOnly) {
+            supaFetch("POST", "semi_stock", newItem).catch(()=>{});
+          }
         }
       });
       prev.forEach(oldItem => {
@@ -6566,7 +6623,10 @@ const setExpensesWithSync = (updater) => {
         } else {
           const errText = await res.text().catch(() => "");
           console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
-          if (res.status >= 500) {
+          // Prevent data loss: retain item in queue even for 4xx errors (e.g. 401 Unauthorized token expiry)
+          if (res.status === 404 && item.method === "DELETE") {
+             // Safe to drop 404 on DELETE, it's already gone
+          } else {
             nextQueue.push(item);
           }
         }
@@ -6702,11 +6762,18 @@ const setExpensesWithSync = (updater) => {
             const mapped = appUsers.map(u => {
               const localUser = prev.find(p => p.id === u.id);
               const pinVal = String(u.pin || "");
-              // Если в БД пин пустой, но локально есть сохраненный пин — не затираем его
               const finalPin = (pinVal === "" && localUser && localUser.pin) ? String(localUser.pin) : pinVal;
-              return { id: u.id, name: u.name, role: u.role, point: u.point, pin: finalPin };
+              return { ...u, pin: finalPin };
             });
-            return getMergedList(mapped, prev, "app_users");
+            const merged = getMergedList(mapped, prev, "app_users");
+            // Принудительно восстанавливаем PIN из БД, если локальный кэш затер его пустым значением
+            return merged.map(m => {
+              const dbUser = appUsers.find(u => u.id === m.id);
+              if (dbUser && dbUser.pin && (!m.pin || m.pin === "")) {
+                return { ...m, pin: dbUser.pin };
+              }
+              return m;
+            });
           });
         } else if (Array.isArray(appUsers) && appUsers.length === 0) {
           // Populate app_users from INIT_USERS (one-time)
@@ -7195,7 +7262,7 @@ const setExpensesWithSync = (updater) => {
   const totalOrd = sales.length;
 
   return(
-    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",height:(isMobile && isPortrait)?"100vh":"auto",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative"}}>
+    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100dvh",height:(isMobile && isPortrait)?"100dvh":"auto",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{handleLogin(u);setUserMenu(false);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
@@ -7260,6 +7327,13 @@ const setExpensesWithSync = (updater) => {
               <div style={{fontSize:10,color:C.muted}}>{role.label}{currentUser.point?" · "+currentUser.point:""}</div>
             </div>}
           </button>
+          <button onClick={()=>{
+            setCurrentUser(null);
+            localStorage.removeItem("vb_session_user");
+          }} style={{marginTop:8, display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"flex-start":"center",gap:10,padding:"10px 10px",borderRadius:10,border:`1px solid ${C.red}33`,background:"transparent",color:C.red,cursor:"pointer",width:"100%",fontWeight:700}}>
+            <span style={{fontSize:16,flexShrink:0}}>🚪</span>
+            {(sidebarOpen || isMobile) && <span style={{fontSize:13}}>Выйти (Сменить)</span>}
+          </button>
         </div>
       </div>
 
@@ -7305,20 +7379,18 @@ const setExpensesWithSync = (updater) => {
       {/* НИЖНЯЯ НАВИГАЦИЯ ДЛЯ ПОРТРЕТНОГО МОБИЛЬНОГО */}
       {isMobile && isPortrait && (
         <div style={{position:"fixed",bottom:0,left:0,right:0,height:64,background:C.surface,borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-around",zIndex:999,paddingBottom:"env(safe-area-inset-bottom)"}}>
-          {allowedNav.slice(0,5).map(n => (
+          {allowedNav.slice(0,4).map(n => (
             <button key={n.id} onClick={()=>setPage(n.id)}
               style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:page===n.id?C.accent:C.muted,transition:"color .15s"}}>
               <span style={{fontSize:20}}>{n.icon}</span>
               <span style={{fontSize:9,fontWeight:page===n.id?700:400,letterSpacing:0}}>{n.label}</span>
             </button>
           ))}
-          {allowedNav.length > 5 && (
-            <button onClick={()=>setSidebarOpen(v=>!v)}
-              style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:C.muted}}>
-              <span style={{fontSize:20}}>☰</span>
-              <span style={{fontSize:9,fontWeight:400}}>Ещё</span>
-            </button>
-          )}
+          <button onClick={()=>setSidebarOpen(v=>!v)}
+            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:sidebarOpen?C.accent:C.muted}}>
+            <span style={{fontSize:20}}>{sidebarOpen?"👤":"☰"}</span>
+            <span style={{fontSize:9,fontWeight:sidebarOpen?700:400}}>Профиль</span>
+          </button>
         </div>
       )}
 
@@ -7326,13 +7398,32 @@ const setExpensesWithSync = (updater) => {
       {isMobile && isPortrait && sidebarOpen && (
         <>
           <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000}}/>
-          <div style={{position:"fixed",bottom:64,left:0,right:0,background:C.surface,borderTop:`1px solid ${C.border}`,zIndex:1001,display:"flex",flexWrap:"wrap",padding:"12px 8px",gap:8}}>
-            {allowedNav.slice(5).map(n => (
-              <button key={n.id} onClick={()=>{setPage(n.id);setSidebarOpen(false);}}
-                style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:page===n.id?C.accentSoft:C.card,border:`1px solid ${page===n.id?C.accent:C.border}`,borderRadius:10,color:page===n.id?C.accent:C.text,cursor:"pointer",fontSize:13,fontWeight:page===n.id?700:400}}>
-                {n.icon} {n.label}
+          <div style={{position:"fixed",bottom:64,left:0,right:0,background:C.surface,borderTop:`1px solid ${C.border}`,zIndex:1001,display:"flex",flexDirection:"column",padding:"12px 16px",gap:16}}>
+            {/* User Profile in Overflow Menu */}
+            <div style={{display:"flex",alignItems:"center",gap:12,paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
+              <div style={{width:40,height:40,borderRadius:20,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{role.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:14,fontWeight:700}}>{currentUser.name}</div>
+                <div style={{fontSize:12,color:C.muted}}>{role.label}{currentUser.point?" · "+currentUser.point:""}</div>
+              </div>
+              <button onClick={()=>{
+                setSidebarOpen(false);
+                setCurrentUser(null);
+                localStorage.removeItem("vb_session_user");
+              }} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${C.red}33`,background:"transparent",color:C.red,fontWeight:700,cursor:"pointer"}}>
+                Выйти
               </button>
-            ))}
+            </div>
+
+            {/* Overflow Nav Items */}
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              {allowedNav.slice(4).map(n => (
+                <button key={n.id} onClick={()=>{setPage(n.id);setSidebarOpen(false);}}
+                  style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:page===n.id?C.accentSoft:C.card,border:`1px solid ${page===n.id?C.accent:C.border}`,borderRadius:10,color:page===n.id?C.accent:C.text,cursor:"pointer",fontSize:13,fontWeight:page===n.id?700:400}}>
+                  {n.icon} {n.label}
+                </button>
+              ))}
+            </div>
           </div>
         </>
       )}
