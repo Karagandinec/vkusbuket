@@ -5954,7 +5954,7 @@ function PinScreen({users, onLogin, onClose}){
     setError("");
     if (next.length === 4) {
       setTimeout(() => {
-        if (next === selected.pin) {
+        if (String(next) === String(selected.pin)) {
           clearBFState(selected.id);
           onLogin(selected);
           setPin(""); setSelected(null); setLocked(false);
@@ -6135,15 +6135,24 @@ function fmtUnit(u) { return u === "г" ? "гр." : u; }
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
 const checkIsMobile = () => {
   if (typeof window === "undefined") return false;
-  // screen.width и screen.height не меняются при повороте — это физический размер экрана
-  const minDim = Math.min(screen.width, screen.height);
+  // screen.width/height — физический размер, не зависит от ориентации
+  const minDim = Math.min(screen.width || 0, screen.height || 0);
   const isPhone = minDim < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   return isPhone;
 };
 
-// Портретный режим: ширина окна меньше высоты
+// Портретный режим: используем screen.orientation если доступно, иначе innerWidth/innerHeight
 const checkIsPortrait = () => {
   if (typeof window === "undefined") return false;
+  // screen.orientation — наиболее надёжный способ
+  if (screen.orientation) {
+    return screen.orientation.type.startsWith("portrait");
+  }
+  // Fallback: window.orientation (устаревший, но широкая поддержка)
+  if (typeof window.orientation !== "undefined") {
+    return window.orientation === 0 || window.orientation === 180;
+  }
+  // Последний резерв: сравнение размеров
   return window.innerWidth < window.innerHeight;
 };
 
@@ -6614,16 +6623,25 @@ const setExpensesWithSync = (updater) => {
       const portrait = checkIsPortrait();
       setIsMobile(mobile);
       setIsPortrait(portrait);
-      // Только в ландшафтном режиме на мобильном — авто-открываем боковую панель
       if (mobile) setSidebarOpen(false);
       else setSidebarOpen(true);
     };
+    // Небольшая задержка при orientationchange — браузер обновляет screen.orientation асинхронно
+    const handleOrientationChange = () => setTimeout(handleResize, 100);
+
     window.addEventListener("resize", handleResize);
-    window.addEventListener("orientationchange", handleResize);
+    window.addEventListener("orientationchange", handleOrientationChange);
+    // Современный API (Chrome Android, Safari iOS 16.4+)
+    if (screen.orientation) {
+      screen.orientation.addEventListener("change", handleOrientationChange);
+    }
     handleResize();
     return () => {
       window.removeEventListener("resize", handleResize);
-      window.removeEventListener("orientationchange", handleResize);
+      window.removeEventListener("orientationchange", handleOrientationChange);
+      if (screen.orientation) {
+        screen.orientation.removeEventListener("change", handleOrientationChange);
+      }
     };
   }, []);
 
@@ -6693,7 +6711,8 @@ const setExpensesWithSync = (updater) => {
 
         // Phase 5: Load users from app_users, populate if empty
         if (Array.isArray(appUsers) && appUsers.length) {
-          const mapped = appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin}));
+          // pin может приходить как integer из Supabase — всегда приводим к String
+          const mapped = appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:String(u.pin||"")}));
           setUsers(prev => getMergedList(mapped, prev, "app_users"));
         } else if (Array.isArray(appUsers) && appUsers.length === 0) {
           // Populate app_users from INIT_USERS (one-time)
@@ -6930,7 +6949,8 @@ const setExpensesWithSync = (updater) => {
         if (eventType === "DELETE") {
           setUsers(prev => prev.filter(u => u.id !== oldRow.id));
         } else {
-          const parsed = { id: newRow.id, name: newRow.name, role: newRow.role, point: newRow.point, pin: newRow.pin };
+          // pin может приходить как integer из Realtime — всегда приводим к String
+          const parsed = { id: newRow.id, name: newRow.name, role: newRow.role, point: newRow.point, pin: String(newRow.pin||"") };
           setUsers(prev => {
             const idx = prev.findIndex(u => u.id === parsed.id);
             if (idx >= 0) {
@@ -7085,7 +7105,7 @@ const setExpensesWithSync = (updater) => {
     touchSession(); // Записываем timestamp входа для TTL
     setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);
     if(u.role==="cashier" && u.point) {
-      const localOpen = shifts.find(s => s.cashier_pin === u.pin && s.point === u.point && s.status === "open");
+      const localOpen = shifts.find(s => String(s.cashier_pin) === String(u.pin) && s.point === u.point && s.status === "open");
       if (localOpen) {
         setCurrentShift(localOpen);
       } else {
@@ -7168,7 +7188,7 @@ const setExpensesWithSync = (updater) => {
   const totalOrd = sales.length;
 
   return(
-    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100dvh",display:"flex",flexDirection: (isMobile && isPortrait) ? "column" : "row",color:C.text,overflow:"hidden",position:"relative"}}>
+    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",height:(isMobile && isPortrait)?"100vh":"auto",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{handleLogin(u);setUserMenu(false);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
@@ -7240,7 +7260,7 @@ const setExpensesWithSync = (updater) => {
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",width:"100%"}}>
         <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"13px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {isMobile && (
+            {isMobile && !isPortrait && (
               <button onClick={()=>setSidebarOpen(true)} style={{background:"transparent",border:"none",color:C.text,fontSize:22,cursor:"pointer",padding:0}}>☰</button>
             )}
             <div style={{fontSize:16,fontWeight:800}}>{NAV.find(n=>n.id===page)?.label}</div>
@@ -7260,7 +7280,7 @@ const setExpensesWithSync = (updater) => {
           </div>
         </div>
 
-        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 64 : 0}}>
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
           {page==="dashboard"  && <Dashboard  isMobile={isMobile} sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
           {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
