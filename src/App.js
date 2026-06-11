@@ -6238,7 +6238,10 @@ export default function App(){
   });
   const [users,     setUsers]      = useState(() => {
     const loaded = LS("vb_users", INIT_USERS);
-    const clean = Array.isArray(loaded) ? loaded.filter(u => u.id && u.id.length >= 36) : [];
+    const clean = Array.isArray(loaded)
+      ? loaded.filter(u => u.id && u.id.length >= 36)
+              .map(u => ({ ...u, pin: String(u.pin || "") }))  // ВСЕГДА строка!
+      : [];
     return clean.length ? clean : INIT_USERS;
   });
   const [toast,showToast]          = useToast();
@@ -6756,7 +6759,9 @@ const setExpensesWithSync = (updater) => {
 
   useEffect(()=>{
     if(loading) return;
-    localStorage.setItem("vb_users",JSON.stringify(users));
+    // pin сохраняем как строку, чтобы при чтении тип был корректным
+    const usersToSave = users.map(u => ({ ...u, pin: String(u.pin || "") }));
+    localStorage.setItem("vb_users", JSON.stringify(usersToSave));
   },[users,loading]);
 
   useEffect(()=>{
