@@ -2599,7 +2599,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const addToCart = useCallback((tc) =>
     setCart(p => p.find(i => i.id === tc.id)
       ? p.map(i => i.id === tc.id ? {...i, qty: i.qty+1} : i)
-      : [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}}]
+      : [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: "s6"}]
     ), []);
 
   const chgQty = useCallback((id, d) =>
@@ -2698,6 +2698,10 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     // 1. Списываем полуфабрикаты/сырье с кухни/склада точки
     for(const item of cart){
       for(const ing of item.ings){
+        let actualSid = ing.sid;
+        if (item.baseIceCream === "s7" && actualSid === "s6") {
+          actualSid = "s7";
+        }
         const spend = ing.qty * item.qty * (1 + (ing.loss||0)/100);
         if (ing.rid) {
           const idx = newRaw.findIndex(r=>r.id===ing.rid);
@@ -2707,7 +2711,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
           }
         } else {
-          const idx = newSemi.findIndex(s=>s.id===ing.sid);
+          const idx = newSemi.findIndex(s=>s.id===actualSid);
           if(idx>=0) {
             const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
             qtyObj[selPoint] = Math.round((qtyObj[selPoint] - spend)*1000)/1000;
@@ -2772,7 +2776,10 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     const receipt={
       id: generateUUID(),
       no:1001+sales.length, point:selPoint,
-      items:cart.map(i=>({name:i.product,qty:i.qty,price:i.price,extras:i.extras})),
+      items:cart.map(i=>({
+        name: i.baseIceCream === "s7" && i.product.toLowerCase().includes("креманка") ? `${i.product} (Шок. мор.)` : i.product,
+        qty: i.qty, price: i.price, extras: i.extras
+      })),
       total, subtotal, discAmt, discount, cogs,
       payMode: effectivePayMode,
       payments: receiptPayments,
@@ -2936,6 +2943,27 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                     {fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}
                   </span>
                 </div>
+                
+                {/* Выбор базы для креманок */}
+                {item.product.toLowerCase().includes("креманка") && (
+                  <div style={{marginTop: 8}}>
+                    <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП МОРОЖЕНОГО (50г)</div>
+                    <div style={{display: "flex", gap: 6}}>
+                      <button
+                        onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: "s6" } : i))}
+                        style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.baseIceCream !== "s7" ? C.accent : C.border}`, background: item.baseIceCream !== "s7" ? C.accentSoft : "transparent", color: item.baseIceCream !== "s7" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                      >
+                        🍦 Сливочное
+                      </button>
+                      <button
+                        onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: "s7" } : i))}
+                        style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.baseIceCream === "s7" ? C.accent : C.border}`, background: item.baseIceCream === "s7" ? C.accentSoft : "transparent", color: item.baseIceCream === "s7" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                      >
+                        🍦 Шоколадное
+                      </button>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Добавки (Extras) */}
                 {!(item.cat === "Наборы" || item.cat === "Букеты") && (
@@ -4055,9 +4083,9 @@ const EXP_CATS = [
   {id:"other",     label:"Прочее",    icon:"📝", color:C.muted},
 ];
 
-function Expenses({isMobile,expenses,setExpenses}){
+function Expenses({isMobile,expenses,setExpenses,currentUser}){
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point:"Вся компания",paid:true,type:"expense"});
+  const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
   const [toast,showToast]=useToast();
 
   const totalPaid=expenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
@@ -4068,7 +4096,7 @@ function Expenses({isMobile,expenses,setExpenses}){
     if(!form.desc||!form.amount){showToast("Заполните поля",true);return;}
     const catVal = form.type && form.type !== "expense" ? form.type : form.cat;
     setExpenses(p=>[...p,{id:generateUUID(),...form,cat:catVal,amount:parseInt(form.amount)||0,date:new Date().toLocaleDateString("ru-RU")}]);
-    setForm({cat:"rent",desc:"",amount:"",point:"Вся компания",paid:true,type:"expense"});
+    setForm({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
     setShowForm(false);
     showToast(form.type === "deposit" ? "Средства внесены" : form.type === "safe" ? "Наличные сняты (Сейф)" : "Расход добавлен");
   };
@@ -4138,13 +4166,15 @@ function Expenses({isMobile,expenses,setExpenses}){
               <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СУММА (₸)</div>
               <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
-            <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА / КАССА</div>
-              <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
-                <option>Вся компания</option>
-                {POINTS.map(p=><option key={p}>{p}</option>)}
-              </select>
-            </div>
+            {currentUser?.role !== "cashier" && (
+              <div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА / КАССА</div>
+                <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                  <option>Вся компания</option>
+                  {POINTS.map(p=><option key={p}>{p}</option>)}
+                </select>
+              </div>
+            )}
             {form.type === "expense" && (
               <div style={{display:"flex",alignItems:"center",gap:8,paddingBottom:12}}>
                 <input type="checkbox" checked={form.paid} onChange={e=>setForm(f=>({...f,paid:e.target.checked}))} id="paidCheck" style={{width:18,height:18}}/>
@@ -7672,7 +7702,7 @@ const setExpensesWithSync = (updater) => {
           {page==="warehouse"  && <Warehouse  isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
           {page==="inventory"  && <Inventory  isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
           {page==="writeoff"   && <WriteOff   isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
-          {page==="expenses"   && <Expenses   isMobile={isMobile} expenses={expenses} setExpenses={setExpensesWithSync}/>}
+          {page==="expenses"   && <Expenses   isMobile={isMobile} expenses={expenses} setExpenses={setExpensesWithSync} currentUser={currentUser}/>}
           {page==="reports"    && <Reports    isMobile={isMobile} sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
           {page==="shifts"     && <Shifts     isMobile={isMobile} shifts={shifts}/>}
           {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync}/>}
