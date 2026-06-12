@@ -2604,7 +2604,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
         const isKremanok = tc.product && tc.product.toLowerCase().includes("креманка");
         const is3Scoops = isKremanok && tc.product.toLowerCase().includes("3 шар");
         const initialIceCream = is3Scoops ? ["s6", "s6", "s6"] : (isKremanok ? ["s6"] : []);
-        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream, bowlType: isKremanok ? "Пластиковая" : null}];
+        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream}];
       }
     }), []);
 
@@ -2794,7 +2794,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
         let finalName = i.product;
         if (Array.isArray(i.baseIceCream) && i.baseIceCream.length > 0) {
           const flavors = i.baseIceCream.map(s => s === "s7" ? "Шок." : "Слив.").join("/");
-          finalName += ` (${flavors}, ${i.bowlType === "Вафельная" ? "Ваф." : "Пласт."})`;
+          finalName += ` (${flavors})`;
         }
         return { name: finalName, qty: i.qty, price: i.price, extras: i.extras };
       }),
@@ -2832,7 +2832,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     const todaySales = sales.filter(s => s.point === selPoint && s.date === todayStr);
     
     return (
-      <div style={{flex:1,padding:20,overflowY:"auto",boxSizing:"border-box"}}>
+      <div style={{flex:1,padding:20,overflowY:"auto",boxSizing:"border-box",height:"100%",maxHeight:"100vh"}}>
         <h3 style={{marginTop:0,marginBottom:16}}>Заказы за сегодня ({selPoint})</h3>
         {todaySales.length === 0 ? (
           <div style={{color:C.muted,textAlign:"center",padding:40,fontSize:13}}>Сегодня заказов ещё не было</div>
@@ -2966,24 +2966,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 {Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0 && (
                   <div style={{marginTop: 8, display:"flex", flexDirection:"column", gap:10}}>
                     <div>
-                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП ТАРЫ</div>
-                      <div style={{display: "flex", gap: 6}}>
-                        <button
-                          onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, bowlType: "Пластиковая" } : i))}
-                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Пластиковая" ? C.accent : C.border}`, background: item.bowlType === "Пластиковая" ? C.accentSoft : "transparent", color: item.bowlType === "Пластиковая" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                        >
-                          Пластик
-                        </button>
-                        <button
-                          onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, bowlType: "Вафельная" } : i))}
-                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Вафельная" ? C.accent : C.border}`, background: item.bowlType === "Вафельная" ? C.accentSoft : "transparent", color: item.bowlType === "Вафельная" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                        >
-                          Вафля
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ШАРИКИ МОРОЖЕНОГО</div>
+                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ШАРИКИ МОРОЖЕНОГО (ПО 50Г)</div>
                       {item.baseIceCream.map((scoop, sIdx) => (
                         <div key={sIdx} style={{display: "flex", gap: 6, marginBottom: 4}}>
                           <button
