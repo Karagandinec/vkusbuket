@@ -3624,7 +3624,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
             })}
           </div>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
               <h3 style={{margin:0}}>⚗️ Полуфабрикаты по точкам</h3>
               <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
                 {POINTS.map(p=><option key={p}>{p}</option>)}
@@ -3674,7 +3674,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
             </form>
           </div>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
               <h3 style={{margin:0}}>📦 Остатки упаковки на точках</h3>
               <select value={transferForm.destPoint} onChange={e=>setTransferForm(f=>({...f,destPoint:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
                 {POINTS.map(p=><option key={p}>{p}</option>)}
@@ -4147,10 +4147,41 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
   const [toast,showToast]=useToast();
+  
+  const [periodFilter, setPeriodFilter] = useState("За все время");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
 
   const isCashier = currentUser?.role === 'cashier';
   const todayStr = new Date().toLocaleDateString('ru-RU');
-  const filteredExpenses = isCashier ? expenses.filter(e => e.date === todayStr && e.point === currentUser.point) : expenses;
+  
+  const parseDate = (dstr) => {
+    if(!dstr) return 0;
+    const [d, m, y] = dstr.split(".");
+    return new Date(y, m - 1, d).setHours(0,0,0,0);
+  };
+  
+  const now = new Date().setHours(0,0,0,0);
+
+  const filteredExpenses = expenses.filter(e => {
+    if (isCashier) {
+      return e.date === todayStr && e.point === currentUser.point;
+    }
+    if (periodFilter === "За все время") return true;
+    
+    const eDate = parseDate(e.date);
+    if (periodFilter === "Сегодня") return eDate === now;
+    if (periodFilter === "Вчера") return eDate === now - 86400000;
+    if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 7;
+    if (periodFilter === "Месяц") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 31;
+    if (periodFilter === "Свой период") {
+      if (!customStart || !customEnd) return true;
+      const s = new Date(customStart).setHours(0,0,0,0);
+      const en = new Date(customEnd).setHours(0,0,0,0);
+      return eDate >= s && eDate <= en;
+    }
+    return true;
+  });
 
   const totalPaid=filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
   const totalPend=filteredExpenses.filter(e=>!e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
@@ -4168,7 +4199,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
   return(
     <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div>
           <h2 style={{margin:"0 0 6px"}}>💰 Финансовые операции (Сейф / Расходы)</h2>
           <div style={{display:"flex",gap:16}}>
@@ -4176,9 +4207,29 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
             <span style={{color:C.yellow,fontSize:13,fontWeight:700}}>Ожидается расходов: {fmtM(totalPend)}</span>
           </div>
         </div>
-        <button onClick={()=>setShowForm(v=>!v)} style={{padding:"10px 22px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",fontSize:14}}>
-          {showForm?"✕ Отмена":"+ Новая операция"}
-        </button>
+        <div style={{display:"flex", gap: 10, alignItems:"center", flexWrap:"wrap"}}>
+          {!isCashier && (
+            <div style={{display:"flex", alignItems:"center", gap: 8, flexWrap:"wrap"}}>
+              <select value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13}}>
+                <option>За все время</option>
+                <option>Сегодня</option>
+                <option>Вчера</option>
+                <option>Неделя</option>
+                <option>Месяц</option>
+                <option>Свой период</option>
+              </select>
+              {periodFilter === "Свой период" && (
+                <div style={{display:"flex",gap:4}}>
+                  <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:110}} />
+                  <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:110}} />
+                </div>
+              )}
+            </div>
+          )}
+          <button onClick={()=>setShowForm(v=>!v)} style={{padding:"10px 22px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",fontSize:14,whiteSpace:"nowrap"}}>
+            {showForm?"Отменить":"+ Новая операция"}
+          </button>
+        </div>
       </div>
 
       {showForm&&(
@@ -4915,7 +4966,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
       )}
       {tab==="products"&&(
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
             <div style={{fontSize:18,fontWeight:800}}>Товары и цены</div>
             <button onClick={()=>setShowAddProduct(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить товар</button>
           </div>
@@ -5172,7 +5223,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
 
       {tab==="users"&&(
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
             <div style={{fontSize:18,fontWeight:800}}>Сотрудники и доступы</div>
             <button onClick={()=>setShowAddUser(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить сотрудника</button>
           </div>
@@ -5280,7 +5331,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
 
       {tab==="loyalty"&&(
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
             <div style={{fontSize:18,fontWeight:800}}>База клиентов (Лояльность)</div>
             <button onClick={()=>setShowAddCustomer(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить клиента</button>
           </div>
