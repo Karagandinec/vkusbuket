@@ -3313,6 +3313,12 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   return(
     <div style={{display:"flex",height:"calc(100vh - 57px)"}}>
       <Toast toast={toast}/>
+      {(localStorage.getItem("vb_sync_queue") && JSON.parse(localStorage.getItem("vb_sync_queue")||"[]").length > 0) && (
+        <div style={{padding:20, background:"#fcc", zIndex:99999, position:"fixed", bottom:0, left:0, right:0, maxHeight:"30vh", overflow:"auto"}}>
+          <h4 style={{color:"red", margin:0}}>Отладка Очереди (Скриншот разрабу)</h4>
+          <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 150, fontSize:10, fontFamily:"monospace"}} />
+        </div>
+      )}
       {!isMobile ? (
         <>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
