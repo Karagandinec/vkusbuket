@@ -3079,6 +3079,9 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           ? <div style={{textAlign:"center",color:C.muted,marginTop:40,fontSize:13}}>🍓 Выберите товар</div>
           : cart.map(item=>{
             const color=CAT_COLORS[item.cat]||C.accent;
+            const cogs = calcProductCOGS(item, semiStock, rawStock);
+            const recPrice = Math.round(cogs * 3.3);
+            const isUnderpriced = recPrice > item.price;
             return(
               <div key={item.id} style={{background:C.card,borderRadius:10,padding:"12px",border:`1px solid ${C.border}`,marginBottom:8}}>
                 <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item.product}</div>
@@ -3088,21 +3091,28 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                     <span style={{fontWeight:800,width:24,textAlign:"center"}}>{item.qty}</span>
                     <button onClick={()=>chgQty(item.id,1)} style={{width:28,height:28,background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,cursor:"pointer",fontWeight:700,fontSize:16}}>+</button>
                   </div>
-                  <span
-                    onClick={() => {
-                      const newPriceStr = prompt(`Введите новую цену для ${item.product}:`, item.price);
-                      if (newPriceStr !== null) {
-                        const newP = parseInt(newPriceStr.replace(/\D/g, ""));
-                        if (!isNaN(newP) && newP >= 0) {
-                          setCart(prev => prev.map(i => i.id === item.id ? { ...i, price: newP } : i));
+                  <div style={{display:"flex", flexDirection:"column", alignItems:"flex-end"}}>
+                    <span
+                      onClick={() => {
+                        const newPriceStr = prompt(`Введите новую цену для ${item.product}:`, item.price);
+                        if (newPriceStr !== null) {
+                          const newP = parseInt(newPriceStr.replace(/\D/g, ""));
+                          if (!isNaN(newP) && newP >= 0) {
+                            setCart(prev => prev.map(i => i.id === item.id ? { ...i, price: newP } : i));
+                          }
                         }
-                      }
-                    }}
-                    style={{fontWeight:900,color,fontSize:15,cursor:"pointer",textDecoration:"underline dashed"}}
-                    title="Кликните для изменения цены"
-                  >
-                    {fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}
-                  </span>
+                      }}
+                      style={{fontWeight:900,color: isUnderpriced ? C.red : color,fontSize:15,cursor:"pointer",textDecoration:"underline dashed"}}
+                      title="Кликните для изменения цены"
+                    >
+                      {fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}
+                    </span>
+                    {isUnderpriced && (
+                      <span style={{fontSize:10, color:C.red, fontWeight:700, marginTop:2}}>
+                        Рек. цена: {fmtM(recPrice * item.qty)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Выбор базы для креманок */}
@@ -3160,7 +3170,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 )}
                 
                 {/* Добавки (Extras) */}
-                {!(item.cat === "Наборы" || item.cat === "Букеты") && (
+                {(item.cat === "Креманки" || item.product.toLowerCase().includes("креманка") || item.product.toLowerCase().includes("макси-стакан") || item.product.toLowerCase().includes("макси стакан")) && (
                   <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
                     {[
                       { key: "s6", label: "🍦 Слив. 50г", price: 500 },
