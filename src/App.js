@@ -103,6 +103,7 @@ function SearchableSelect({ value, onChange, options, placeholder = "Выбер�
           </div>
         </div>
       )}
+      {customizing && <CustomBouquetModal baseTc={customizing} onClose={()=>setCustomizing(null)} onAdd={(tc)=>{ addToCart(tc); setCustomizing(null); }} rawStock={rawStock} C={C} />}
     </div>
   );
 }
@@ -2639,6 +2640,7 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
 }
 
 function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers,preorders,setPreorders,setCustomers}){
+  const [customizing, setCustomizing] = useState(null);
   const [cart,setCart]          = useState(() => LS("vb_pos_cart", []));
   const [customizerTc, setCustomizerTc] = useState(null);
   const [phoneSearch, setPhoneSearch] = useState("");
@@ -3041,11 +3043,17 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           const cost=calcProductCOGS(tc, semiStock, rawStock);
           const margin=cost>0?Math.round((tc.price-cost)/tc.price*100):0;
           return(
-            <button key={tc.id} onClick={()=>addToCart(tc)} style={{background:inCart?`${color}18`:C.card,border:`1.5px solid ${inCart?color:C.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",color:C.text,position:"relative",transition:"all .15s"}}>
+            <button key={tc.id} onClick={()=>{
+              if(selPoint === "Мастерская" && (tc.cat === "Букеты" || tc.cat === "Наборы")) {
+                setCustomizing(tc);
+              } else {
+                addToCart(tc);
+              }
+            }} style={{background:inCart?`${color}18`:C.card,border:`1.5px solid ${inCart?color:C.border}`,borderRadius:12,padding:"14px 12px",cursor:"pointer",textAlign:"left",color:C.text,position:"relative",transition:"all .15s"}}>
               {inCart&&<div style={{position:"absolute",top:8,right:8,background:color,color:"#000",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:900}}>{inCart.qty}</div>}
               <div style={{fontSize:12,fontWeight:600,marginBottom:6,lineHeight:1.3}}>{tc.product}</div>
               <div style={{fontSize:16,fontWeight:900,color}}>{fmtM(tc.price)}</div>
-              <div style={{fontSize:10,color:margin>50?C.green:margin>30?C.yellow:C.red,marginTop:4}}>Маржа {margin}%</div>
+              {currentUser?.role !== "cashier" && <div style={{fontSize:10,color:margin>50?C.green:margin>30?C.yellow:C.red,marginTop:4}}>Маржа {margin}%</div>}
             </button>
           );
         })}
