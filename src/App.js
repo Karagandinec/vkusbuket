@@ -4148,8 +4148,12 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
   const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
   const [toast,showToast]=useToast();
 
-  const totalPaid=expenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
-  const totalPend=expenses.filter(e=>!e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
+  const isCashier = currentUser?.role === 'cashier';
+  const todayStr = new Date().toLocaleDateString('ru-RU');
+  const filteredExpenses = isCashier ? expenses.filter(e => e.date === todayStr && e.point === currentUser.point) : expenses;
+
+  const totalPaid=filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
+  const totalPend=filteredExpenses.filter(e=>!e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
 
   const handleAdd=(ev)=>{
     ev.preventDefault();
@@ -4264,7 +4268,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
         })}
       </div>
 
-      {expenses.length>0&&(
+      {filteredExpenses.length>0&&(
         <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:20}}>
           <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>История операций</div>
           <div style={{overflowX:"auto"}}>
@@ -4277,7 +4281,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
                 </tr>
               </thead>
               <tbody>
-                {[...expenses].reverse().map((e,i)=>(
+                {[...filteredExpenses].reverse().map((e,i)=>(
                   <tr key={e.id} style={{borderBottom:`1px solid ${C.border}40`}}>
                     <td style={{padding:"10px 12px"}}>{EXP_CATS.find(x=>x.id===e.cat)?.icon} {EXP_CATS.find(x=>x.id===e.cat)?.label}</td>
                     <td style={{padding:"10px 12px",color:C.text}}>{e.desc||e.note}</td>
