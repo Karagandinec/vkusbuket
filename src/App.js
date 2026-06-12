@@ -2579,12 +2579,29 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
       }
     });
 
+    let baseBerries = 0;
+    const r1Ing = baseTc.ings.find(ing => ing.rid === "r1");
+    if (r1Ing) {
+      baseBerries = Math.round((r1Ing.qty * 1000) / 20);
+    }
+    
+    let newPrice = baseTc.price || 0;
+    if (baseBerries > 0 && totalBerries !== baseBerries) {
+      const pricePerBerry = baseTc.price / baseBerries;
+      newPrice = Math.round(pricePerBerry * totalBerries);
+      newPrice = Math.round(newPrice / 100) * 100;
+    } else if (!r1Ing) {
+      // If it didn't have berries initially but we added some, just add rec price for the new berries?
+      // For now, let's just stick to base price if we can't determine proportion.
+    }
+
     onAdd({
       ...baseTc,
       id: "custom_" + Date.now(),
       baseTcId: baseTc.id,
       product: `${baseTc.product} (Кастом: ${totalBerries}шт)`,
       cat: "Кастомная сборка",
+      price: newPrice,
       ings: newIngs
     });
   };
