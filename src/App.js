@@ -2995,13 +2995,14 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 onChange={e => {
                   const val = e.target.value.replace(/[^0-9+]/g, "");
                   setPhoneSearch(val);
-                  const found = (customers || []).find(c => c.phone === val || c.phone.endsWith(val));
+                  const found = (customers || []).find(c => c.phone === val);
                   if (found) {
                     setLoyaltyCustomer(found);
                     setDiscount(found.discount_percent);
                     showToast(`Применена скидка клиента ${found.name}: ${found.discount_percent}%`);
                   } else {
                     setLoyaltyCustomer(null);
+                    setDiscount(0);
                   }
                 }}
                 placeholder="87011234567"
@@ -3280,15 +3281,15 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                   onChange={e => {
                     const phone = e.target.value.replace(/[^0-9+]/g, "");
                     setPreorderClientPhone(phone);
-                    const phoneClean = phone.replace(/\D/g,"");
-                    if (phoneClean.length >= 6) {
-                      const found = customers.find(c => c.phone === phone || c.phone.endsWith(phoneClean));
-                      if (found) {
-                        setPreorderClientName(found.name);
-                        setDiscount(found.discount_percent);
-                        setLoyaltyCustomer(found);
-                        setPhoneSearch(found.phone);
-                      }
+                    const found = customers.find(c => c.phone === phone);
+                    if (found) {
+                      setPreorderClientName(found.name);
+                      setDiscount(found.discount_percent);
+                      setLoyaltyCustomer(found);
+                      setPhoneSearch(found.phone);
+                    } else {
+                      setDiscount(0);
+                      setLoyaltyCustomer(null);
                     }
                   }}
                   placeholder="87011234567"
