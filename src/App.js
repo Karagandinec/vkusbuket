@@ -5649,6 +5649,9 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
 // ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
 // React.memo: перерендерится только при изменении списка смен
 const Shifts = React.memo(function Shifts({isMobile, shifts }){
+  const [filterPoint, setFilterPoint] = React.useState("all");
+  const [sortBy, setSortBy] = React.useState("date_desc");
+  const [search, setSearch] = React.useState("");
 
   const fmtDT = (iso) => {
     if(!iso) return "—";
@@ -5656,9 +5659,86 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
     return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   };
 
+  const points = React.useMemo(() => {
+    if (!shifts) return [];
+    const pts = new Set(shifts.map(s => s.point).filter(Boolean));
+    return Array.from(pts);
+  }, [shifts]);
+
+  const filteredShifts = React.useMemo(() => {
+    if (!shifts) return [];
+    let res = [...shifts];
+    
+    if (filterPoint !== "all") {
+      res = res.filter(s => s.point === filterPoint);
+    }
+    
+    if (search.trim() !== "") {
+      const q = search.toLowerCase();
+      res = res.filter(s => 
+        (s.cashier_name && s.cashier_name.toLowerCase().includes(q)) ||
+        (s.point && s.point.toLowerCase().includes(q)) ||
+        (s.opened_at && fmtDT(s.opened_at).toLowerCase().includes(q))
+      );
+    }
+    
+    res.sort((a, b) => {
+      if (sortBy === "date_desc") {
+        return new Date(b.opened_at) - new Date(a.opened_at);
+      } else if (sortBy === "date_asc") {
+        return new Date(a.opened_at) - new Date(b.opened_at);
+      } else if (sortBy === "point_asc") {
+        const pA = a.point || "";
+        const pB = b.point || "";
+        return pA.localeCompare(pB);
+      } else if (sortBy === "point_desc") {
+        const pA = a.point || "";
+        const pB = b.point || "";
+        return pB.localeCompare(pA);
+      }
+      return 0;
+    });
+    
+    return res;
+  }, [shifts, filterPoint, sortBy, search]);
+
+  const inputStyle = {
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: `1px solid ${C.border}`,
+    background: C.surface,
+    color: C.text,
+    outline: "none",
+    fontSize: 13
+  };
+
   return(
     <div style={{padding:isMobile?"12px 14px":"20px 28px"}}>
-      <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>🕐 Журнал смен</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:20,fontWeight:800}}>🕐 Журнал смен</div>
+        
+        {shifts && shifts.length > 0 && (
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+            <input 
+              placeholder="Поиск (имя, дата, точка)..." 
+              value={search} 
+              onChange={e=>setSearch(e.target.value)} 
+              style={{...inputStyle, width: isMobile ? "100%" : 200}} 
+            />
+            <select value={filterPoint} onChange={e=>setFilterPoint(e.target.value)} style={inputStyle}>
+              <option value="all">Все точки</option>
+              {points.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={inputStyle}>
+              <option value="date_desc">Сначала новые (по дате)</option>
+              <option value="date_asc">Сначала старые (по дате)</option>
+              <option value="point_asc">По точкам (А-Я)</option>
+              <option value="point_desc">По точкам (Я-А)</option>
+            </select>
+          </div>
+        )}
+      </div>
+
       {!shifts ? (
         <div style={{color:C.muted,textAlign:"center",padding:40}}>⟳ Загрузка смен...</div>
       ) : shifts.length === 0 ? (
@@ -5674,7 +5754,7 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
               </tr>
             </thead>
             <tbody>
-              {shifts.map(sh=>{
+              {filteredShifts.map(sh=>{
                 const disc = sh.discrepancy||0;
                 const statusColor = sh.status==="closed" ? C.green : C.yellow;
                 return(
@@ -5692,6 +5772,9 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
               })}
             </tbody>
           </table>
+          {filteredShifts.length === 0 && (
+            <div style={{color:C.muted,textAlign:"center",padding:40}}>По вашему запросу ничего не найдено</div>
+          )}
         </div>
       )}
     </div>
