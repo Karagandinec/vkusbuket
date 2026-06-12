@@ -2570,7 +2570,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
         id: customerId,
         name: preorderClientName || `Клиент ${phoneClean}`,
         phone: phoneClean,
-        discount_percent: 5,
+        discount_percent: 0,
         created_at: new Date().toISOString()
       };
       if (typeof setCustomers === "function") {
@@ -5111,7 +5111,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СКИДКА (%)</div>
-                  <input type="number" min="0" max="100" value={newCustomer.discount_percent} onChange={e=>setNewCustomer(f=>({...f,discount_percent:parseInt(e.target.value)||0}))} placeholder="5" style={inputStyle}/>
+                  <input type="number" min="0" max="100" value={newCustomer.discount_percent} onChange={e=>setNewCustomer(f=>({...f,discount_percent:parseInt(e.target.value)||0}))} placeholder="0" style={inputStyle}/>
                 </div>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{
