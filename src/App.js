@@ -4252,7 +4252,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:12,marginBottom:20}}>
         {EXP_CATS.map(cat=>{
-          const amt=expenses.filter(e=>e.cat===cat.id&&e.paid).reduce((s,e)=>s+e.amount,0);
+          const amt=filteredExpenses.filter(e=>e.cat===cat.id&&e.paid).reduce((s,e)=>s+e.amount,0);
           return(
             <div key={cat.id} style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
