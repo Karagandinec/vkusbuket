@@ -2580,9 +2580,14 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
     });
 
     let baseBerries = 0;
-    const r1Ing = baseTc.ings.find(ing => ing.rid === "r1");
-    if (r1Ing) {
-      baseBerries = Math.round((r1Ing.qty * 1000) / 20);
+    const match = baseTc.product.match(/(\d+)\s*(ягод|шт)/i);
+    if (match) {
+      baseBerries = parseInt(match[1]);
+    } else {
+      const s1Ing = baseTc.ings.find(ing => ing.sid === "s1");
+      const r1Ing = baseTc.ings.find(ing => ing.rid === "r1");
+      if (s1Ing) baseBerries = Math.round(s1Ing.qty / 28);
+      else if (r1Ing) baseBerries = Math.round((r1Ing.qty * 1000) / 20);
     }
     
     let newPrice = baseTc.price || 0;
@@ -2590,9 +2595,6 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
       const pricePerBerry = baseTc.price / baseBerries;
       newPrice = Math.round(pricePerBerry * totalBerries);
       newPrice = Math.round(newPrice / 100) * 100;
-    } else if (!r1Ing) {
-      // If it didn't have berries initially but we added some, just add rec price for the new berries?
-      // For now, let's just stick to base price if we can't determine proportion.
     }
 
     onAdd({
