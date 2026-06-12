@@ -2689,6 +2689,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   };
 
   const handlePay=()=>{
+    try {
     // Валидация
     if (splitMode) {
       const splitTotal = payments.reduce((s,p)=>s+p.amount,0);
@@ -2703,7 +2704,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     
     // 1. Списываем полуфабрикаты/сырье с кухни/склада точки
     for(const item of cart){
-      for(const ing of item.ings){
+      for(const ing of (item.ings || [])){
         const totalSpend = ing.qty * item.qty * (1 + (ing.loss||0)/100);
         
         if (ing.sid === "s6" && Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0) {
@@ -2810,7 +2811,11 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     setSales(p=>[...p,receipt]);
     setLast(receipt);
     setDone(true);
-    setPosTab("cart"); // Показываем чек
+    setPosTab("cart");
+    } catch (err) {
+      alert("Ошибка при оплате (handlePay): " + err.message);
+      console.error(err);
+    }
   };
 
   const newSale=()=>{
