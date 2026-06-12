@@ -7648,12 +7648,10 @@ const setExpensesWithSync = (updater) => {
   const role       = ROLES[currentUser.role] || ROLE_FALLBACK;
   const userNav    = [...role.nav];
   if (currentUser.role === "cashier" && currentUser.point === "Мастерская") {
-    if (!userNav.includes("production")) {
-      userNav.push("production");
-    }
-    if (!userNav.includes("preorders")) {
-      userNav.push("preorders");
-    }
+    if (!userNav.includes("production")) userNav.push("production");
+    if (!userNav.includes("preorders")) userNav.push("preorders");
+    if (!userNav.includes("expenses")) userNav.push("expenses");
+    if (!userNav.includes("warehouse")) userNav.push("warehouse");
   }
   const allowedNav = NAV.filter(n=>userNav.includes(n.id));
 
