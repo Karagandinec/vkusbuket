@@ -103,7 +103,6 @@ function SearchableSelect({ value, onChange, options, placeholder = "Выбер�
           </div>
         </div>
       )}
-      {customizing && <CustomBouquetModal baseTc={customizing} onClose={()=>setCustomizing(null)} onAdd={(tc)=>{ addToCart(tc); setCustomizing(null); }} rawStock={rawStock} C={C} />}
     </div>
   );
 }
