@@ -3340,6 +3340,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 // ─── ПРОИЗВОДСТВО И ПЕРЕМЕЩЕНИЕ ──────────────────────────────────────────────
 function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
+  const [search,setSearch]=useState("");
   const [modal,setModal]=useState(null);
   const [form,setForm]=useState({targetId:"s1",qty:"",point:"Мастерская"});
   
@@ -3457,7 +3458,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
             <h3 style={{marginTop:0,marginBottom:16}}>🏭 Склад сырья (Центральный)</h3>
-            {rawStock.map(r=>{
+            {rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
               const matchedSemi = semiStock.find(s=>s.rawId === r.id);
               if (!matchedSemi) return null;
               const wQty = getQty(r.qty, "Склад");
@@ -3527,7 +3528,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
                 {POINTS.map(p=><option key={p}>{p}</option>)}
               </select>
             </div>
-            {rawStock.filter(r=>r.name.includes("Коробк") || r.name.includes("Креман") || r.name.includes("Пакет") || r.name.includes("Лент") || r.name.includes("Вилка")).map(r=>{
+            {rawStock.filter(r=>(r.name.includes("Коробк") || r.name.includes("Креман") || r.name.includes("Пакет") || r.name.includes("Лент") || r.name.includes("Вилка")) && r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
               const pQty = getQty(r.qty, transferForm.destPoint);
               return (
                 <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,marginBottom:8,borderBottom:`1px solid ${C.border}60`}}>
@@ -3546,6 +3547,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
 function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
   const [showAdd,setShowAdd]=useState(false);
+  const [search,setSearch]=useState("");
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
   const [toast,showToast]=useToast();
 
@@ -3829,6 +3831,9 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
         </form>
       )}
 
+      <div style={{marginBottom:16}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск по складу..." style={{width:"100%",padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none",boxSizing:"border-box",fontSize:14}}/>
+      </div>
       {/* Таблица сырья */}
       <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden",marginBottom:20}}>
         <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>📦 Остатки сырья и упаковки</div>
@@ -3849,6 +3854,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             </thead>
             <tbody>
               {rawStock.filter(r => {
+                if(search && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
                 const qObj = parseQtyObj(r.qty);
                 const totalQty = isCashier ? qObj[myPoint] : Object.values(qObj).reduce((a,b)=>a+b,0);
                 return totalQty > 0;
@@ -3905,6 +3911,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             </thead>
             <tbody>
               {semiStock.filter(s => {
+                if(search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
                 const qtyObj = parseSemiQtyObj(s.qty);
                 const totalQty = isCashier ? qtyObj[myPoint] : Object.values(qtyObj).reduce((a,b)=>a+b,0);
                 return totalQty > 0;
@@ -4647,6 +4654,8 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser}){
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
 function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers}){
   const [tab,setTab]=useState("products");
+  const [search,setSearch]=useState("");
+  useEffect(()=>{setSearch("");},[tab]);
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
   const [showAddTechCard,setShowAddTechCard]=useState(false);
@@ -4738,6 +4747,12 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
         ))}
       </div>
 
+
+      {tab!=="users" && (
+      <div style={{marginBottom:16}}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск..." style={{width:"100%",padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none",boxSizing:"border-box",fontSize:14}}/>
+      </div>
+      )}
       {tab==="products"&&(
         <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -4769,7 +4784,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
             </div>
           )}
           {cats.map(cat=>{
-            const items=techCards.filter(t=>t.cat===cat);
+            const items=techCards.filter(t=>t.cat===cat && t.product.toLowerCase().includes(search.toLowerCase()));
             if(!items.length) return null;
             const color=CAT_COLORS[cat]||C.accent;
             return(
@@ -4861,7 +4876,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               </div>
             </div>
           )}
-          {techCards.map(tc=>(
+          {techCards.filter(tc=>tc.product.toLowerCase().includes(search.toLowerCase())).map(tc=>(
             <div key={tc.id} style={{background:C.card,borderRadius:12,border:`1.5px solid ${editId===tc.id?C.accent:C.border}`,padding:"14px 18px",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(editId===tc.id?null:tc.id)}>
                 <div style={{flex:1}}>
@@ -4949,7 +4964,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               </select>
             </div>
           </div>
-          {rawStock.map(r=>{
+          {rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
             const qtyVal = getQty(r.qty, rawLoc);
             return(
               <div key={r.id} style={{background:C.card,borderRadius:10,border:`1.5px solid ${editId===r.id?C.accent:C.border}`,padding:"12px 16px",marginBottom:6}}>
@@ -5129,7 +5144,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
             </div>
           )}
 
-          {customers.map((c)=>(
+          {customers.filter(c=>c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)).map((c)=>(
             <div key={c.id} style={{background:C.card,borderRadius:10,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:8}}>
               {editCustId === c.id ? (
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
