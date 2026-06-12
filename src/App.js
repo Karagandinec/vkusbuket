@@ -7831,7 +7831,13 @@ const setExpensesWithSync = (updater) => {
         </div>
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
-          {page==="dashboard"  && <Dashboard  isMobile={isMobile} sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
+          {page==="dashboard"        && <>
+            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser}/>
+            <div style={{padding:20, background:"#fcc"}}>
+              <h3 style={{color:"red"}}>Отладка (Скриншот для разраба)</h3>
+              <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 200, fontSize:10, fontFamily:"monospace"}} />
+            </div>
+          </>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
           {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
           {page==="production" && <Production isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
