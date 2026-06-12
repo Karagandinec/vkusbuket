@@ -3101,10 +3101,16 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             const color=CAT_COLORS[item.cat]||C.accent;
             let displayRecPrice = null;
             let isUnderpriced = false;
+            let isOverpriced = false;
+            const isOwnerOrDirector = currentUser?.role === "owner" || currentUser?.role === "director";
+
             if (item.recCustomPrice) {
               if (item.recCustomPrice > item.price) {
                 displayRecPrice = item.recCustomPrice;
                 isUnderpriced = true;
+              } else if (isOwnerOrDirector && item.recCustomPrice < item.price) {
+                displayRecPrice = item.recCustomPrice;
+                isOverpriced = true;
               }
             } else {
               const cogs = calcProductCOGS(item, semiStock, rawStock);
@@ -3134,13 +3140,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                           }
                         }
                       }}
-                      style={{fontWeight:900,color: isUnderpriced ? C.red : color,fontSize:15,cursor:"pointer",textDecoration:"underline dashed"}}
+                      style={{fontWeight:900,color: isUnderpriced ? C.red : isOverpriced ? C.yellow : color,fontSize:15,cursor:"pointer",textDecoration:"underline dashed"}}
                       title="Кликните для изменения цены"
                     >
                       {fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}
                     </span>
                     {displayRecPrice && (
-                      <span style={{fontSize:10, color: isUnderpriced ? C.red : C.yellow, fontWeight:700, marginTop:2}}>
+                      <span style={{fontSize:10, color: isUnderpriced ? C.red : isOverpriced ? C.yellow : C.text, fontWeight:700, marginTop:2}}>
                         Рек: {fmtM(displayRecPrice * item.qty)}
                       </span>
                     )}
