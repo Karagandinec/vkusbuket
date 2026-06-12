@@ -2832,8 +2832,16 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     const todaySales = sales.filter(s => s.point === selPoint && s.date === todayStr);
     
     return (
-      <div style={{flex:1,padding:20,overflowY:"auto",boxSizing:"border-box",height:"100%",maxHeight:"100vh"}}>
-        <h3 style={{marginTop:0,marginBottom:16}}>Заказы за сегодня ({selPoint})</h3>
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",height:"100%",maxHeight:"100vh"}}>
+        <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,background:C.surface,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          {(currentUser.role==="owner"||currentUser.role==="director")&&(
+            <select value={selPoint} onChange={e=>setSelPoint(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",outline:"none",fontSize:13}}>
+              {POINTS.map(p=><option key={p}>{p}</option>)}
+            </select>
+          )}
+          <h3 style={{marginTop:0,marginBottom:0,marginLeft:8}}>Заказы за сегодня ({selPoint})</h3>
+        </div>
+        <div style={{flex:1,padding:20,overflowY:"auto",boxSizing:"border-box"}}>
         {todaySales.length === 0 ? (
           <div style={{color:C.muted,textAlign:"center",padding:40,fontSize:13}}>Сегодня заказов ещё не было</div>
         ) : (
@@ -2884,6 +2892,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             ))}
           </div>
         )}
+        </div>
       </div>
     );
   };
