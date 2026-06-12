@@ -7083,6 +7083,7 @@ const setExpensesWithSync = (updater) => {
   useEffect(()=>{
     const load = async () => {
       try {
+        await processSyncQueue();
         const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs,preords] = await Promise.all([
           supaFetch("GET","raw_stock"),
           supaFetch("GET","semi_stock"),
@@ -7746,6 +7747,17 @@ const setExpensesWithSync = (updater) => {
               <div style={{background:C.redSoft, border:`1px solid ${C.red}`, color:C.red, borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, marginLeft:10}}>
                 ⚠️ Нет связи, работаем автономно
               </div>
+            )}
+            {!isOffline && (
+              <button 
+                onClick={() => { 
+                  showToast("Синхронизация..."); 
+                  processSyncQueue().then(() => window.location.reload());
+                }}
+                style={{background:C.blue + "1a", border:`1px solid ${C.blue}40`, color:C.blue, borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, marginLeft:10, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}
+              >
+                🔄 Обновить
+              </button>
             )}
           </div>
           <div style={{display:"flex",gap:10}}>
