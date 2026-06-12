@@ -3102,9 +3102,9 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             let displayRecPrice = null;
             let isUnderpriced = false;
             if (item.recCustomPrice) {
-              if (item.recCustomPrice !== item.price) {
+              if (item.recCustomPrice > item.price) {
                 displayRecPrice = item.recCustomPrice;
-                isUnderpriced = item.recCustomPrice > item.price;
+                isUnderpriced = true;
               }
             } else {
               const cogs = calcProductCOGS(item, semiStock, rawStock);
