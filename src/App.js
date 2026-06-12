@@ -2597,10 +2597,16 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
   // useCallback: стабильные ссылки — не создают новые объекты при каждом рендере
   const addToCart = useCallback((tc) =>
-    setCart(p => p.find(i => i.id === tc.id)
-      ? p.map(i => i.id === tc.id ? {...i, qty: i.qty+1} : i)
-      : [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: "s6"}]
-    ), []);
+    setCart(p => {
+      if (p.find(i => i.id === tc.id)) {
+        return p.map(i => i.id === tc.id ? {...i, qty: i.qty+1} : i);
+      } else {
+        const isKremanok = tc.product && tc.product.toLowerCase().includes("креманка");
+        const is3Scoops = isKremanok && tc.product.toLowerCase().includes("3 шар");
+        const initialIceCream = is3Scoops ? ["s6", "s6", "s6"] : (isKremanok ? ["s6"] : []);
+        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream, bowlType: isKremanok ? "Пластиковая" : null}];
+      }
+    }), []);
 
   const chgQty = useCallback((id, d) =>
     setCart(p => p.map(i => i.id===id ? {...i, qty:Math.max(0,i.qty+d)} : i).filter(i => i.qty > 0))
@@ -2698,23 +2704,31 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     // 1. Списываем полуфабрикаты/сырье с кухни/склада точки
     for(const item of cart){
       for(const ing of item.ings){
-        let actualSid = ing.sid;
-        if (item.baseIceCream === "s7" && actualSid === "s6") {
-          actualSid = "s7";
-        }
-        const spend = ing.qty * item.qty * (1 + (ing.loss||0)/100);
-        if (ing.rid) {
+        const totalSpend = ing.qty * item.qty * (1 + (ing.loss||0)/100);
+        
+        if (ing.sid === "s6" && Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0) {
+          // Разбиваем вес на количество выбранных шариков
+          const scoopSpend = totalSpend / item.baseIceCream.length;
+          item.baseIceCream.forEach(scoopSid => {
+            const idx = newSemi.findIndex(s=>s.id===scoopSid);
+            if(idx>=0) {
+              const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+              qtyObj[selPoint] = Math.round((qtyObj[selPoint] - scoopSpend)*1000)/1000;
+              newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+            }
+          });
+        } else if (ing.rid) {
           const idx = newRaw.findIndex(r=>r.id===ing.rid);
           if(idx>=0) {
             const qtyObj = parseQtyObj(newRaw[idx].qty);
-            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - spend)*1000)/1000;
+            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - totalSpend)*1000)/1000;
             newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
           }
         } else {
-          const idx = newSemi.findIndex(s=>s.id===actualSid);
+          const idx = newSemi.findIndex(s=>s.id===ing.sid);
           if(idx>=0) {
             const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - spend)*1000)/1000;
+            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - totalSpend)*1000)/1000;
             newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
           }
         }
@@ -2776,10 +2790,14 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     const receipt={
       id: generateUUID(),
       no:1001+sales.length, point:selPoint,
-      items:cart.map(i=>({
-        name: i.baseIceCream === "s7" && i.product.toLowerCase().includes("креманка") ? `${i.product} (Шок. мор.)` : i.product,
-        qty: i.qty, price: i.price, extras: i.extras
-      })),
+      items:cart.map(i=>{
+        let finalName = i.product;
+        if (Array.isArray(i.baseIceCream) && i.baseIceCream.length > 0) {
+          const flavors = i.baseIceCream.map(s => s === "s7" ? "Шок." : "Слив.").join("/");
+          finalName += ` (${flavors}, ${i.bowlType === "Вафельная" ? "Ваф." : "Пласт."})`;
+        }
+        return { name: finalName, qty: i.qty, price: i.price, extras: i.extras };
+      }),
       total, subtotal, discAmt, discount, cogs,
       payMode: effectivePayMode,
       payments: receiptPayments,
@@ -2945,22 +2963,43 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 </div>
                 
                 {/* Выбор базы для креманок */}
-                {item.product.toLowerCase().includes("креманка") && (
-                  <div style={{marginTop: 8}}>
-                    <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП МОРОЖЕНОГО (50г)</div>
-                    <div style={{display: "flex", gap: 6}}>
-                      <button
-                        onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: "s6" } : i))}
-                        style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.baseIceCream !== "s7" ? C.accent : C.border}`, background: item.baseIceCream !== "s7" ? C.accentSoft : "transparent", color: item.baseIceCream !== "s7" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                      >
-                        🍦 Сливочное
-                      </button>
-                      <button
-                        onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: "s7" } : i))}
-                        style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.baseIceCream === "s7" ? C.accent : C.border}`, background: item.baseIceCream === "s7" ? C.accentSoft : "transparent", color: item.baseIceCream === "s7" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                      >
-                        🍦 Шоколадное
-                      </button>
+                {Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0 && (
+                  <div style={{marginTop: 8, display:"flex", flexDirection:"column", gap:10}}>
+                    <div>
+                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП ТАРЫ</div>
+                      <div style={{display: "flex", gap: 6}}>
+                        <button
+                          onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, bowlType: "Пластиковая" } : i))}
+                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Пластиковая" ? C.accent : C.border}`, background: item.bowlType === "Пластиковая" ? C.accentSoft : "transparent", color: item.bowlType === "Пластиковая" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                        >
+                          Пластик
+                        </button>
+                        <button
+                          onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, bowlType: "Вафельная" } : i))}
+                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Вафельная" ? C.accent : C.border}`, background: item.bowlType === "Вафельная" ? C.accentSoft : "transparent", color: item.bowlType === "Вафельная" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                        >
+                          Вафля
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ШАРИКИ МОРОЖЕНОГО</div>
+                      {item.baseIceCream.map((scoop, sIdx) => (
+                        <div key={sIdx} style={{display: "flex", gap: 6, marginBottom: 4}}>
+                          <button
+                            onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: i.baseIceCream.map((sc, index) => index === sIdx ? "s6" : sc) } : i))}
+                            style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${scoop === "s6" ? C.accent : C.border}`, background: scoop === "s6" ? C.accentSoft : "transparent", color: scoop === "s6" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                          >
+                            🍦 Слив.
+                          </button>
+                          <button
+                            onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: i.baseIceCream.map((sc, index) => index === sIdx ? "s7" : sc) } : i))}
+                            style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${scoop === "s7" ? C.accent : C.border}`, background: scoop === "s7" ? C.accentSoft : "transparent", color: scoop === "s7" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                          >
+                            🍦 Шок.
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -6983,7 +7022,10 @@ const setExpensesWithSync = (updater) => {
     window.addEventListener("online", handleOnline);
     
     // Периодический опрос очереди (каждые 15 секунд)
-    const timer = setInterval(processSyncQueue, 15000);
+    const timer = setInterval(() => {
+      processSyncQueue();
+      load();
+    }, 15000);
     
     return () => {
       window.removeEventListener("online", handleOnline);
