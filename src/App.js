@@ -4989,8 +4989,10 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                       <thead>
                         <tr style={{background:C.surface}}>
                           {["Ингредиент (ПФ/Сырьё)","Норма","Потери %","Итого с пот.",""].map((h,i)=>(
-                            <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
-                          {i===1 && <th style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>Ед.изм.</th>}
+                            <React.Fragment key={i}>
+                              <th style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                              {i===1 && <th style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>Ед.изм.</th>}
+                            </React.Fragment>
                           ))}
                         </tr>
                       </thead>
