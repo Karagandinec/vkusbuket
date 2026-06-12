@@ -2598,13 +2598,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   // useCallback: стабильные ссылки — не создают новые объекты при каждом рендере
   const addToCart = useCallback((tc) =>
     setCart(p => {
-      if (p.find(i => i.id === tc.id)) {
-        return p.map(i => i.id === tc.id ? {...i, qty: i.qty+1} : i);
+      if (p.find(i => (i.baseTcId || i.id) === tc.id)) {
+        return p.map(i => (i.baseTcId || i.id) === tc.id ? {...i, qty: i.qty+1} : i);
       } else {
         const isKremanok = tc.product && tc.product.toLowerCase().includes("креманка");
         const is3Scoops = isKremanok && tc.product.toLowerCase().includes("3 шар");
         const initialIceCream = is3Scoops ? ["s6", "s6", "s6"] : (isKremanok ? ["s6"] : []);
-        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream}];
+        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream, bowlType: isKremanok ? "Пластиковая" : null, baseTcId: tc.id}];
       }
     }), []);
 
@@ -2794,7 +2794,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
         let finalName = i.product;
         if (Array.isArray(i.baseIceCream) && i.baseIceCream.length > 0) {
           const flavors = i.baseIceCream.map(s => s === "s7" ? "Шок." : "Слив.").join("/");
-          finalName += ` (${flavors})`;
+          finalName += ` (${flavors}, ${i.bowlType === "Вафельная" ? "Ваф." : "Пласт."})`;
         }
         return { name: finalName, qty: i.qty, price: i.price, extras: i.extras };
       }),
@@ -2965,6 +2965,35 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 {/* Выбор базы для креманок */}
                 {Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0 && (
                   <div style={{marginTop: 8, display:"flex", flexDirection:"column", gap:10}}>
+                    <div>
+                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП ТАРЫ</div>
+                      <div style={{display: "flex", gap: 6}}>
+                        <button
+                          onClick={() => setCart(prev => prev.map(i => {
+                            if (i.baseTcId !== item.baseTcId) return i;
+                            const is3 = i.product.toLowerCase().includes("3 шар");
+                            const pTc = techCards.find(t => t.product.toLowerCase().includes("пластиков") && t.product.toLowerCase().includes("креманка") && t.product.toLowerCase().includes("3 шар") === is3) || techCards.find(t => t.product.toLowerCase().includes("креманка") && !t.product.toLowerCase().includes("вафельн") && t.product.toLowerCase().includes("3 шар") === is3);
+                            if (pTc) return { ...pTc, qty: i.qty, extras: i.extras, baseIceCream: i.baseIceCream, baseTcId: i.baseTcId, bowlType: "Пластиковая" };
+                            return { ...i, bowlType: "Пластиковая" };
+                          }))}
+                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Пластиковая" ? C.accent : C.border}`, background: item.bowlType === "Пластиковая" ? C.accentSoft : "transparent", color: item.bowlType === "Пластиковая" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                        >
+                          Пластик
+                        </button>
+                        <button
+                          onClick={() => setCart(prev => prev.map(i => {
+                            if (i.baseTcId !== item.baseTcId) return i;
+                            const is3 = i.product.toLowerCase().includes("3 шар");
+                            const wTc = techCards.find(t => t.product.toLowerCase().includes("вафельн") && t.product.toLowerCase().includes("креманка") && t.product.toLowerCase().includes("3 шар") === is3);
+                            if (wTc) return { ...wTc, qty: i.qty, extras: i.extras, baseIceCream: i.baseIceCream, baseTcId: i.baseTcId, bowlType: "Вафельная" };
+                            return { ...i, bowlType: "Вафельная" };
+                          }))}
+                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Вафельная" ? C.accent : C.border}`, background: item.bowlType === "Вафельная" ? C.accentSoft : "transparent", color: item.bowlType === "Вафельная" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                        >
+                          Вафля
+                        </button>
+                      </div>
+                    </div>
                     <div>
                       <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ШАРИКИ МОРОЖЕНОГО (ПО 50Г)</div>
                       {item.baseIceCream.map((scoop, sIdx) => (
