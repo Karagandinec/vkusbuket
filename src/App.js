@@ -2590,11 +2590,11 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
       else if (r1Ing) baseBerries = Math.round((r1Ing.qty * 1000) / 20);
     }
     
-    let newPrice = baseTc.price || 0;
+    let recCustomPrice = baseTc.price || 0;
     if (baseBerries > 0 && totalBerries !== baseBerries) {
       const pricePerBerry = baseTc.price / baseBerries;
-      newPrice = Math.round(pricePerBerry * totalBerries);
-      newPrice = Math.round(newPrice / 100) * 100;
+      recCustomPrice = Math.round(pricePerBerry * totalBerries);
+      recCustomPrice = Math.round(recCustomPrice / 100) * 100;
     }
 
     onAdd({
@@ -2603,7 +2603,8 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
       baseTcId: baseTc.id,
       product: `${baseTc.product} (Кастом: ${totalBerries}шт)`,
       cat: "Кастомная сборка",
-      price: newPrice,
+      price: baseTc.price,
+      recCustomPrice: recCustomPrice,
       ings: newIngs
     });
   };
@@ -3098,9 +3099,21 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           ? <div style={{textAlign:"center",color:C.muted,marginTop:40,fontSize:13}}>🍓 Выберите товар</div>
           : cart.map(item=>{
             const color=CAT_COLORS[item.cat]||C.accent;
-            const cogs = calcProductCOGS(item, semiStock, rawStock);
-            const recPrice = Math.round(cogs * 3.3);
-            const isUnderpriced = recPrice > item.price;
+            let displayRecPrice = null;
+            let isUnderpriced = false;
+            if (item.recCustomPrice) {
+              if (item.recCustomPrice !== item.price) {
+                displayRecPrice = item.recCustomPrice;
+                isUnderpriced = item.recCustomPrice > item.price;
+              }
+            } else {
+              const cogs = calcProductCOGS(item, semiStock, rawStock);
+              const recPrice = Math.round(cogs * 3.3);
+              if (recPrice > item.price) {
+                displayRecPrice = recPrice;
+                isUnderpriced = true;
+              }
+            }
             return(
               <div key={item.id} style={{background:C.card,borderRadius:10,padding:"12px",border:`1px solid ${C.border}`,marginBottom:8}}>
                 <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>{item.product}</div>
@@ -3126,9 +3139,9 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                     >
                       {fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}
                     </span>
-                    {isUnderpriced && (
-                      <span style={{fontSize:10, color:C.red, fontWeight:700, marginTop:2}}>
-                        Рек. цена: {fmtM(recPrice * item.qty)}
+                    {displayRecPrice && (
+                      <span style={{fontSize:10, color: isUnderpriced ? C.red : C.yellow, fontWeight:700, marginTop:2}}>
+                        Рек: {fmtM(displayRecPrice * item.qty)}
                       </span>
                     )}
                   </div>
