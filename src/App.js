@@ -2531,7 +2531,6 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
 function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
   const availableToppings = rawStock.filter(r => r.name.toLowerCase().includes("посыпка") || r.cat === "Посыпки");
   const availableChocolates = rawStock.filter(r => r.name.toLowerCase().includes("шоколад") && !r.name.toLowerCase().includes("мороженое") && r.unit === "г");
-  
   const defaultChocId = availableChocolates.length > 0 ? availableChocolates[0].id : "r2";
 
   const [groups, setGroups] = useState([
@@ -2558,106 +2557,88 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
       alert("Укажите количество ягод!");
       return;
     }
-    
     const chocCounts = {};
     const toppingCounts = {};
-
     groups.forEach(g => {
       const q = parseInt(g.qty) || 0;
       if (q > 0) {
         chocCounts[g.choc] = (chocCounts[g.choc] || 0) + q;
-        if (g.topping) {
-          toppingCounts[g.topping] = (toppingCounts[g.topping] || 0) + q;
-        }
+        if (g.topping) toppingCounts[g.topping] = (toppingCounts[g.topping] || 0) + q;
       }
     });
 
     const newIngs = [];
     if (totalBerries > 0) newIngs.push({ rid:"r1", qty: (totalBerries * 20)/1000, loss: 10 });
-    
-    Object.keys(chocCounts).forEach(rid => {
-      newIngs.push({ rid: rid, qty: (chocCounts[rid] * 9)/1000, loss: 5 });
-    });
-    
-    Object.keys(toppingCounts).forEach(rid => {
-      newIngs.push({ rid: rid, qty: (toppingCounts[rid] * 0.2) / 1000, loss: 0 });
-    });
+    Object.keys(chocCounts).forEach(rid => newIngs.push({ rid: rid, qty: (chocCounts[rid] * 9)/1000, loss: 5 }));
+    Object.keys(toppingCounts).forEach(rid => newIngs.push({ rid: rid, qty: (toppingCounts[rid] * 0.2) / 1000, loss: 0 }));
 
     const packagingIDs = ["r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r38", "r9"];
     baseTc.ings.forEach(ing => {
       if (ing.rid && packagingIDs.includes(ing.rid)) {
-        if (ing.rid === "r11") {
-          newIngs.push({ ...ing, qty: totalBerries / 1000 });
-        } else {
-          newIngs.push({ ...ing });
-        }
+        newIngs.push(ing.rid === "r11" ? { ...ing, qty: totalBerries / 1000 } : { ...ing });
       }
     });
 
-    const customTc = {
+    onAdd({
       ...baseTc,
       id: "custom_" + Date.now(),
       baseTcId: baseTc.id,
       product: `${baseTc.product} (Кастом: ${totalBerries}шт)`,
       cat: "Кастомная сборка",
       ings: newIngs
-    };
-    
-    onAdd(customTc);
+    });
   };
 
   const btnStyle = { padding:"8px 16px", borderRadius:8, background:C.surface, border:`1px solid ${C.border}`, color:C.text, cursor:"pointer", fontSize:18, fontWeight:"bold" };
-  const selectStyle = { padding:"8px", borderRadius:6, border:`1px solid ${C.border}`, background:C.surface, color:C.text, outline:"none", fontSize:13, flex:1, maxWidth: 220, textOverflow:"ellipsis", overflow:"hidden", whiteSpace:"nowrap" };
+  const rowStyle = { display:"flex", alignItems:"flex-start", justifyContent:"space-between", background:C.card, padding:"16px", borderRadius:12, marginBottom:10 };
+  const selectStyle = { marginTop:6, fontSize:12, padding:"6px", borderRadius:6, border:`1px solid ${C.border}`, background:C.surface, color:C.text, outline:"none", maxWidth: 180 };
+  const chocSelectStyle = { fontWeight:"bold", fontSize:15, background:"transparent", border:"none", color:C.text, outline:"none", maxWidth:180, cursor:"pointer", padding:0 };
 
   return (
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{background:C.surface,padding:24,borderRadius:16,width:"95%",maxWidth:480,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,0.3)", display:"flex", flexDirection:"column"}}>
+      <div style={{background:C.surface,padding:24,borderRadius:16,width:"90%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
         <h3 style={{marginTop:0,marginBottom:8,color:C.text}}>Сборка: {baseTc.product}</h3>
-        <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Итого ягод: {totalBerries} шт.</div>
+        <p style={{fontSize:13,color:C.muted,marginTop:0,marginBottom:20}}>Каждая ягода: 20г клубники + 9г шоколада + 0.2г посыпки.</p>
         
-        <div style={{display:"flex", flexDirection:"column", gap:12, marginBottom: 20}}>
+        <div style={{maxHeight:"45vh",overflowY:"auto",paddingRight:4}}>
           {groups.map((g, idx) => (
-            <div key={g.id} style={{background:C.card, padding:14, borderRadius:12, display:"flex", flexDirection:"column", gap:10, position:"relative"}}>
-              {groups.length > 1 && (
-                <button onClick={() => handleRemoveGroup(g.id)} style={{position:"absolute", top:8, right:8, background:"transparent", border:"none", color:C.red, cursor:"pointer", fontSize:16}}>✕</button>
-              )}
-              <div style={{fontSize:12, fontWeight:700, color:C.muted}}>Партия {idx + 1}</div>
-              
-              <div style={{display:"flex", gap:10, alignItems:"center"}}>
-                <select style={selectStyle} value={g.choc} onChange={(e) => updateGroup(g.id, "choc", e.target.value)}>
-                  {availableChocolates.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+            <div key={g.id} style={rowStyle}>
+              <div style={{flex:1}}>
+                <select style={chocSelectStyle} value={g.choc} onChange={(e) => updateGroup(g.id, "choc", e.target.value)}>
+                  {availableChocolates.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   {availableChocolates.length === 0 && <option value="r2">Шоколад не найден</option>}
                 </select>
+                <div style={{marginTop: 6}}>
+                  <select style={selectStyle} value={g.topping} onChange={(e) => updateGroup(g.id, "topping", e.target.value)}>
+                    <option value="">Без посыпки</option>
+                    {availableToppings.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
               </div>
-
-              <div style={{display:"flex", gap:10, alignItems:"center"}}>
-                <select style={selectStyle} value={g.topping} onChange={(e) => updateGroup(g.id, "topping", e.target.value)}>
-                  <option value="">Без посыпки</option>
-                  {availableToppings.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{display:"flex", alignItems:"center", gap:10, marginTop:4}}>
-                <span style={{fontSize:13, color:C.text, flex:1}}>Количество ягод:</span>
-                <button onClick={() => updateGroup(g.id, "qty", Math.max(0, g.qty - 1))} style={btnStyle}>-</button>
-                <div style={{fontSize:20, fontWeight:"bold", width:30, textAlign:"center", color:C.text}}>{g.qty}</div>
-                <button onClick={() => updateGroup(g.id, "qty", g.qty + 1)} style={btnStyle}>+</button>
+              <div style={{display:"flex",alignItems:"center",gap:12, marginTop:4}}>
+                <button style={btnStyle} onClick={() => updateGroup(g.id, "qty", Math.max(0, g.qty - 1))}>-</button>
+                <span style={{fontSize:18,fontWeight:"bold",width:24,textAlign:"center",color:C.text}}>{g.qty}</span>
+                <button style={btnStyle} onClick={() => updateGroup(g.id, "qty", g.qty + 1)}>+</button>
+                {groups.length > 1 && (
+                  <button onClick={() => handleRemoveGroup(g.id)} style={{...btnStyle, color:C.red, background:"transparent", border:"none", padding:"8px", fontSize:16}}>✕</button>
+                )}
               </div>
             </div>
           ))}
         </div>
-
-        <button onClick={handleAddGroup} style={{background:"transparent", border:`1.5px dashed ${C.border}`, color:C.accent, padding:12, borderRadius:12, cursor:"pointer", fontWeight:"bold", marginBottom:24}}>
+        
+        <button onClick={handleAddGroup} style={{width:"100%",background:"transparent", border:`1.5px dashed ${C.border}`, color:C.muted, padding:10, borderRadius:8, cursor:"pointer", fontWeight:"bold", marginBottom:16, marginTop:4}}>
           + Добавить партию
         </button>
 
-        <div style={{display:"flex",gap:10,marginTop:"auto"}}>
-          <button onClick={onClose} style={{flex:1,padding:14,background:C.card,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,cursor:"pointer",fontWeight:900}}>Отмена</button>
-          <button onClick={handleAdd} style={{flex:2,padding:14,background:C.accent,border:"none",color:"#000",borderRadius:8,cursor:"pointer",fontWeight:900}}>Собрать поштучно</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",borderTop:`1px solid ${C.border}`,paddingTop:16, paddingBottom: 16}}>
+          <div style={{fontWeight:"bold", fontSize: 16}}>Итого ягод: {totalBerries}</div>
+        </div>
+
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={handleAdd} style={{flex:1,padding:14,borderRadius:10,background:C.accent,color:"#000",border:"none",fontWeight:"bold",cursor:"pointer", fontSize:14}}>Собрать поштучно</button>
+          <button onClick={() => { onAdd(baseTc); }} style={{flex:1,padding:14,borderRadius:10,background:C.green,color:"#000",border:"none",fontWeight:"bold",cursor:"pointer", fontSize:14}}>По стандарту</button>
+          <button onClick={onClose} style={{padding:14,borderRadius:10,background:C.card,color:C.text,border:`1px solid ${C.border}`,fontWeight:"bold",cursor:"pointer", fontSize:14}}>Отмена</button>
         </div>
       </div>
     </div>
