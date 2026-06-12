@@ -7033,15 +7033,8 @@ const setExpensesWithSync = (updater) => {
     };
     window.addEventListener("online", handleOnline);
     
-    // Периодический опрос очереди (каждые 15 секунд)
-    const timer = setInterval(() => {
-      processSyncQueue();
-      load();
-    }, 15000);
-    
     return () => {
       window.removeEventListener("online", handleOnline);
-      clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -7181,6 +7174,14 @@ const setExpensesWithSync = (updater) => {
       }
     };
     load();
+    
+    const timer = setInterval(() => {
+      processSyncQueue();
+      load();
+    }, 15000);
+    
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{
