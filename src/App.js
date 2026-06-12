@@ -57,7 +57,68 @@ const touchSession = () => {
 };
 
 // ─── ЦВЕТА ───────────────────────────────────────────────────────────────────
+
+function SearchableSelect({ value, onChange, options, placeholder = "Выберите...", style = {} }) {
+  const [search, setSearch] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+  
+  const selectedOption = options.find(o => o.value === value);
+  const displayValue = selectedOption ? selectedOption.label : "";
+
+  return (
+    <div style={{ position: "relative", ...style }} tabIndex={0} onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
+    }}>
+      <div 
+        onClick={() => setOpen(!open)}
+        style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 11px", color:C.text, boxSizing:"border-box", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", ...style }}
+      >
+        <span style={{ whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", fontSize:13 }}>{displayValue || placeholder}</span>
+        <span style={{ fontSize:10, opacity:0.5 }}>▼</span>
+      </div>
+      {open && (
+        <div style={{ position:"absolute", top:"100%", left:0, right:0, marginTop:4, background:C.card, border:`1px solid ${C.border}`, borderRadius:8, zIndex:100, overflow:"hidden", boxShadow:"0 4px 12px rgba(0,0,0,0.5)" }}>
+          <input 
+            autoFocus
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            placeholder="🔍 Поиск..." 
+            style={{ width:"100%", background:"transparent", border:"none", borderBottom:`1px solid ${C.border}`, padding:11, color:C.text, outline:"none", boxSizing:"border-box", fontSize:13 }}
+          />
+          <div style={{ maxHeight: 200, overflowY:"auto" }}>
+            {options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())).map(o => (
+              <div 
+                key={o.value} 
+                onClick={() => { onChange(o.value); setOpen(false); setSearch(""); }}
+                style={{ padding:"10px 12px", cursor:"pointer", borderBottom:`1px solid ${C.border}40`, background: o.value === value ? C.surface : "transparent", fontSize:13 }}
+                onMouseEnter={e => e.currentTarget.style.background = C.surface}
+                onMouseLeave={e => e.currentTarget.style.background = o.value === value ? C.surface : "transparent"}
+              >
+                {o.label}
+              </div>
+            ))}
+            {options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())).length === 0 && (
+              <div style={{ padding:"10px 12px", color:C.muted, fontSize:12, textAlign:"center" }}>Ничего не найдено</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const getConvertedQty = (qty, fromUnit, toUnit) => {
+  if (!qty) return 0;
+  if (!fromUnit || !toUnit || fromUnit === toUnit) return qty;
+  if (fromUnit === "г" && toUnit === "кг") return qty / 1000;
+  if (fromUnit === "кг" && toUnit === "г") return qty * 1000;
+  if (fromUnit === "мл" && toUnit === "л") return qty / 1000;
+  if (fromUnit === "л" && toUnit === "мл") return qty * 1000;
+  return qty;
+};
+
 const C = {
+
   bg:"#0F0F13", surface:"#16161D", card:"#1C1C26", border:"#2A2A38",
   accent:"#E8A0B4", accentSoft:"rgba(232,160,180,0.12)",
   green:"#2ECC71", greenSoft:"rgba(46,204,113,0.13)",
@@ -3504,9 +3565,11 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
               </div>
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ПОЗИЦИЯ СЫРЬЯ</div>
-                <select value={transferForm.itemId} onChange={e=>setTransferForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
-                  {rawStock.map(r=><option key={r.id} value={r.id}>{r.name} (доступно: {fmt(getQty(r.qty, transferForm.sourceLoc || "Склад"))} {r.unit})</option>)}
-                </select>
+                <SearchableSelect 
+                  value={transferForm.itemId} 
+                  onChange={val=>setTransferForm(f=>({...f,itemId:val}))} 
+                  options={rawStock.map(r=>({ value: r.id, label: `${r.name} (Доступно: ${fmt(getQty(r.qty, transferForm.sourceLoc || "Склад"))} ${r.unit})` }))}
+                />
               </div>
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КОЛИЧЕСТВО ДЛЯ ПЕРЕДАЧИ</div>
@@ -3661,7 +3724,9 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       const tc = (techCards || []).find(t => t.id === item.id || t.product === item.name);
       if (tc) {
         (tc.ings || []).forEach(ing => {
-          const spend = ing.qty * item.qty * (1 + (ing.loss || 0) / 100);
+          const targetUnit = ing.rid ? rawStock.find(r=>r.id===ing.rid)?.unit : semiStock.find(s=>s.id===ing.sid)?.unit;
+          const convertedQty = getConvertedQty(ing.qty, ing.unit || targetUnit, targetUnit);
+          const spend = convertedQty * item.qty * (1 + (ing.loss || 0) / 100);
           if (ing.rid) {
             const raw = (rawStock || []).find(r => r.id === ing.rid);
             if (raw) addCons(raw.name, spend, raw.unit);
@@ -4892,42 +4957,51 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10,minWidth:500}}>
                       <thead>
                         <tr style={{background:C.surface}}>
-                          {["Ингредиент (ПФ/Сырьё)","Норма (кг/шт/г)","Потери %","Итого с пот.",""].map((h,i)=>(
+                          {["Ингредиент (ПФ/Сырьё)","Норма","Потери %","Итого с пот.",""].map((h,i)=>(
                             <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                          {i===1 && <th style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>Ед.изм.</th>}
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {tc.ings.map((ing,idx)=>{
-                          const withLoss=Math.round(ing.qty*(1+ing.loss/100)*1000)/1000;
+                          const targetUnit = ing.rid ? rawStock.find(r=>r.id===ing.rid)?.unit : semiStock.find(s=>s.id===ing.sid)?.unit;
+                          const convertedQty = getConvertedQty(ing.qty, ing.unit || targetUnit, targetUnit);
+                          const withLoss=Math.round(convertedQty*(1+ing.loss/100)*1000)/1000;
                           return(
                             <tr key={idx} style={{borderBottom:`1px solid ${C.border}`}}>
                               <td style={{padding:"8px 10px"}}>
-                                <select
+                                <SearchableSelect
                                   value={ing.rid ? `raw:${ing.rid}` : `semi:${ing.sid}`}
-                                  onChange={e=>{
-                                    const v = e.target.value;
+                                  onChange={v=>{
                                     const isRaw = v.startsWith("raw:");
                                     const id = v.split(":")[1];
                                     setTechCards(p=>p.map(t=>t.id!==tc.id?t:{...t,ings:t.ings.map((x,i)=>{
                                       if (i===idx) {
-                                        return isRaw ? { rid: id, qty: x.qty, loss: x.loss } : { sid: id, qty: x.qty, loss: x.loss };
+                                        return isRaw ? { rid: id, qty: x.qty, loss: x.loss, unit: x.unit } : { sid: id, qty: x.qty, loss: x.loss, unit: x.unit };
                                       }
                                       return x;
                                     })}));
                                   }}
-                                  style={{...inputStyle,width:"auto",minWidth:180}}
-                                >
-                                  <optgroup label="Полуфабрикаты">
-                                    {semiStock.map(s=><option key={s.id} value={`semi:${s.id}`}>{s.name}</option>)}
-                                  </optgroup>
-                                  <optgroup label="Сырьё">
-                                    {rawStock.map(r=><option key={r.id} value={`raw:${r.id}`}>{r.name}</option>)}
-                                  </optgroup>
-                                </select>
+                                  style={{minWidth:180}}
+                                  options={[
+                                    ...semiStock.map(s=>({ value: `semi:${s.id}`, label: `ПФ: ${s.name}` })),
+                                    ...rawStock.map(r=>({ value: `raw:${r.id}`, label: `Сырьё: ${r.name}` }))
+                                  ]}
+                                />
                               </td>
                               <td style={{padding:"8px 10px"}}>
                                 <input type="number" step="0.001" value={ing.qty} onChange={e=>updateIng(tc.id,idx,"qty",e.target.value)} style={{...inputStyle,width:90}}/>
+                              </td>
+                              <td style={{padding:"8px 10px"}}>
+                                <select value={ing.unit || ""} onChange={e=>updateIng(tc.id,idx,"unit",e.target.value)} style={{...inputStyle,width:60,padding:"8px 6px"}}>
+                                  <option value="">Авт.</option>
+                                  <option value="кг">кг</option>
+                                  <option value="г">г</option>
+                                  <option value="л">л</option>
+                                  <option value="мл">мл</option>
+                                  <option value="шт">шт</option>
+                                </select>
                               </td>
                               <td style={{padding:"8px 10px"}}>
                                 <input type="number" step="0.1" value={ing.loss} onChange={e=>updateIng(tc.id,idx,"loss",e.target.value)} style={{...inputStyle,width:70}}/>
