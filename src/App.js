@@ -3251,7 +3251,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
               const shiftSales = sales.filter(s=>s.shift_id===currentShift.id);
               const shiftPreorders = (preorders || []).filter(p => p.prepayment_shift_id === currentShift.id);
               const expectedPreordersCash = shiftPreorders.reduce((sum, p) => {
-                if (p.prepayment_method === "cash") return sum + (p.prepayment || 0);
+                if (p.status !== "cancelled" && p.prepayment_method === "cash") return sum + (p.prepayment || 0);
                 return sum;
               }, 0);
               const expectedCash = shiftSales.reduce((sum,s)=>{
