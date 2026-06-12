@@ -3616,6 +3616,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           </div>
         </div>
       )}
+      {customizing && <CustomBouquetModal baseTc={customizing} onClose={()=>setCustomizing(null)} onAdd={(tc)=>{ addToCart(tc); setCustomizing(null); }} rawStock={rawStock} C={C} />}
     </div>
   );
 }
