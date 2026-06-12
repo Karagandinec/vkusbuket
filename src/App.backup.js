@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const LS = (key,def) => { try { const v=localStorage.getItem(key); return v?JSON.parse(v):def; } catch{ return def; } };
@@ -11,114 +11,34 @@ const generateUUID = () => {
   });
 };
 
-// getMergedList: O(n) через Map вместо O(n²) через findIndex
 const getMergedList = (fetched, local, tableName) => {
   const queue = LS("vb_sync_queue", []);
-  // Строим Set ID записей с pending-синхронизацией для O(1) проверки
-  const pendingIds = new Set(
-    queue
-      .filter(q => q.table === tableName)
-      .flatMap(q => {
-        const ids = [];
-        if (q.body?.id) ids.push(q.body.id);
-        if (q.params) {
-          const m = q.params.match(/id=eq\.([^&]+)/);
-          if (m) ids.push(m[1]);
-        }
-        return ids;
-      })
-  );
-
-  // Строим Map из fetched для O(1) lookup
-  const mergedMap = new Map(fetched.map(item => [item.id, item]));
-
-  // Local-записи с pending sync имеют приоритет; остальные local-only добавляем
+  const merged = [...fetched];
+  
   local.forEach(localItem => {
-    if (!mergedMap.has(localItem.id)) {
-      mergedMap.set(localItem.id, localItem);
-    } else if (pendingIds.has(localItem.id)) {
-      mergedMap.set(localItem.id, localItem); // local-версия актуальнее
+    const idx = merged.findIndex(m => m.id === localItem.id);
+    if (idx >= 0) {
+      const hasPendingSync = queue.some(q => 
+        q.table === tableName && 
+        (
+          (q.body && q.body.id === localItem.id) || 
+          (q.params && q.params.includes(`id=eq.${localItem.id}`)) ||
+          (q.body && q.body.no === localItem.no && tableName === "sales") ||
+          (q.params && q.params.includes(`no=eq.${localItem.no}`) && tableName === "sales")
+        )
+      );
+      if (hasPendingSync) {
+        merged[idx] = localItem;
+      }
+    } else {
+      merged.push(localItem);
     }
   });
-
-  return Array.from(mergedMap.values());
-};
-
-// Проверяет, не истекла ли сессия (всегда валидна, если пользователь авторизован)
-const isSessionValid = () => {
-  try {
-    return !!localStorage.getItem("vb_session_user");
-  } catch { return false; }
-};
-
-// Сохраняет метку времени входа
-const touchSession = () => {
-  try { localStorage.setItem("vb_session_ts", String(Date.now())); } catch {}
+  return merged;
 };
 
 // ─── ЦВЕТА ───────────────────────────────────────────────────────────────────
-
-function SearchableSelect({ value, onChange, options, placeholder = "Выберите...", style = {} }) {
-  const [search, setSearch] = React.useState("");
-  const [open, setOpen] = React.useState(false);
-  
-  const selectedOption = options.find(o => o.value === value);
-  const displayValue = selectedOption ? selectedOption.label : "";
-
-  return (
-    <div style={{ position: "relative", ...style }} tabIndex={0} onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
-    }}>
-      <div 
-        onClick={() => setOpen(!open)}
-        style={{ width:"100%", background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:"10px 11px", color:C.text, boxSizing:"border-box", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", ...style }}
-      >
-        <span style={{ whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", fontSize:13 }}>{displayValue || placeholder}</span>
-        <span style={{ fontSize:10, opacity:0.5 }}>▼</span>
-      </div>
-      {open && (
-        <div style={{ position:"absolute", top:"100%", left:0, right:0, marginTop:4, background:C.card, border:`1px solid ${C.border}`, borderRadius:8, zIndex:100, overflow:"hidden", boxShadow:"0 4px 12px rgba(0,0,0,0.5)" }}>
-          <input 
-            autoFocus
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            placeholder="🔍 Поиск..." 
-            style={{ width:"100%", background:"transparent", border:"none", borderBottom:`1px solid ${C.border}`, padding:11, color:C.text, outline:"none", boxSizing:"border-box", fontSize:13 }}
-          />
-          <div style={{ maxHeight: 200, overflowY:"auto" }}>
-            {options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())).map(o => (
-              <div 
-                key={o.value} 
-                onClick={() => { onChange(o.value); setOpen(false); setSearch(""); }}
-                style={{ padding:"10px 12px", cursor:"pointer", borderBottom:`1px solid ${C.border}40`, background: o.value === value ? C.surface : "transparent", fontSize:13 }}
-                onMouseEnter={e => e.currentTarget.style.background = C.surface}
-                onMouseLeave={e => e.currentTarget.style.background = o.value === value ? C.surface : "transparent"}
-              >
-                {o.label}
-              </div>
-            ))}
-            {options.filter(o => o.label.toLowerCase().includes(search.toLowerCase())).length === 0 && (
-              <div style={{ padding:"10px 12px", color:C.muted, fontSize:12, textAlign:"center" }}>Ничего не найдено</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const getConvertedQty = (qty, fromUnit, toUnit) => {
-  if (!qty) return 0;
-  if (!fromUnit || !toUnit || fromUnit === toUnit) return qty;
-  if (fromUnit === "г" && toUnit === "кг") return qty / 1000;
-  if (fromUnit === "кг" && toUnit === "г") return qty * 1000;
-  if (fromUnit === "мл" && toUnit === "л") return qty / 1000;
-  if (fromUnit === "л" && toUnit === "мл") return qty * 1000;
-  return qty;
-};
-
 const C = {
-
   bg:"#0F0F13", surface:"#16161D", card:"#1C1C26", border:"#2A2A38",
   accent:"#E8A0B4", accentSoft:"rgba(232,160,180,0.12)",
   green:"#2ECC71", greenSoft:"rgba(46,204,113,0.13)",
@@ -134,61 +54,61 @@ const POINTS = ["Мастерская","Фуд Трак","Жара","Парк"];
 const ALL_LOCATIONS = ["Склад", ...POINTS];
 
 const ROLES = {
-  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","preorders","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
-  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","preorders","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
-  admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","preorders","warehouse","inventory","writeoff","expenses"] },
+  owner:       { label:"Владелец",        icon:"👑", color:C.accent,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
+  director:    { label:"Директор",        icon:"👔", color:C.purple,  nav:["dashboard","pos","production","warehouse","inventory","writeoff","expenses","reports","shifts","settings"] },
+  admin:       { label:"Администратор",   icon:"📋", color:C.blue,    nav:["dashboard","pos","warehouse","inventory","writeoff","expenses"] },
   cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","writeoff","inventory"] },
 };
 
 const INIT_USERS = [
-  { id:"00000000-0000-4000-a000-000000000001", name:"Владелец",          role:"owner",    point:null,          pin:"7663" },
-  { id:"00000000-0000-4000-a000-000000000002", name:"Директор",          role:"director", point:null,          pin:"8888" },
-  { id:"00000000-0000-4000-a000-000000000003", name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"1111" },
-  { id:"00000000-0000-4000-a000-000000000004", name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"2222" },
-  { id:"00000000-0000-4000-a000-000000000005", name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"3333" },
-  { id:"00000000-0000-4000-a000-000000000006", name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"4444" },
+  { id:"00000000-0000-4000-a000-000000000001", name:"Владелец",          role:"owner",    point:null,          pin:"" },
+  { id:"00000000-0000-4000-a000-000000000002", name:"Директор",          role:"director", point:null,          pin:"" },
+  { id:"00000000-0000-4000-a000-000000000003", name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"" },
+  { id:"00000000-0000-4000-a000-000000000004", name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"" },
+  { id:"00000000-0000-4000-a000-000000000005", name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"" },
+  { id:"00000000-0000-4000-a000-000000000006", name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"" },
 ];
 
 // Инициализируем остатки на "Склад" согласно данным из Excel
 const initRawStock = [
-  { id:"r1",  name:"Клубника свежая",              unit:"г",    purchase_price:2500, purchase_volume:1000,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r2",  name:"Шоколад молочный",             unit:"г",    purchase_price:8950, purchase_volume:1000,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r3",  name:"Шоколад белый",                unit:"г",    purchase_price:7950, purchase_volume:1000,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"г",    purchase_price:4800, purchase_volume:1000,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r5",  name:"Дубайская паста",              unit:"г",    purchase_price:16500, purchase_volume:1000,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r6",  name:"Мороженое сливочное",          unit:"г",    purchase_price:2000, purchase_volume:1000,      qty: { "Склад": 38000, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r37", name:"Мороженое шоколадное",         unit:"г",    purchase_price:2000, purchase_volume:1000,      qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r38", name:"Рожок вафельный",              unit:"шт",   purchase_price:80, purchase_volume:1,     qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r7",  name:"Краситель пищевой",            unit:"г",    purchase_price:19000, purchase_volume:1000,     qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r8",  name:"Кандурин",                     unit:"г",    purchase_price:100000, purchase_volume:1000,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",   purchase_price:100, purchase_volume:1,    qty: { "Склад": 6, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r10", name:"Лента декоративная 1см",       unit:"рул",  purchase_price:400, purchase_volume:1,    qty: { "Склад": 29, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",   purchase_price:1140, purchase_volume:1,   qty: { "Склад": 5, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r12", name:"Тишью бумага",                 unit:"лист", purchase_price:0.4, purchase_volume:1,    qty: { "Склад": 292, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",   purchase_price:180, purchase_volume:1,    qty: { "Склад": 11, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",    purchase_price:8.5, purchase_volume:1,    qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r15", name:"Упаковочная бумага",           unit:"лист", purchase_price:50, purchase_volume:1,     qty: { "Склад": 200, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r16", name:"Бичевка / верёвка",            unit:"рул",  purchase_price:5, purchase_volume:1,      qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r17", name:"Открытка",                     unit:"шт",   purchase_price:35, purchase_volume:1,     qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r18", name:"Эмблема / бирка",              unit:"рул",  purchase_price:5, purchase_volume:1,      qty: { "Склад": 20, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r19", name:"Пакет крафт малый",            unit:"шт",   purchase_price:80, purchase_volume:1,     qty: { "Склад": 86, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r20", name:"Пакет крафт средний",          unit:"шт",   purchase_price:85, purchase_volume:1,     qty: { "Склад": 52, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r21", name:"Пакет крафт большой",          unit:"шт",   purchase_price:120, purchase_volume:1,    qty: { "Склад": 89, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",   purchase_price:430, purchase_volume:1,    qty: { "Склад": 191, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r23", name:"Лента декоративная 2см",       unit:"рул",  purchase_price:400, purchase_volume:1,    qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r24", name:"Креманка",                     unit:"шт",   purchase_price:57, purchase_volume:1,     qty: { "Склад": 1264, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",   purchase_price:13, purchase_volume:1,     qty: { "Склад": 12, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r26", name:"Салфетка",                     unit:"шт",   purchase_price:13, purchase_volume:1,     qty: { "Склад": 500, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",    purchase_price:25, purchase_volume:1000,  qty: { "Склад": 2476, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r28", name:"Макси стакан",                 unit:"шт",   purchase_price:39.6, purchase_volume:1,   qty: { "Склад": 163, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",   purchase_price:220, purchase_volume:1,    qty: { "Склад": 2119, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",   purchase_price:200, purchase_volume:1,    qty: { "Склад": 530, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",   purchase_price:330, purchase_volume:1,    qty: { "Склад": 174, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",   purchase_price:410, purchase_volume:1,    qty: { "Склад": 173, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",   purchase_price:430, purchase_volume:1,    qty: { "Склад": 154, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",   purchase_price:430, purchase_volume:1,    qty: { "Склад": 69, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",   purchase_price:185, purchase_volume:1,    qty: { "Склад": 75, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
-  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",   purchase_price:700, purchase_volume:1,    qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r1",  name:"Клубника свежая",              unit:"г",    price:2.5,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r2",  name:"Шоколад молочный",             unit:"г",    price:8.95,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r3",  name:"Шоколад белый",                unit:"г",    price:7.95,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r4",  name:"Шоколад тёмный Callebaut",     unit:"г",    price:4.8,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r5",  name:"Дубайская паста",              unit:"г",    price:16.5,   qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r6",  name:"Мороженое сливочное",          unit:"г",    price:2,      qty: { "Склад": 38000, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r37", name:"Мороженое шоколадное",         unit:"г",    price:2,      qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r38", name:"Рожок вафельный",              unit:"шт",   price:80,     qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r7",  name:"Краситель пищевой",            unit:"г",    price:19,     qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r8",  name:"Кандурин",                     unit:"г",    price:100,    qty: { "Склад": 0, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r9",  name:"Скотч двухсторонний",          unit:"шт",   price:100,    qty: { "Склад": 6, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r10", name:"Лента декоративная 1см",       unit:"рул",  price:400,    qty: { "Склад": 29, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r11", name:"Розетки бумажные (1000шт)",    unit:"уп",   price:1140,   qty: { "Склад": 5, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r12", name:"Тишью бумага",                 unit:"лист", price:0.4,    qty: { "Склад": 292, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r13", name:"Шпажки / палочки (70шт)",      unit:"уп",   price:180,    qty: { "Склад": 11, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r14", name:"Слюда (упак. плёнка)",         unit:"м",    price:8.5,    qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r15", name:"Упаковочная бумага",           unit:"лист", price:50,     qty: { "Склад": 200, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r16", name:"Бичевка / верёвка",            unit:"рул",  price:5,      qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r17", name:"Открытка",                     unit:"шт",   price:35,     qty: { "Склад": 100, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r18", name:"Эмблема / бирка",              unit:"рул",  price:5,      qty: { "Склад": 20, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r19", name:"Пакет крафт малый",            unit:"шт",   price:80,     qty: { "Склад": 86, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r20", name:"Пакет крафт средний",          unit:"шт",   price:85,     qty: { "Склад": 52, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r21", name:"Пакет крафт большой",          unit:"шт",   price:120,    qty: { "Склад": 89, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r22", name:"Скотч обычный (широкий)",      unit:"шт",   price:430,    qty: { "Склад": 191, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r23", name:"Лента декоративная 2см",       unit:"рул",  price:400,    qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r24", name:"Креманка",                     unit:"шт",   price:57,     qty: { "Склад": 1264, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r25", name:"Вилка одноразовая (уп.)",      unit:"уп",   price:13,     qty: { "Склад": 12, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r26", name:"Салфетка",                     unit:"шт",   price:13,     qty: { "Склад": 500, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r27", name:"Посыпка кондитерская (г)",     unit:"г",    price:0.025,  qty: { "Склад": 2476, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r28", name:"Макси стакан",                 unit:"шт",   price:39.6,   qty: { "Склад": 163, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r29", name:"Коробки набор 8шт",            unit:"шт",   price:220,    qty: { "Склад": 2119, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r30", name:"Коробки набор 12шт",           unit:"шт",   price:200,    qty: { "Склад": 530, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r31", name:"Коробки набор 15шт",           unit:"шт",   price:330,    qty: { "Склад": 174, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r32", name:"Коробки набор 20шт",           unit:"шт",   price:410,    qty: { "Склад": 173, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r33", name:"Коробки набор 25шт",           unit:"шт",   price:430,    qty: { "Склад": 154, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r34", name:"Коробки набор 35шт",           unit:"шт",   price:430,    qty: { "Склад": 69, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r35", name:"Коробки набор 48шт",           unit:"шт",   price:185,    qty: { "Склад": 75, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
+  { id:"r36", name:"Коробки набор 64шт",           unit:"шт",   price:700,    qty: { "Склад": 8, "Мастерская": 0, "Фуд Трак": 0, "Жара": 0, "Парк": 0 } },
 ];
 
 // ─── ПОЛУФАБРИКАТЫ ───────────────────────────────────────────────────────────
@@ -1960,7 +1880,6 @@ const CAT_COLORS = {
 const NAV = [
   { id:"dashboard",   icon:"📈", label:"Дашборд",       desc:"Аналитика и финансы" },
   { id:"pos",         icon:"🛒", label:"Касса",          desc:"Продажи и списания" },
-  { id:"preorders",   icon:"📅", label:"Предзаказы",     desc:"Управление предзаказами" },
   { id:"production",  icon:"🍓", label:"Производство",  desc:"Сырье → Кухня" },
   { id:"warehouse",   icon:"📦", label:"Склад",          desc:"Закупки и остатки" },
   { id:"inventory",   icon:"📋", label:"Инвентаризация", desc:"Пересчёт остатков" },
@@ -2107,12 +2026,12 @@ const calcCost = (ings, semiStock, rawStock) =>
   (ings||[]).reduce((sum,ing)=>{
     if (ing.rid) {
       const raw = (rawStock||[]).find(r=>r.id===ing.rid);
-      return sum + (ing.qty*(1+(ing.loss||0)/100))*((raw?.purchase_price||0)/(raw?.purchase_volume||1));
+      return sum + (ing.qty*(1+(ing.loss||0)/100))*(raw?.price||0);
     } else {
       const semi = (semiStock||[]).find(s=>s.id===ing.sid);
       if(!semi) return sum;
       const raw  = (rawStock||[]).find(r=>r.id===semi.rawId);
-      return sum + (ing.qty*(1+(ing.loss||0)/100))*((raw?.purchase_price||0)/(raw?.purchase_volume||1));
+      return sum + (ing.qty*(1+(ing.loss||0)/100))*(raw?.price||0);
     }
   },0);
 
@@ -2129,13 +2048,13 @@ const calcProductCOGS = (item, semiStock, rawStock) => {
 
 const calcCartItemCOGS = (item, semiStock, rawStock) => {
   const baseCOGS = calcProductCOGS(item, semiStock, rawStock);
-  const vanillaPrice = (() => { const r = rawStock.find(x=>x.id==="r6"); return r ? (r.purchase_price||0)/(r.purchase_volume||1) : 0; })();
-  const chocolateIcePrice = (() => { const r = rawStock.find(x=>x.id==="r37"); return r ? (r.purchase_price||0)/(r.purchase_volume||1) : 0; })();
-  const milkChocPrice = (() => { const r = rawStock.find(x=>x.id==="r2"); return r ? (r.purchase_price||0)/(r.purchase_volume||1) : 0; })();
+  const vanillaPrice = rawStock.find(r=>r.id==="r6")?.price || 0;
+  const chocolateIcePrice = rawStock.find(r=>r.id==="r37")?.price || 0;
+  const milkChocPrice = rawStock.find(r=>r.id==="r2")?.price || 0;
   
   const vanillaCost = (item.extras?.s6 || 0) * 50 * vanillaPrice;
   const chocIceCost = (item.extras?.s7 || 0) * 50 * chocolateIcePrice;
-  const milkChocCost = (item.extras?.s2 || 0) * 15 * milkChocPrice;
+  const milkChocCost = (item.extras?.s2 || 0) * 30 * milkChocPrice;
   
   return baseCOGS + vanillaCost + chocIceCost + milkChocCost;
 };
@@ -2223,7 +2142,7 @@ const restoreStockForSale = (sale, rawStock, semiStock, techCards) => {
         const idx = newSemi.findIndex(s => s.id === "s2");
         if (idx >= 0) {
           const q = parseSemiQtyObj(newSemi[idx].qty);
-          q[selPoint] = Math.round((q[selPoint] + item.extras.s2 * 15 * item.qty) * 1000) / 1000;
+          q[selPoint] = Math.round((q[selPoint] + item.extras.s2 * 30 * item.qty) * 1000) / 1000;
           newSemi[idx] = { ...newSemi[idx], qty: q };
         }
       }
@@ -2234,13 +2153,12 @@ const restoreStockForSale = (sale, rawStock, semiStock, techCards) => {
 };
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
-// React.memo: Toast перерендерится только при изменении toast-объекта
-const Toast = React.memo(function Toast({toast}){
+function Toast({toast}){
   if(!toast) return null;
   return <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:toast.err?C.red:C.green,color:"#fff",padding:"12px 22px",borderRadius:12,fontWeight:700,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,0.4)"}}>
     {toast.err?"✕ ":"✓ "}{toast.msg}
   </div>;
-});
+}
 
 function useToast(){
   const [toast,setToast]=useState(null);
@@ -2249,11 +2167,9 @@ function useToast(){
 }
 
 // ─── ДАШБОРД ─────────────────────────────────────────────────────────────────
-function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
+function Dashboard({sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
   const [pointFilter, setPointFilter] = useState("Все");
-  const [periodFilter, setPeriodFilter] = useState("Сегодня");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  const [periodFilter, setPeriodFilter] = useState("За все время");
   const [selPoint, setSelPoint] = useState(POINTS[0]);
 
   const now = new Date();
@@ -2276,17 +2192,6 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
       return diffDays <= 7;
     } else if (periodFilter === "Месяц") {
       return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
-    } else if (periodFilter === "Свой период") {
-      if (customStart) {
-        const cs = new Date(customStart);
-        cs.setHours(0,0,0,0);
-        if (sDate < cs) return false;
-      }
-      if (customEnd) {
-        const ce = new Date(customEnd);
-        ce.setHours(23,59,59,999);
-        if (sDate > ce) return false;
-      }
     }
     return true;
   });
@@ -2313,17 +2218,6 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
       return diffDays <= 7;
     } else if (periodFilter === "Месяц") {
       return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
-    } else if (periodFilter === "Свой период") {
-      if (customStart) {
-        const cs = new Date(customStart);
-        cs.setHours(0,0,0,0);
-        if (eDate < cs) return false;
-      }
-      if (customEnd) {
-        const ce = new Date(customEnd);
-        ce.setHours(23,59,59,999);
-        if (eDate > ce) return false;
-      }
     }
     return true;
   });
@@ -2370,7 +2264,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
   const isOwnerOrDirector = currentUser?.role === "owner" || currentUser?.role === "director";
 
   return (
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",height:"calc(100vh - 57px)",boxSizing:"border-box"}}>
       {/* ЗАПРОСЫ НА УДАЛЕНИЕ */}
       {isOwnerOrDirector && pendingDeletions.length > 0 && (
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.red}`,padding:22,marginBottom:22,boxSizing:"border-box"}}>
@@ -2426,14 +2320,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
             <option>Вчера</option>
             <option>Неделя</option>
             <option>Месяц</option>
-            <option>Свой период</option>
           </select>
-          {periodFilter === "Свой период" && (
-            <div style={{display:"flex",gap:8,marginTop:8}}>
-              <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
-              <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
-            </div>
-          )}
         </div>
       </div>
 
@@ -2526,121 +2413,8 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
 }
 
 // ─── КАССА ───────────────────────────────────────────────────────────────────
-
-// ─── КАСТОМНЫЙ КОНСТРУКТОР БУКЕТОВ (МАСТЕРСКАЯ) ──────────────────────────────────
-function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
-  const [counts, setCounts] = useState({ white:0, milk:0, dark:0 });
-  // Для каждого вида шоколада храним ID выбранной посыпки (пустая строка = без посыпки)
-  const [toppings, setToppings] = useState({ white:"", milk:"", dark:"" });
-
-  const totalBerries = counts.white + counts.milk + counts.dark;
-  
-  // Ищем доступные посыпки в базе (все, где в названии есть "Посыпка")
-  const availableToppings = rawStock.filter(r => r.name.toLowerCase().includes("посыпка") || r.cat === "Посыпки");
-  
-  const handleAdd = () => {
-    if (totalBerries === 0) {
-      alert("Добавьте хотя бы одну ягоду!");
-      return;
-    }
-    
-    const newIngs = [];
-    if (totalBerries > 0) newIngs.push({ rid:"r1", qty: (totalBerries * 20)/1000, loss: 10 });
-    
-    if (counts.white > 0) newIngs.push({ rid:"r3", qty: (counts.white * 9)/1000, loss: 5 });
-    if (counts.milk > 0) newIngs.push({ rid:"r2", qty: (counts.milk * 9)/1000, loss: 5 });
-    if (counts.dark > 0) newIngs.push({ rid:"r4", qty: (counts.dark * 9)/1000, loss: 5 });
-    
-    // Считаем посыпки (по 0.5г на каждую ягоду)
-    const toppingCounts = {};
-    if (counts.white > 0 && toppings.white) {
-      toppingCounts[toppings.white] = (toppingCounts[toppings.white] || 0) + counts.white;
-    }
-    if (counts.milk > 0 && toppings.milk) {
-      toppingCounts[toppings.milk] = (toppingCounts[toppings.milk] || 0) + counts.milk;
-    }
-    if (counts.dark > 0 && toppings.dark) {
-      toppingCounts[toppings.dark] = (toppingCounts[toppings.dark] || 0) + counts.dark;
-    }
-    
-    Object.keys(toppingCounts).forEach(rid => {
-      newIngs.push({ rid: rid, qty: (toppingCounts[rid] * 0.2) / 1000, loss: 0 });
-    });
-
-    const packagingIDs = ["r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19", "r20", "r21", "r22", "r23", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r38", "r9"];
-    baseTc.ings.forEach(ing => {
-      if (ing.rid && packagingIDs.includes(ing.rid)) {
-        // Динамический пересчет розеток под фактическое количество ягод
-        if (ing.rid === "r11") {
-          newIngs.push({ ...ing, qty: totalBerries / 1000 });
-        } else {
-          newIngs.push({ ...ing });
-        }
-      }
-    });
-
-    const customTc = {
-      ...baseTc,
-      id: "custom_" + Date.now(),
-      baseTcId: baseTc.id,
-      product: `${baseTc.product} (Кастом: ${totalBerries}шт)`,
-      cat: "Кастомные сборки",
-      ings: newIngs
-    };
-    
-    onAdd(customTc);
-  };
-
-  const btnStyle = { padding:"8px 16px", borderRadius:8, background:C.surface, border:`1px solid ${C.border}`, color:C.text, cursor:"pointer", fontSize:18, fontWeight:"bold" };
-  const rowStyle = { display:"flex", alignItems:"flex-start", justifyContent:"space-between", background:C.card, padding:"12px", borderRadius:8, marginBottom:10 };
-  const selectStyle = { marginTop:6, fontSize:12, padding:"4px", borderRadius:4, border:`1px solid ${C.border}`, background:C.surface, color:C.text, outline:"none", maxWidth: 180 };
-
-  return (
-    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{background:C.surface,padding:24,borderRadius:16,width:"90%",maxWidth:400,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
-        <h3 style={{marginTop:0,marginBottom:8,color:C.text}}>Сборка: {baseTc.product}</h3>
-        <p style={{fontSize:13,color:C.muted,marginTop:0,marginBottom:20}}>Каждая ягода: 20г клубники + 9г шоколада + 0.2г посыпки.</p>
-        
-        {[{id:'milk',name:'Молочный',r:'r2'},{id:'white',name:'Белый',r:'r3'},{id:'dark',name:'Тёмный',r:'r4'}].map(choc => (
-          <div key={choc.id} style={rowStyle}>
-            <div>
-              <div style={{fontWeight:"bold",fontSize:15}}>{choc.name} шоколад</div>
-              <select 
-                style={selectStyle} 
-                value={toppings[choc.id]} 
-                onChange={e=>setToppings(p=>({...p, [choc.id]:e.target.value}))}
-              >
-                <option value="">Без посыпки</option>
-                {availableToppings.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:12, marginTop:4}}>
-              <button style={btnStyle} onClick={()=>setCounts(p=>({...p, [choc.id]:Math.max(0, p[choc.id]-1)}))}>-</button>
-              <span style={{fontSize:18,fontWeight:"bold",width:24,textAlign:"center"}}>{counts[choc.id]}</span>
-              <button style={btnStyle} onClick={()=>setCounts(p=>({...p, [choc.id]:p[choc.id]+1}))}>+</button>
-            </div>
-          </div>
-        ))}
-        
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:20,alignItems:"center",borderTop:`1px solid ${C.border}`,paddingTop:16}}>
-          <div style={{fontWeight:"bold"}}>Итого ягод: {totalBerries}</div>
-        </div>
-        
-        <div style={{display:"flex",gap:10,marginTop:20}}>
-          <button onClick={handleAdd} style={{flex:1,padding:14,borderRadius:10,background:C.accent,color:"#fff",border:"none",fontWeight:"bold",cursor:"pointer"}}>Собрать поштучно</button>
-          <button onClick={() => { onAdd(baseTc); }} style={{flex:1,padding:14,borderRadius:10,background:C.green,color:"#000",border:"none",fontWeight:"bold",cursor:"pointer"}}>По стандарту</button>
-          <button onClick={onClose} style={{padding:14,borderRadius:10,background:C.card,color:C.text,border:`1px solid ${C.border}`,fontWeight:"bold",cursor:"pointer"}}>Отмена</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers,preorders,setPreorders,setCustomers}){
-  const [cart,setCart]          = useState(() => LS("vb_pos_cart", []));
-  const [customizerTc, setCustomizerTc] = useState(null);
+function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSales,currentUser,techCards,currentShift,onCloseShift,onCancelSale,customers}){
+  const [cart,setCart]          = useState([]);
   const [phoneSearch, setPhoneSearch] = useState("");
   const [loyaltyCustomer, setLoyaltyCustomer] = useState(null);
   const [payMode,setPayMode]    = useState(null);
@@ -2651,159 +2425,48 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [lastReceipt,setLast]   = useState(null);
   const [catFilter,setCatFilter] = useState("Все");
   const [search,setSearch]      = useState("");
-  const [posTab,setPosTab]          = useState("products");
-  const [ordersPointFilter,setOrdersPointFilter] = useState("Все точки");
-  const [toast,showToast]           = useToast();
-  const [splitMode,setSplitMode]    = useState(false);
-  const [payments,setPayments]      = useState([]);
-
-  const [showPreorderModal, setShowPreorderModal] = useState(false);
-  const [preorderDate, setPreorderDate] = useState("");
-  const [preorderTime, setPreorderTime] = useState("");
-  const [preorderClientName, setPreorderClientName] = useState("");
-  const [preorderClientPhone, setPreorderClientPhone] = useState("");
-  const [preorderPrepayment, setPreorderPrepayment] = useState("");
-  const [preorderPayMode, setPreorderPayMode] = useState("cash");
-  const [preorderNotes, setPreorderNotes] = useState("");
-
-  // Сохраняем корзину в localStorage, чтобы она пережила авто-перезагрузку при обновлении приложения
-  useEffect(() => {
-    if (done) {
-      // После оплаты корзина очищается
-      localStorage.removeItem("vb_pos_cart");
-    } else {
-      localStorage.setItem("vb_pos_cart", JSON.stringify(cart));
-    }
-  }, [cart, done]);
-
-  useEffect(() => {
-    if (showPreorderModal) {
-      if (loyaltyCustomer) {
-        setPreorderClientPhone(loyaltyCustomer.phone);
-        setPreorderClientName(loyaltyCustomer.name);
-      } else if (phoneSearch) {
-        setPreorderClientPhone(phoneSearch);
-      }
-    }
-  }, [showPreorderModal, loyaltyCustomer, phoneSearch]);
+  const [posTab,setPosTab]      = useState("products"); // "products" или "cart" на мобильных
+  const [splitMode,setSplitMode] = useState(false);
+  const [payments,setPayments]   = useState([]); // [{method:"cash",amount:5000},{method:"kaspi",amount:2500}]
+  const [toast,showToast]       = useToast();
   const [showCloseShift,setShowCloseShift] = useState(false);
   const [actualCashInput,setActualCashInput] = useState("");
 
-  // useMemo: пересчитываем только при изменении techCards, catFilter, search или точки
-  const displayCards = useMemo(() => techCards.map(t =>
-    t.cat === "Макси стаканы" ? { ...t, cat: "Креманки" } : t
-  ), [techCards]);
+  const displayCards = techCards.map(t => {
+    if (t.cat === "Макси стаканы") {
+      return { ...t, cat: "Креманки" };
+    }
+    return t;
+  });
 
   const isRestrictedPoint = ["Парк", "Фуд Трак", "Жара"].includes(currentUser?.point);
   const isRestrictedCashier = currentUser?.role === "cashier" && isRestrictedPoint;
 
-  const finalCards = useMemo(() => displayCards.filter(t => {
-    if (isRestrictedCashier && (t.cat === "Наборы" || t.cat === "Букеты")) return false;
+  const finalCards = displayCards.filter(t => {
+    if (isRestrictedCashier && (t.cat === "Наборы" || t.cat === "Букеты")) {
+      return false;
+    }
     return true;
-  }), [displayCards, isRestrictedCashier]);
+  });
 
-  const cats = useMemo(() => ["Все",...new Set(finalCards.map(t=>t.cat))], [finalCards]);
-
-  const filtered = useMemo(() => finalCards.filter(t =>
+  const cats = ["Все",...new Set(finalCards.map(t=>t.cat))];
+  const filtered = finalCards.filter(t =>
     (catFilter==="Все"||t.cat===catFilter)&&
     (search===""||t.product.toLowerCase().includes(search.toLowerCase()))
-  ), [finalCards, catFilter, search]);
+  );
 
-  // useCallback: стабильные ссылки — не создают новые объекты при каждом рендере
-  const addToCart = useCallback((tc) =>
-    setCart(p => {
-      if (p.find(i => (i.baseTcId || i.id) === tc.id)) {
-        return p.map(i => (i.baseTcId || i.id) === tc.id ? {...i, qty: i.qty+1} : i);
-      } else {
-        const isKremanok = tc.product && tc.product.toLowerCase().includes("креманка");
-        const is3Scoops = isKremanok && tc.product.toLowerCase().includes("3 шар");
-        const initialIceCream = is3Scoops ? ["s6", "s6", "s6"] : (isKremanok ? ["s6"] : []);
-        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream, bowlType: isKremanok ? "Пластиковая" : null, baseTcId: tc.id}];
-      }
-    }), []);
+  const addToCart=(tc)=>setCart(p=>p.find(i=>i.id===tc.id)?p.map(i=>i.id===tc.id?{...i,qty:i.qty+1}:i):[...p,{...tc,qty:1,extras:{s6:0,s7:0,s2:0}}]);
+  const chgQty=(id,d)=>setCart(p=>p.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0));
 
-  const chgQty = useCallback((id, d) =>
-    setCart(p => p.map(i => i.id===id ? {...i, qty:Math.max(0,i.qty+d)} : i).filter(i => i.qty > 0))
-  , []);
-
-  const subtotal = useMemo(() => cart.reduce((s,i) => {
+  const subtotal = cart.reduce((s,i)=>{
     const extrasCost = ((i.extras?.s6 || 0) + (i.extras?.s7 || 0) + (i.extras?.s2 || 0)) * 500;
     return s + (i.price + extrasCost) * i.qty;
-  }, 0), [cart]);
+  },0);
   const discAmt  = Math.round(subtotal*discount/100);
   const total    = subtotal - discAmt;
   const cashGiven= parseInt(cashInput.replace(/\D/g,""))||0;
 
-  const handleCreatePreorder = () => {
-    if (!preorderDate) { showToast("Выберите дату выдачи", true); return; }
-    if (!preorderTime) { showToast("Укажите время выдачи", true); return; }
-    if (!preorderClientPhone) { showToast("Укажите телефон клиента", true); return; }
-
-    const phoneClean = preorderClientPhone.replace(/\D/g,"");
-    if (phoneClean.length < 10) { showToast("Некорректный номер телефона", true); return; }
-
-    // Register customer if new
-    const existing = (customers || []).find(c => c.phone === phoneClean);
-    let customerId = existing ? existing.id : null;
-    if (!existing) {
-      customerId = generateUUID();
-      const newCust = {
-        id: customerId,
-        name: preorderClientName || `Клиент ${phoneClean}`,
-        phone: phoneClean,
-        discount_percent: 0,
-        created_at: new Date().toISOString()
-      };
-      if (typeof setCustomers === "function") {
-        setCustomers(prev => [...prev, newCust]);
-      }
-    }
-
-    const prepayAmt = parseInt(preorderPrepayment) || 0;
-    if (prepayAmt > total) { showToast("Предоплата не может превышать сумму заказа", true); return; }
-
-    const newPreorder = {
-      id: generateUUID(),
-      point: "Мастерская", // Locked to Мастерская ("только в мастерской")
-      customer_id: customerId,
-      customer_name: preorderClientName || (existing ? existing.name : `Клиент ${phoneClean}`),
-      customer_phone: phoneClean,
-      items: cart.map(i=>({name:i.product,qty:i.qty,price:i.price,extras:i.extras})),
-      subtotal: subtotal,
-      discount: discount,
-      disc_amt: discAmt,
-      total: total,
-      prepayment: prepayAmt,
-      prepayment_method: prepayAmt > 0 ? preorderPayMode : null,
-      prepayment_shift_id: prepayAmt > 0 ? (currentShift?.id || null) : null,
-      target_date: preorderDate,
-      target_time: preorderTime,
-      status: "pending",
-      notes: preorderNotes,
-      created_by: currentUser?.id || null,
-      created_at: new Date().toISOString(),
-      completed_shift_id: null,
-      completed_at: null,
-      remaining_payment: 0,
-      remaining_method: null
-    };
-
-    setPreorders(prev => [newPreorder, ...prev]);
-    showToast("Предзаказ успешно оформлен!");
-    setCart([]);
-    setShowPreorderModal(false);
-    
-    // Reset fields
-    setPreorderDate("");
-    setPreorderTime("");
-    setPreorderClientName("");
-    setPreorderClientPhone("");
-    setPreorderPrepayment("");
-    setPreorderNotes("");
-  };
-
   const handlePay=()=>{
-    try {
     // Валидация
     if (splitMode) {
       const splitTotal = payments.reduce((s,p)=>s+p.amount,0);
@@ -2818,32 +2481,20 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     
     // 1. Списываем полуфабрикаты/сырье с кухни/склада точки
     for(const item of cart){
-      for(const ing of (item.ings || [])){
-        const totalSpend = ing.qty * item.qty * (1 + (ing.loss||0)/100);
-        
-        if (ing.sid === "s6" && Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0) {
-          // Разбиваем вес на количество выбранных шариков
-          const scoopSpend = totalSpend / item.baseIceCream.length;
-          item.baseIceCream.forEach(scoopSid => {
-            const idx = newSemi.findIndex(s=>s.id===scoopSid);
-            if(idx>=0) {
-              const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-              qtyObj[selPoint] = Math.round((qtyObj[selPoint] - scoopSpend)*1000)/1000;
-              newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
-            }
-          });
-        } else if (ing.rid) {
+      for(const ing of item.ings){
+        const spend = ing.qty * item.qty * (1 + (ing.loss||0)/100);
+        if (ing.rid) {
           const idx = newRaw.findIndex(r=>r.id===ing.rid);
           if(idx>=0) {
             const qtyObj = parseQtyObj(newRaw[idx].qty);
-            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - totalSpend)*1000)/1000;
+            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - spend)*1000)/1000;
             newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
           }
         } else {
           const idx = newSemi.findIndex(s=>s.id===ing.sid);
           if(idx>=0) {
             const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - totalSpend)*1000)/1000;
+            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - spend)*1000)/1000;
             newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
           }
         }
@@ -2882,7 +2533,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           const idx = newSemi.findIndex(s=>s.id==="s2");
           if (idx >= 0) {
             const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - item.extras.s2 * 15 * item.qty)*1000)/1000;
+            qtyObj[selPoint] = Math.round((qtyObj[selPoint] - item.extras.s2 * 30 * item.qty)*1000)/1000;
             newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
           }
         }
@@ -2905,14 +2556,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     const receipt={
       id: generateUUID(),
       no:1001+sales.length, point:selPoint,
-      items:cart.map(i=>{
-        let finalName = i.product;
-        if (Array.isArray(i.baseIceCream) && i.baseIceCream.length > 0) {
-          const flavors = i.baseIceCream.map(s => s === "s7" ? "Шок." : "Слив.").join("/");
-          finalName += ` (${flavors}, ${i.bowlType === "Вафельная" ? "Ваф." : "Пласт."})`;
-        }
-        return { name: finalName, qty: i.qty, price: i.price, extras: i.extras };
-      }),
+      items:cart.map(i=>({name:i.product,qty:i.qty,price:i.price,extras:i.extras})),
       total, subtotal, discAmt, discount, cogs,
       payMode: effectivePayMode,
       payments: receiptPayments,
@@ -2925,11 +2569,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
     setSales(p=>[...p,receipt]);
     setLast(receipt);
     setDone(true);
-    setPosTab("cart");
-    } catch (err) {
-      alert("Ошибка при оплате (handlePay): " + err.message);
-      console.error(err);
-    }
+    setPosTab("cart"); // Показываем чек
   };
 
   const newSale=()=>{
@@ -2948,20 +2588,11 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
   const renderOrders = () => {
     const todayStr = new Date().toLocaleDateString("ru-RU");
-    const todaySales = sales.filter(s => (ordersPointFilter === "Все точки" || s.point === ordersPointFilter) && s.date === todayStr);
+    const todaySales = sales.filter(s => s.point === selPoint && s.date === todayStr);
     
     return (
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",height:"100%",maxHeight:"100vh"}}>
-        <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,background:C.surface,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          {(currentUser.role==="owner"||currentUser.role==="director")&&(
-            <select value={ordersPointFilter} onChange={e=>setOrdersPointFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",outline:"none",fontSize:13}}>
-              <option>Все точки</option>
-              {POINTS.map(p=><option key={p}>{p}</option>)}
-            </select>
-          )}
-          <h3 style={{marginTop:0,marginBottom:0,marginLeft:8}}>Заказы за сегодня ({ordersPointFilter})</h3>
-        </div>
-        <div style={{flex:1,padding:20,overflowY:"auto",boxSizing:"border-box"}}>
+      <div style={{flex:1,padding:20,overflowY:"auto",boxSizing:"border-box"}}>
+        <h3 style={{marginTop:0,marginBottom:16}}>Заказы за сегодня ({selPoint})</h3>
         {todaySales.length === 0 ? (
           <div style={{color:C.muted,textAlign:"center",padding:40,fontSize:13}}>Сегодня заказов ещё не было</div>
         ) : (
@@ -3012,7 +2643,6 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
             ))}
           </div>
         )}
-        </div>
       </div>
     );
   };
@@ -3054,13 +2684,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   );
 
   const renderCart = () => (
-    <div style={{width:isMobile?"100%":340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px solid ${C.border}`,height:"100%",overflowY:isMobile?"auto":"hidden"}}>
+    <div style={{width:isMobile?"100%":340,background:C.surface,display:"flex",flexDirection:"column",borderLeft:isMobile?"none":`1px solid ${C.border}`,height:"100%"}}>
       <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{fontWeight:700,fontSize:15}}>Корзина ({selPoint})</span>
         {cart.length>0&&<button onClick={()=>setCart([])} style={{background:C.redSoft,color:C.red,border:"none",borderRadius:6,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:700}}>Очистить</button>}
       </div>
 
-      <div style={{flex:isMobile?"none":1,overflowY:isMobile?"visible":"auto",padding:10}}>
+      <div style={{flex:1,overflowY:"auto",padding:10}}>
         {cart.length===0
           ? <div style={{textAlign:"center",color:C.muted,marginTop:40,fontSize:13}}>🍓 Выберите товар</div>
           : cart.map(item=>{
@@ -3091,101 +2721,45 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                   </span>
                 </div>
                 
-                {/* Выбор базы для креманок */}
-                {Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0 && (
-                  <div style={{marginTop: 8, display:"flex", flexDirection:"column", gap:10}}>
-                    <div>
-                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП ТАРЫ</div>
-                      <div style={{display: "flex", gap: 6}}>
-                        <button
-                          onClick={() => setCart(prev => prev.map(i => {
-                            if (i.baseTcId !== item.baseTcId) return i;
-                            const is3 = i.product.toLowerCase().includes("3 шар");
-                            const pTc = techCards.find(t => t.product.toLowerCase().includes("пластиков") && t.product.toLowerCase().includes("креманка") && t.product.toLowerCase().includes("3 шар") === is3) || techCards.find(t => t.product.toLowerCase().includes("креманка") && !t.product.toLowerCase().includes("вафельн") && t.product.toLowerCase().includes("3 шар") === is3);
-                            if (pTc) return { ...pTc, qty: i.qty, extras: i.extras, baseIceCream: i.baseIceCream, baseTcId: i.baseTcId, bowlType: "Пластиковая" };
-                            return { ...i, bowlType: "Пластиковая" };
-                          }))}
-                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Пластиковая" ? C.accent : C.border}`, background: item.bowlType === "Пластиковая" ? C.accentSoft : "transparent", color: item.bowlType === "Пластиковая" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                        >
-                          Пластик
-                        </button>
-                        <button
-                          onClick={() => setCart(prev => prev.map(i => {
-                            if (i.baseTcId !== item.baseTcId) return i;
-                            const is3 = i.product.toLowerCase().includes("3 шар");
-                            const wTc = techCards.find(t => t.product.toLowerCase().includes("вафельн") && t.product.toLowerCase().includes("креманка") && t.product.toLowerCase().includes("3 шар") === is3);
-                            if (wTc) return { ...wTc, qty: i.qty, extras: i.extras, baseIceCream: i.baseIceCream, baseTcId: i.baseTcId, bowlType: "Вафельная" };
-                            return { ...i, bowlType: "Вафельная" };
-                          }))}
-                          style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${item.bowlType === "Вафельная" ? C.accent : C.border}`, background: item.bowlType === "Вафельная" ? C.accentSoft : "transparent", color: item.bowlType === "Вафельная" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                        >
-                          Вафля
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ШАРИКИ МОРОЖЕНОГО (ПО 50Г)</div>
-                      {item.baseIceCream.map((scoop, sIdx) => (
-                        <div key={sIdx} style={{display: "flex", gap: 6, marginBottom: 4}}>
-                          <button
-                            onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: i.baseIceCream.map((sc, index) => index === sIdx ? "s6" : sc) } : i))}
-                            style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${scoop === "s6" ? C.accent : C.border}`, background: scoop === "s6" ? C.accentSoft : "transparent", color: scoop === "s6" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                          >
-                            🍦 Слив.
-                          </button>
-                          <button
-                            onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: i.baseIceCream.map((sc, index) => index === sIdx ? "s7" : sc) } : i))}
-                            style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${scoop === "s7" ? C.accent : C.border}`, background: scoop === "s7" ? C.accentSoft : "transparent", color: scoop === "s7" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
-                          >
-                            🍦 Шок.
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
                 {/* Добавки (Extras) */}
-                {!(item.cat === "Наборы" || item.cat === "Букеты") && (
-                  <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
-                    {[
-                      { key: "s6", label: "🍦 Слив. 50г", price: 500 },
-                      { key: "s7", label: "🍦 Шок. 50г", price: 500 },
-                      { key: "s2", label: "🍫 Шок. 15г", price: 500 }
-                    ].map(ext => {
-                      const active = (item.extras?.[ext.key] || 0) > 0;
-                      return (
-                        <button
-                          key={ext.key}
-                          type="button"
-                          onClick={() => {
-                            setCart(prev => prev.map(i => {
-                              if (i.id !== item.id) return i;
-                              const ex = { s6: 0, s7: 0, s2: 0, ...i.extras };
-                              ex[ext.key] = ex[ext.key] ? 0 : 1;
-                              return { ...i, extras: ex };
-                            }));
-                          }}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 6,
-                            border: `1px solid ${active ? C.accent : C.border}`,
-                            background: active ? C.accentSoft : "transparent",
-                            color: active ? C.accent : C.muted,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4
-                          }}
-                        >
-                          {ext.label} (+{ext.price} ₸)
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+                  {[
+                    { key: "s6", label: "🍦 Слив. 50г", price: 500 },
+                    { key: "s7", label: "🍦 Шок. 50г", price: 500 },
+                    { key: "s2", label: "🍫 Шок. 30г", price: 500 }
+                  ].map(ext => {
+                    const active = (item.extras?.[ext.key] || 0) > 0;
+                    return (
+                      <button
+                        key={ext.key}
+                        type="button"
+                        onClick={() => {
+                          setCart(prev => prev.map(i => {
+                            if (i.id !== item.id) return i;
+                            const ex = { s6: 0, s7: 0, s2: 0, ...i.extras };
+                            ex[ext.key] = ex[ext.key] ? 0 : 1;
+                            return { ...i, extras: ex };
+                          }));
+                        }}
+                        style={{
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          border: `1px solid ${active ? C.accent : C.border}`,
+                          background: active ? C.accentSoft : "transparent",
+                          color: active ? C.accent : C.muted,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4
+                        }}
+                      >
+                        {ext.label} (+{ext.price} ₸)
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             );
           })
@@ -3203,14 +2777,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 onChange={e => {
                   const val = e.target.value.replace(/[^0-9+]/g, "");
                   setPhoneSearch(val);
-                  const found = (customers || []).find(c => c.phone === val);
+                  const found = (customers || []).find(c => c.phone === val || c.phone.endsWith(val));
                   if (found) {
                     setLoyaltyCustomer(found);
                     setDiscount(found.discount_percent);
                     showToast(`Применена скидка клиента ${found.name}: ${found.discount_percent}%`);
                   } else {
                     setLoyaltyCustomer(null);
-                    setDiscount(0);
                   }
                 }}
                 placeholder="87011234567"
@@ -3339,15 +2912,6 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           >
             ✓ Принять оплату
           </button>
-          {selPoint === "Мастерская" && (
-            <button
-              type="button"
-              onClick={() => setShowPreorderModal(true)}
-              style={{width:"100%",padding:12,marginTop:8,background:"transparent",color:C.accent,border:`1px solid ${C.accent}`,borderRadius:10,fontWeight:900,cursor:"pointer",fontSize:13}}
-            >
-              📅 Оформить предзаказ
-            </button>
-          )}
         </div>
       )}
 
@@ -3373,30 +2937,22 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
       {/* Модалка закрытия смены */}
       {showCloseShift && currentShift && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,overflowY:"auto",padding:"40px 0"}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`,margin:"auto"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:360,maxWidth:"90vw",border:`1px solid ${C.border}`}}>
             <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🔒 Закрытие смены</div>
             {(()=>{
               const shiftSales = sales.filter(s=>s.shift_id===currentShift.id);
-              const shiftPreorders = (preorders || []).filter(p => p.prepayment_shift_id === currentShift.id);
-              const expectedPreordersCash = shiftPreorders.reduce((sum, p) => {
-                if (p.status !== "cancelled" && p.prepayment_method === "cash") return sum + (p.prepayment || 0);
-                return sum;
-              }, 0);
               const expectedCash = shiftSales.reduce((sum,s)=>{
                 if(s.payMode==="cash") return sum+s.total;
                 if(s.payMode==="split" && s.payments) return sum+s.payments.filter(p=>p.method==="cash").reduce((a,p)=>a+p.amount,0);
                 return sum;
-              },0) + expectedPreordersCash;
+              },0);
               const actualCash = parseInt(actualCashInput.replace(/\D/g,""))||0;
               const discrepancy = actualCash - expectedCash;
               return (
                 <>
                   <div style={{background:C.surface,borderRadius:10,padding:14,marginBottom:14}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Продаж за смену:</span><span style={{fontWeight:700}}>{shiftSales.length}</span></div>
-                    {expectedPreordersCash > 0 && (
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Авансы по предзаказам (нал):</span><span style={{fontWeight:700,color:C.accent}}>+{fmtM(expectedPreordersCash)}</span></div>
-                    )}
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{color:C.muted,fontSize:13}}>Ожидаемая наличка:</span><span style={{fontWeight:700,color:C.green}}>{fmtM(expectedCash)}</span></div>
                   </div>
                   <div style={{marginBottom:14}}>
@@ -3428,12 +2984,6 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   return(
     <div style={{display:"flex",height:"calc(100vh - 57px)"}}>
       <Toast toast={toast}/>
-      {(localStorage.getItem("vb_sync_queue") && JSON.parse(localStorage.getItem("vb_sync_queue")||"[]").length > 0) && (
-        <div style={{padding:20, background:"#fcc", zIndex:99999, position:"fixed", bottom:0, left:0, right:0, maxHeight:"30vh", overflow:"auto"}}>
-          <h4 style={{color:"red", margin:0}}>Отладка Очереди (Скриншот разрабу)</h4>
-          <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 150, fontSize:10, fontFamily:"monospace"}} />
-        </div>
-      )}
       {!isMobile ? (
         <>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -3463,160 +3013,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           )}
         </div>
       )}
-
-      {showPreorderModal && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,overflowY:"auto",padding:"40px 0"}}>
-          <div style={{background:C.card,borderRadius:16,padding:24,width:400,maxWidth:"95vw",border:`1px solid ${C.border}`,margin:"auto"}}>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:16,color:C.accent,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span>📅 Оформление предзаказа</span>
-              <button onClick={()=>setShowPreorderModal(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:20,cursor:"pointer"}}>✕</button>
-            </div>
-
-            <div style={{background:C.surface,borderRadius:10,padding:12,marginBottom:14,fontSize:13}}>
-              <div style={{fontWeight:700,marginBottom:4,color:C.muted}}>Товары:</div>
-              {cart.map(item => (
-                <div key={item.id} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                  <span>{item.product} x{item.qty}</span>
-                  <span style={{fontWeight:600}}>{fmtM((item.price + ((item.extras?.s6 || 0) + (item.extras?.s7 || 0) + (item.extras?.s2 || 0)) * 500) * item.qty)}</span>
-                </div>
-              ))}
-              <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:8,marginTop:6,fontWeight:800}}>
-                <span>Итого к оплате:</span>
-                <span style={{color:C.accent}}>{fmtM(total)}</span>
-              </div>
-            </div>
-
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div>
-                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ТЕЛЕФОН КЛИЕНТА *</label>
-                <input
-                  type="text"
-                  value={preorderClientPhone}
-                  onChange={e => {
-                    const phone = e.target.value.replace(/[^0-9+]/g, "");
-                    setPreorderClientPhone(phone);
-                    const found = customers.find(c => c.phone === phone);
-                    if (found) {
-                      setPreorderClientName(found.name);
-                      setDiscount(found.discount_percent);
-                      setLoyaltyCustomer(found);
-                      setPhoneSearch(found.phone);
-                    } else {
-                      setDiscount(0);
-                      setLoyaltyCustomer(null);
-                    }
-                  }}
-                  placeholder="87011234567"
-                  style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
-                />
-              </div>
-
-              <div>
-                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ИМЯ КЛИЕНТА</label>
-                <input
-                  type="text"
-                  value={preorderClientName}
-                  onChange={e => setPreorderClientName(e.target.value)}
-                  placeholder="Введите имя..."
-                  style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
-                />
-              </div>
-
-              <div style={{display:"flex",gap:10}}>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ДАТА ВЫДАЧИ *</label>
-                  <input
-                    type="date"
-                    value={preorderDate}
-                    onChange={e => setPreorderDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
-                    style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
-                  />
-                </div>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ВРЕМЯ ВЫДАЧИ *</label>
-                  <input
-                    type="time"
-                    value={preorderTime}
-                    onChange={e => setPreorderTime(e.target.value)}
-                    style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ТОЧКА ВЫДАЧИ</label>
-                <div style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.muted,borderRadius:8,boxSizing:"border-box",fontSize:13,fontWeight:700}}>
-                  Мастерская (только в мастерской)
-                </div>
-              </div>
-
-              <div style={{display:"flex",gap:10}}>
-                <div style={{flex:1}}>
-                  <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>ПРЕДОПЛАТА (₸)</label>
-                  <input
-                    type="number"
-                    value={preorderPrepayment}
-                    onChange={e => setPreorderPrepayment(e.target.value)}
-                    placeholder="0"
-                    style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13,fontWeight:700}}
-                  />
-                </div>
-                {parseInt(preorderPrepayment) > 0 && (
-                  <div style={{flex:1}}>
-                    <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>СПОСОБ ОПЛАТЫ</label>
-                    <select
-                      value={preorderPayMode}
-                      onChange={e => setPreorderPayMode(e.target.value)}
-                      style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13}}
-                    >
-                      <option value="cash">💵 Наличные</option>
-                      <option value="kaspi">📱 Kaspi</option>
-                      <option value="halyk">🏦 Халык</option>
-                      <option value="bck">🏛️ БЦК</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>КОММЕНТАРИЙ К ЗАКАЗУ</label>
-                <textarea
-                  value={preorderNotes}
-                  onChange={e => setPreorderNotes(e.target.value)}
-                  placeholder="Особые пожелания..."
-                  style={{width:"100%",padding:10,background:C.surface,border:`1px solid ${C.border}`,color:C.text,borderRadius:8,outline:"none",boxSizing:"border-box",fontSize:13,height:60,resize:"none"}}
-                />
-              </div>
-
-              <div style={{display:"flex",gap:10,marginTop:8}}>
-                <button
-                  type="button"
-                  onClick={()=>setShowPreorderModal(false)}
-                  style={{flex:1,padding:12,borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}
-                >
-                  Отмена
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreatePreorder}
-                  style={{flex:1,padding:12,border:"none",background:C.accent,color:"#000",borderRadius:8,cursor:"pointer",fontWeight:900}}
-                >
-                  Создать предзаказ
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 // ─── ПРОИЗВОДСТВО И ПЕРЕМЕЩЕНИЕ ──────────────────────────────────────────────
-function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
+function Production({rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
-  const [search,setSearch]=useState("");
   const [modal,setModal]=useState(null);
   const [form,setForm]=useState({targetId:"s1",qty:"",point:"Мастерская"});
   
@@ -3693,7 +3096,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       
       {/* РЕЖИМЫ */}
@@ -3704,7 +3107,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
 
       {modal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:420,border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:420,border:`1px solid ${C.border}`}}>
             <h3 style={{marginTop:0,marginBottom:16}}>Передать на кухню</h3>
             <div style={{marginBottom:14}}>
               <div style={{fontSize:12,color:C.muted,marginBottom:6}}>ПОЛУФАБРИКАТ</div>
@@ -3734,7 +3137,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
             <h3 style={{marginTop:0,marginBottom:16}}>🏭 Склад сырья (Центральный)</h3>
-            {rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
+            {rawStock.map(r=>{
               const matchedSemi = semiStock.find(s=>s.rawId === r.id);
               if (!matchedSemi) return null;
               const wQty = getQty(r.qty, "Склад");
@@ -3750,7 +3153,7 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
             })}
           </div>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <h3 style={{margin:0}}>⚗️ Полуфабрикаты по точкам</h3>
               <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
                 {POINTS.map(p=><option key={p}>{p}</option>)}
@@ -3780,11 +3183,9 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
               </div>
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ПОЗИЦИЯ СЫРЬЯ</div>
-                <SearchableSelect 
-                  value={transferForm.itemId} 
-                  onChange={val=>setTransferForm(f=>({...f,itemId:val}))} 
-                  options={rawStock.map(r=>({ value: r.id, label: `${r.name} (Доступно: ${fmt(getQty(r.qty, transferForm.sourceLoc || "Склад"))} ${r.unit})` }))}
-                />
+                <select value={transferForm.itemId} onChange={e=>setTransferForm(f=>({...f,itemId:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none"}}>
+                  {rawStock.map(r=><option key={r.id} value={r.id}>{r.name} (доступно: {fmt(getQty(r.qty, transferForm.sourceLoc || "Склад"))} {r.unit})</option>)}
+                </select>
               </div>
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КОЛИЧЕСТВО ДЛЯ ПЕРЕДАЧИ</div>
@@ -3800,13 +3201,13 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
             </form>
           </div>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <h3 style={{margin:0}}>📦 Остатки упаковки на точках</h3>
               <select value={transferForm.destPoint} onChange={e=>setTransferForm(f=>({...f,destPoint:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
                 {POINTS.map(p=><option key={p}>{p}</option>)}
               </select>
             </div>
-            {rawStock.filter(r=>(r.name.includes("Коробк") || r.name.includes("Креман") || r.name.includes("Пакет") || r.name.includes("Лент") || r.name.includes("Вилка")) && r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
+            {rawStock.filter(r=>r.name.includes("Коробк") || r.name.includes("Креман") || r.name.includes("Пакет") || r.name.includes("Лент") || r.name.includes("Вилка")).map(r=>{
               const pQty = getQty(r.qty, transferForm.destPoint);
               return (
                 <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:8,marginBottom:8,borderBottom:`1px solid ${C.border}60`}}>
@@ -3823,9 +3224,8 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
 }
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
-function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
+function Warehouse({rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
   const [showAdd,setShowAdd]=useState(false);
-  const [search,setSearch]=useState("");
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
   const [toast,showToast]=useToast();
 
@@ -3939,9 +3339,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       const tc = (techCards || []).find(t => t.id === item.id || t.product === item.name);
       if (tc) {
         (tc.ings || []).forEach(ing => {
-          const targetUnit = ing.rid ? rawStock.find(r=>r.id===ing.rid)?.unit : semiStock.find(s=>s.id===ing.sid)?.unit;
-          const convertedQty = getConvertedQty(ing.qty, ing.unit || targetUnit, targetUnit);
-          const spend = convertedQty * item.qty * (1 + (ing.loss || 0) / 100);
+          const spend = ing.qty * item.qty * (1 + (ing.loss || 0) / 100);
           if (ing.rid) {
             const raw = (rawStock || []).find(r => r.id === ing.rid);
             if (raw) addCons(raw.name, spend, raw.unit);
@@ -3967,7 +3365,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
         }
         if (item.extras.s2 > 0) {
           const semi = (semiStock || []).find(s => s.id === "s2");
-          if (semi) addCons(semi.name, item.extras.s2 * 15 * item.qty, semi.unit);
+          if (semi) addCons(semi.name, item.extras.s2 * 30 * item.qty, semi.unit);
         }
       }
     });
@@ -3982,7 +3380,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
   } catch (e) {}
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <h2 style={{margin:0}}>▣ Складской учёт {isCashier ? `(${myPoint})` : ""}</h2>
@@ -4111,9 +3509,6 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
         </form>
       )}
 
-      <div style={{marginBottom:16}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск по складу..." style={{width:"100%",padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none",boxSizing:"border-box",fontSize:14}}/>
-      </div>
       {/* Таблица сырья */}
       <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden",marginBottom:20}}>
         <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>📦 Остатки сырья и упаковки</div>
@@ -4134,7 +3529,6 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             </thead>
             <tbody>
               {rawStock.filter(r => {
-                if(search && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
                 const qObj = parseQtyObj(r.qty);
                 const totalQty = isCashier ? qObj[myPoint] : Object.values(qObj).reduce((a,b)=>a+b,0);
                 return totalQty > 0;
@@ -4191,7 +3585,6 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             </thead>
             <tbody>
               {semiStock.filter(s => {
-                if(search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
                 const qtyObj = parseSemiQtyObj(s.qty);
                 const totalQty = isCashier ? qtyObj[myPoint] : Object.values(qtyObj).reduce((a,b)=>a+b,0);
                 return totalQty > 0;
@@ -4269,63 +3662,28 @@ const EXP_CATS = [
   {id:"other",     label:"Прочее",    icon:"📝", color:C.muted},
 ];
 
-function Expenses({isMobile,expenses,setExpenses,currentUser}){
+function Expenses({expenses,setExpenses}){
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
+  const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point:"Вся компания",paid:true,type:"expense"});
   const [toast,showToast]=useToast();
-  
-  const [periodFilter, setPeriodFilter] = useState("Сегодня");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
 
-  const isCashier = currentUser?.role === 'cashier';
-  const todayStr = new Date().toLocaleDateString('ru-RU');
-  
-  const parseDate = (dstr) => {
-    if(!dstr) return 0;
-    const [d, m, y] = dstr.split(".");
-    return new Date(y, m - 1, d).setHours(0,0,0,0);
-  };
-  
-  const now = new Date().setHours(0,0,0,0);
-
-  const filteredExpenses = expenses.filter(e => {
-    if (isCashier) {
-      return e.date === todayStr && e.point === currentUser.point;
-    }
-    if (periodFilter === "За все время") return true;
-    
-    const eDate = parseDate(e.date);
-    if (periodFilter === "Сегодня") return eDate === now;
-    if (periodFilter === "Вчера") return eDate === now - 86400000;
-    if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 7;
-    if (periodFilter === "Месяц") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 31;
-    if (periodFilter === "Свой период") {
-      if (!customStart || !customEnd) return true;
-      const s = new Date(customStart).setHours(0,0,0,0);
-      const en = new Date(customEnd).setHours(0,0,0,0);
-      return eDate >= s && eDate <= en;
-    }
-    return true;
-  });
-
-  const totalPaid=filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
-  const totalPend=filteredExpenses.filter(e=>!e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
+  const totalPaid=expenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
+  const totalPend=expenses.filter(e=>!e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e)=>s+e.amount,0);
 
   const handleAdd=(ev)=>{
     ev.preventDefault();
     if(!form.desc||!form.amount){showToast("Заполните поля",true);return;}
     const catVal = form.type && form.type !== "expense" ? form.type : form.cat;
     setExpenses(p=>[...p,{id:generateUUID(),...form,cat:catVal,amount:parseInt(form.amount)||0,date:new Date().toLocaleDateString("ru-RU")}]);
-    setForm({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
+    setForm({cat:"rent",desc:"",amount:"",point:"Вся компания",paid:true,type:"expense"});
     setShowForm(false);
     showToast(form.type === "deposit" ? "Средства внесены" : form.type === "safe" ? "Наличные сняты (Сейф)" : "Расход добавлен");
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
           <h2 style={{margin:"0 0 6px"}}>💰 Финансовые операции (Сейф / Расходы)</h2>
           <div style={{display:"flex",gap:16}}>
@@ -4333,29 +3691,9 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
             <span style={{color:C.yellow,fontSize:13,fontWeight:700}}>Ожидается расходов: {fmtM(totalPend)}</span>
           </div>
         </div>
-        <div style={{display:"flex", gap: 10, alignItems:"center", flexWrap:"wrap"}}>
-          {!isCashier && (
-            <div style={{display:"flex", alignItems:"center", gap: 8, flexWrap:"wrap"}}>
-              <select value={periodFilter} onChange={e=>setPeriodFilter(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",outline:"none",fontSize:13}}>
-                <option>За все время</option>
-                <option>Сегодня</option>
-                <option>Вчера</option>
-                <option>Неделя</option>
-                <option>Месяц</option>
-                <option>Свой период</option>
-              </select>
-              {periodFilter === "Свой период" && (
-                <div style={{display:"flex",gap:4}}>
-                  <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:110}} />
-                  <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:110}} />
-                </div>
-              )}
-            </div>
-          )}
-          <button onClick={()=>setShowForm(v=>!v)} style={{padding:"10px 22px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",fontSize:14,whiteSpace:"nowrap"}}>
-            {showForm?"Отменить":"+ Новая операция"}
-          </button>
-        </div>
+        <button onClick={()=>setShowForm(v=>!v)} style={{padding:"10px 22px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer",fontSize:14}}>
+          {showForm?"✕ Отмена":"+ Новая операция"}
+        </button>
       </div>
 
       {showForm&&(
@@ -4407,15 +3745,13 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
               <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СУММА (₸)</div>
               <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
-            {currentUser?.role !== "cashier" && (
-              <div>
-                <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА / КАССА</div>
-                <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
-                  <option>Вся компания</option>
-                  {POINTS.map(p=><option key={p}>{p}</option>)}
-                </select>
-              </div>
-            )}
+            <div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА / КАССА</div>
+              <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                <option>Вся компания</option>
+                {POINTS.map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
             {form.type === "expense" && (
               <div style={{display:"flex",alignItems:"center",gap:8,paddingBottom:12}}>
                 <input type="checkbox" checked={form.paid} onChange={e=>setForm(f=>({...f,paid:e.target.checked}))} id="paidCheck" style={{width:18,height:18}}/>
@@ -4429,7 +3765,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:12,marginBottom:20}}>
         {EXP_CATS.map(cat=>{
-          const amt=filteredExpenses.filter(e=>e.cat===cat.id&&e.paid).reduce((s,e)=>s+e.amount,0);
+          const amt=expenses.filter(e=>e.cat===cat.id&&e.paid).reduce((s,e)=>s+e.amount,0);
           return(
             <div key={cat.id} style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:"16px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -4445,7 +3781,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
         })}
       </div>
 
-      {filteredExpenses.length>0&&(
+      {expenses.length>0&&(
         <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:20}}>
           <div style={{fontSize:14,fontWeight:700,marginBottom:12}}>История операций</div>
           <div style={{overflowX:"auto"}}>
@@ -4458,7 +3794,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
                 </tr>
               </thead>
               <tbody>
-                {[...filteredExpenses].reverse().map((e,i)=>(
+                {[...expenses].reverse().map((e,i)=>(
                   <tr key={e.id} style={{borderBottom:`1px solid ${C.border}40`}}>
                     <td style={{padding:"10px 12px"}}>{EXP_CATS.find(x=>x.id===e.cat)?.icon} {EXP_CATS.find(x=>x.id===e.cat)?.label}</td>
                     <td style={{padding:"10px 12px",color:C.text}}>{e.desc||e.note}</td>
@@ -4489,14 +3825,12 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
 }
 
 // ─── ОТЧЕТЫ ──────────────────────────────────────────────────────────────────
-function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCards}){
+function Reports({sales,expenses,rawStock,semiStock,currentUser}){
   const isCashier = currentUser?.role === "cashier";
   const isAdmin = currentUser?.role === "admin";
   const myPoint = currentUser?.point;
   const [pointFilter, setPointFilter] = useState(isCashier ? currentUser.point : "Все");
-  const [periodFilter, setPeriodFilter] = useState("Сегодня");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
+  const [periodFilter, setPeriodFilter] = useState("За все время");
   const [reportType, setReportType] = useState("finance");
 
   const now = new Date();
@@ -4505,81 +3839,74 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
   yesterday.setDate(now.getDate() - 1);
   const yesterdayStr = yesterday.toLocaleDateString("ru-RU");
 
-  // useMemo: фильтрация при изменении входных данных, а не при каждом рендере
-  const filteredSales = useMemo(() => sales.filter(s => {
+  const filteredSales = sales.filter(s => {
     if (pointFilter !== "Все" && s.point !== pointFilter) return false;
+    
     const sDate = parseLocalDate(s.date);
-    if (periodFilter === "Сегодня") return s.date === todayStr;
-    else if (periodFilter === "Вчера") return s.date === yesterdayStr;
-    else if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - sDate) / 86400000) <= 7;
-    else if (periodFilter === "Месяц") return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
-    else if (periodFilter === "Свой период") {
-      if (customStart) {
-        const cs = new Date(customStart);
-        cs.setHours(0,0,0,0);
-        if (sDate < cs) return false;
-      }
-      if (customEnd) {
-        const ce = new Date(customEnd);
-        ce.setHours(23,59,59,999);
-        if (sDate > ce) return false;
-      }
+    if (periodFilter === "Сегодня") {
+      return s.date === todayStr;
+    } else if (periodFilter === "Вчера") {
+      return s.date === yesterdayStr;
+    } else if (periodFilter === "Неделя") {
+      const diffTime = Math.abs(now - sDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    } else if (periodFilter === "Месяц") {
+      return sDate.getMonth() === now.getMonth() && sDate.getFullYear() === now.getFullYear();
     }
     return true;
-  }), [sales, pointFilter, periodFilter, todayStr, yesterdayStr, customStart, customEnd]);
+  });
 
-  const { totalRev, totalCOGS } = useMemo(() => ({
-    totalRev:  filteredSales.reduce((s,i)=>s+i.total,0),
-    totalCOGS: filteredSales.reduce((s,i)=>s+(i.cogs||0),0),
-  }), [filteredSales]);
+  const totalRev  = filteredSales.reduce((s,i)=>s+i.total,0);
+  const totalCOGS = filteredSales.reduce((s,i)=>s+(i.cogs||0),0);
 
-  const filteredExpenses = useMemo(() => expenses.filter(e => {
+  const filteredExpenses = expenses.filter(e => {
     if (isCashier) {
       if (e.point !== myPoint) return false;
     } else {
       if (pointFilter !== "Все" && e.point !== pointFilter && e.point !== "Вся компания") return false;
     }
+    
     const eDate = parseLocalDate(e.date);
-    if (periodFilter === "Сегодня") return e.date === todayStr;
-    else if (periodFilter === "Вчера") return e.date === yesterdayStr;
-    else if (periodFilter === "Неделя") return Math.ceil(Math.abs(now - eDate) / 86400000) <= 7;
-    else if (periodFilter === "Месяц") return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
-    else if (periodFilter === "Свой период") {
-      if (customStart) {
-        const cs = new Date(customStart);
-        cs.setHours(0,0,0,0);
-        if (eDate < cs) return false;
-      }
-      if (customEnd) {
-        const ce = new Date(customEnd);
-        ce.setHours(23,59,59,999);
-        if (eDate > ce) return false;
-      }
+    if (periodFilter === "Сегодня") {
+      return e.date === todayStr;
+    } else if (periodFilter === "Вчера") {
+      return e.date === yesterdayStr;
+    } else if (periodFilter === "Неделя") {
+      const diffTime = Math.abs(now - eDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 7;
+    } else if (periodFilter === "Месяц") {
+      return eDate.getMonth() === now.getMonth() && eDate.getFullYear() === now.getFullYear();
     }
     return true;
-  }), [expenses, isCashier, myPoint, pointFilter, periodFilter, todayStr, yesterdayStr, customStart, customEnd]);
-
+  });
+  
+  // Исключаем внесение личных средств (deposit) и сейф (safe) из операционных расходов P&L
+  // Если выбрана конкретная точка, расходы "Вся компания" делим пропорционально на кол-во точек
   const rpActivePointsCount = POINTS.length;
-  const { totalExp, totalInflow, totalSafe } = useMemo(() => ({
-    totalExp: filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e) => {
-      if (pointFilter !== "Все" && e.point === "Вся компания") return s + e.amount / rpActivePointsCount;
-      return s + e.amount;
-    }, 0),
-    totalInflow: filteredExpenses.filter(e=>e.paid && e.cat === "deposit").reduce((s,e)=>s+e.amount,0),
-    totalSafe:   filteredExpenses.filter(e=>e.paid && e.cat === "safe").reduce((s,e)=>s+e.amount,0),
-  }), [filteredExpenses, pointFilter, rpActivePointsCount]);
+  const totalExp = filteredExpenses.filter(e=>e.paid && e.cat !== "deposit" && e.cat !== "safe").reduce((s,e) => {
+    if (pointFilter !== "Все" && e.point === "Вся компания") {
+      return s + e.amount / rpActivePointsCount;
+    }
+    return s + e.amount;
+  }, 0);
+  
+  const grossP    = totalRev-totalCOGS;
+  const netP      = grossP-totalExp;
+  const margin    = totalRev>0?Math.round(netP/totalRev*100):0;
 
-  const grossP  = totalRev - totalCOGS;
-  const netP    = grossP - totalExp;
-  const margin  = totalRev > 0 ? Math.round(netP / totalRev * 100) : 0;
+  // Расчет приходов личных средств и сейфа для Cash Flow
+  const totalInflow = filteredExpenses.filter(e => e.paid && e.cat === "deposit").reduce((s,e)=>s+e.amount,0);
+  const totalSafe   = filteredExpenses.filter(e => e.paid && e.cat === "safe").reduce((s,e)=>s+e.amount,0);
   const netCashFlow = totalRev + totalInflow - totalExp - totalSafe;
 
-  const byPoint = useMemo(() => POINTS.map((p,i) => ({
-    name:p, color:POINT_COLORS[i],
-    rev:    filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+s.total,0),
-    orders: filteredSales.filter(s=>s.point===p).length,
-    cogs:   filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+(s.cogs||0),0),
-  })), [filteredSales]);
+  const byPoint=POINTS.map((p,i)=>({
+    name:p,color:POINT_COLORS[i],
+    rev:filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+s.total,0),
+    orders:filteredSales.filter(s=>s.point===p).length,
+    cogs:filteredSales.filter(s=>s.point===p).reduce((a,s)=>a+(s.cogs||0),0),
+  }));
 
   const stockLoc = isCashier ? myPoint : "Склад";
   const stockValue = rawStock.reduce((s,r)=>s + (parseQtyObj(r.qty)[stockLoc] * r.price),0);
@@ -4620,7 +3947,7 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
     });
   };
 
-  const abcRows = useMemo(() => getAbcData(), [filteredSales]); // eslint-disable-line react-hooks/exhaustive-deps
+  const abcRows = getAbcData();
 
   const getFoodcostData = () => {
     return POINTS.map((p, idx) => {
@@ -4658,7 +3985,7 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
   const fcLimit = 30;
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       {/* ФИЛЬТРЫ */}
       <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",background:C.surface,padding:14,borderRadius:12,border:`1px solid ${C.border}`}}>
         {!isCashier ? (
@@ -4685,14 +4012,7 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
             <option>Вчера</option>
             <option>Неделя</option>
             <option>Месяц</option>
-            <option>Свой период</option>
           </select>
-          {periodFilter === "Свой период" && (
-            <div style={{display:"flex",gap:8,marginTop:8}}>
-              <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
-              <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12,width:"50%"}} />
-            </div>
-          )}
         </div>
       </div>
 
@@ -4707,9 +4027,6 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
           </button>
           <button onClick={()=>setReportType("foodcost")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:reportType==="foodcost"?C.accentSoft:C.card,color:reportType==="foodcost"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
             🍔 Фудкост по точкам
-          </button>
-          <button onClick={()=>setReportType("pricing")} style={{padding:"10px 18px",borderRadius:8,border:"none",background:reportType==="pricing"?C.accentSoft:C.card,color:reportType==="pricing"?C.accent:C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>
-            💰 Аудит ценообразования
           </button>
         </div>
       )}
@@ -4992,13 +4309,10 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
 }
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
-function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers,currentUser}){
+function Settings({techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers}){
   const [tab,setTab]=useState("products");
-  const [search,setSearch]=useState("");
-  useEffect(()=>{setSearch("");},[tab]);
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
-  const [showAddTechCard,setShowAddTechCard]=useState(false);
   const [newProduct,setNewProduct]=useState({product:"",cat:"Наборы",price:""});
   
   // Управление сотрудниками
@@ -5031,25 +4345,16 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
     showToast("Товар добавлен!");
   };
 
-  const addTechCard=()=>{
-    if(!newProduct.product||!newProduct.price){showToast("Заполните название и цену",true);return;}
-    setTechCards(p=>[...p,{id:`tc_${Date.now()}`,product:newProduct.product,cat:newProduct.cat,price:parseInt(newProduct.price)||0,ings:[]}]);
-    setNewProduct({product:"",cat:"Наборы",price:""});
-    setShowAddTechCard(false);
-    showToast("Тех. карта добавлена!");
-  };
-
   const updateRaw=(id,field,val)=>{
     setRawStock(p=>p.map(r=>{
       if (r.id !== id) return r;
-      if (field === "purchase_price") {
+      if (field === "price") {
         const newPrice = parseFloat(val) || 0;
-        if (newPrice !== r.purchase_price) {
+        // Phase 4: track price history in raw_material_prices
+        if (newPrice !== r.price) {
           supaFetch("POST","raw_material_prices",{raw_id:id,price:newPrice,effective_from:new Date().toISOString()}).catch(()=>{});
         }
-        return { ...r, purchase_price: newPrice };
-      } else if (field === "purchase_volume") {
-        return { ...r, purchase_volume: parseFloat(val) || 1 };
+        return { ...r, price: newPrice };
       } else if (field === "name") {
         return { ...r, name: val };
       } else if (field === "unit") {
@@ -5078,7 +4383,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"20px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"20px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
         {[["products","🍓 Товары"],["techcards","📋 Тех. карты"],["rawstock","🏭 Сырьё"],["users","👥 Сотрудники"],["loyalty","👥 Клиенты (Лояльность)"]].map(([id,label])=>(
@@ -5088,15 +4393,9 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
         ))}
       </div>
 
-
-      {tab!=="users" && (
-      <div style={{marginBottom:16}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск..." style={{width:"100%",padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none",boxSizing:"border-box",fontSize:14}}/>
-      </div>
-      )}
       {tab==="products"&&(
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:18,fontWeight:800}}>Товары и цены</div>
             <button onClick={()=>setShowAddProduct(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить товар</button>
           </div>
@@ -5125,7 +4424,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
             </div>
           )}
           {cats.map(cat=>{
-            const items=techCards.filter(t=>t.cat===cat && t.product.toLowerCase().includes(search.toLowerCase()));
+            const items=techCards.filter(t=>t.cat===cat);
             if(!items.length) return null;
             const color=CAT_COLORS[cat]||C.accent;
             return(
@@ -5143,16 +4442,6 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                           <div>
                             <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЦЕНА (₸)</div>
                             <input type="number" value={tc.price} onChange={e=>updateTC(tc.id,"price",e.target.value)} style={inputStyle}/>
-                            {(() => {
-                               const cogs = calcProductCOGS(tc, semiStock, rawStock);
-                               const recPrice = cogs * 3.3;
-                               const isUnderpriced = recPrice > tc.price;
-                               const role = currentUser?.role || 'cashier';
-                               const showHint = (role === 'admin' && isUnderpriced) || (role === 'owner' || role === 'director');
-                               return showHint ? (
-                                 <div style={{fontSize:10, color: isUnderpriced ? C.red : C.muted, marginTop:4}}>Рек: {fmtM(Math.round(recPrice))}</div>
-                               ) : null;
-                            })()}
                           </div>
                           <div>
                             <div style={{fontSize:11,color:C.muted,marginBottom:4}}>КАТЕГОРИЯ</div>
@@ -5168,20 +4457,8 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                         </div>
                       </div>
                     ):(
-                      <div style={{display:"flex",alignItems:"center",cursor:"pointer",flexWrap:"wrap",gap:8}} onClick={()=>setEditId(tc.id)}>
-                        <div style={{flex:1,minWidth:120,fontWeight:600,fontSize:14}}>{tc.product}</div>
-                        {(() => {
-                           const cogs = calcProductCOGS(tc, semiStock, rawStock);
-                           const recPrice = cogs * 3.3;
-                           const isUnderpriced = recPrice > tc.price;
-                           const role = currentUser?.role || 'cashier';
-                           const showHint = (role === 'admin' && isUnderpriced) || (role === 'owner' || role === 'director');
-                           return showHint ? (
-                             <div style={{fontSize:11,color: isUnderpriced ? C.red : C.muted, marginRight:8, background:C.surface, padding:"2px 6px", borderRadius:4}}>
-                               Рек. цена: {fmtM(Math.round(recPrice))}
-                             </div>
-                           ) : null;
-                        })()}
+                      <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(tc.id)}>
+                        <div style={{flex:1,fontWeight:600,fontSize:14}}>{tc.product}</div>
                         <div style={{fontWeight:900,color,fontSize:15,marginRight:12}}>{fmtM(tc.price)}</div>
                         <div style={{fontSize:12,color:C.muted}}>✏️ Изменить</div>
                       </div>
@@ -5201,45 +4478,16 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               <div style={{fontSize:18,fontWeight:800}}>Технологические карты</div>
               <div style={{fontSize:12,color:C.muted}}>Норма расхода и процент отходов по ингредиентам</div>
             </div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              <button onClick={()=>setShowAddTechCard(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>
-                + Добавить тех. карту
-              </button>
-              <button onClick={()=>{
-                if(window.confirm("Вы уверены, что хотите сбросить все тех. карты на заводские настройки из Excel? Все ваши ручные изменения будут заменены.")) {
-                  setTechCards(INIT_TECH_CARDS);
-                  showToast("Технологические карты сброшены к значениям из Excel!");
-                }
-              }} style={{padding:"8px 16px",borderRadius:10,border:`1px solid ${C.red}`,background:"transparent",color:C.red,fontWeight:700,cursor:"pointer",fontSize:13}}>
-                🔄 Сбросить к Excel
-              </button>
-            </div>
+            <button onClick={()=>{
+              if(window.confirm("Вы уверены, что хотите сбросить все тех. карты на заводские настройки из Excel? Все ваши ручные изменения будут заменены.")) {
+                setTechCards(INIT_TECH_CARDS);
+                showToast("Технологические карты сброшены к значениям из Excel!");
+              }
+            }} style={{padding:"8px 16px",borderRadius:10,border:`1px solid ${C.red}`,background:"transparent",color:C.red,fontWeight:700,cursor:"pointer",fontSize:13}}>
+              🔄 Сбросить к Excel
+            </button>
           </div>
-          {showAddTechCard&&(
-            <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.accent}`,padding:20,marginBottom:16}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
-                <div style={{flex:2}}>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>НАЗВАНИЕ</div>
-                  <input value={newProduct.product} onChange={e=>setNewProduct(f=>({...f,product:e.target.value}))} placeholder="Напр. Букет РОЗА" style={inputStyle}/>
-                </div>
-                <div>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ЦЕНА (₸)</div>
-                  <input type="number" value={newProduct.price} onChange={e=>setNewProduct(f=>({...f,price:e.target.value}))} placeholder="0" style={inputStyle}/>
-                </div>
-                <div>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:5}}>КАТЕГОРИЯ</div>
-                  <select value={newProduct.cat} onChange={e=>setNewProduct(f=>({...f,cat:e.target.value}))} style={inputStyle}>
-                    {cats.map(c=><option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={addTechCard} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>+ Добавить</button>
-                  <button onClick={()=>setShowAddTechCard(false)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer"}}>Отмена</button>
-                </div>
-              </div>
-            </div>
-          )}
-          {techCards.filter(tc=>tc.product.toLowerCase().includes(search.toLowerCase())).map(tc=>(
+          {techCards.map(tc=>(
             <div key={tc.id} style={{background:C.card,borderRadius:12,border:`1.5px solid ${editId===tc.id?C.accent:C.border}`,padding:"14px 18px",marginBottom:8}}>
               <div style={{display:"flex",alignItems:"center",cursor:"pointer"}} onClick={()=>setEditId(editId===tc.id?null:tc.id)}>
                 <div style={{flex:1}}>
@@ -5255,53 +4503,42 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginBottom:10,minWidth:500}}>
                       <thead>
                         <tr style={{background:C.surface}}>
-                          {["Ингредиент (ПФ/Сырьё)","Норма","Потери %","Итого с пот.",""].map((h,i)=>(
-                            <React.Fragment key={i}>
-                              <th style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
-                              {i===1 && <th style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>Ед.изм.</th>}
-                            </React.Fragment>
+                          {["Ингредиент (ПФ/Сырьё)","Норма (кг/шт/г)","Потери %","Итого с пот.",""].map((h,i)=>(
+                            <th key={i} style={{padding:"8px 10px",textAlign:"left",fontSize:10,color:C.muted,fontWeight:600,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {tc.ings.map((ing,idx)=>{
-                          const targetUnit = ing.rid ? rawStock.find(r=>r.id===ing.rid)?.unit : semiStock.find(s=>s.id===ing.sid)?.unit;
-                          const convertedQty = getConvertedQty(ing.qty, ing.unit || targetUnit, targetUnit);
-                          const withLoss=Math.round(convertedQty*(1+ing.loss/100)*1000)/1000;
+                          const withLoss=Math.round(ing.qty*(1+ing.loss/100)*1000)/1000;
                           return(
                             <tr key={idx} style={{borderBottom:`1px solid ${C.border}`}}>
                               <td style={{padding:"8px 10px"}}>
-                                <SearchableSelect
+                                <select
                                   value={ing.rid ? `raw:${ing.rid}` : `semi:${ing.sid}`}
-                                  onChange={v=>{
+                                  onChange={e=>{
+                                    const v = e.target.value;
                                     const isRaw = v.startsWith("raw:");
                                     const id = v.split(":")[1];
                                     setTechCards(p=>p.map(t=>t.id!==tc.id?t:{...t,ings:t.ings.map((x,i)=>{
                                       if (i===idx) {
-                                        return isRaw ? { rid: id, qty: x.qty, loss: x.loss, unit: x.unit } : { sid: id, qty: x.qty, loss: x.loss, unit: x.unit };
+                                        return isRaw ? { rid: id, qty: x.qty, loss: x.loss } : { sid: id, qty: x.qty, loss: x.loss };
                                       }
                                       return x;
                                     })}));
                                   }}
-                                  style={{minWidth:180}}
-                                  options={[
-                                    ...semiStock.map(s=>({ value: `semi:${s.id}`, label: `ПФ: ${s.name}` })),
-                                    ...rawStock.map(r=>({ value: `raw:${r.id}`, label: `Сырьё: ${r.name}` }))
-                                  ]}
-                                />
+                                  style={{...inputStyle,width:"auto",minWidth:180}}
+                                >
+                                  <optgroup label="Полуфабрикаты">
+                                    {semiStock.map(s=><option key={s.id} value={`semi:${s.id}`}>{s.name}</option>)}
+                                  </optgroup>
+                                  <optgroup label="Сырьё">
+                                    {rawStock.map(r=><option key={r.id} value={`raw:${r.id}`}>{r.name}</option>)}
+                                  </optgroup>
+                                </select>
                               </td>
                               <td style={{padding:"8px 10px"}}>
                                 <input type="number" step="0.001" value={ing.qty} onChange={e=>updateIng(tc.id,idx,"qty",e.target.value)} style={{...inputStyle,width:90}}/>
-                              </td>
-                              <td style={{padding:"8px 10px"}}>
-                                <select value={ing.unit || ""} onChange={e=>updateIng(tc.id,idx,"unit",e.target.value)} style={{...inputStyle,width:60,padding:"8px 6px"}}>
-                                  <option value="">Авт.</option>
-                                  <option value="кг">кг</option>
-                                  <option value="г">г</option>
-                                  <option value="л">л</option>
-                                  <option value="мл">мл</option>
-                                  <option value="шт">шт</option>
-                                </select>
                               </td>
                               <td style={{padding:"8px 10px"}}>
                                 <input type="number" step="0.1" value={ing.loss} onChange={e=>updateIng(tc.id,idx,"loss",e.target.value)} style={{...inputStyle,width:70}}/>
@@ -5338,7 +4575,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               </select>
             </div>
           </div>
-          {rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
+          {rawStock.map(r=>{
             const qtyVal = getQty(r.qty, rawLoc);
             return(
               <div key={r.id} style={{background:C.card,borderRadius:10,border:`1.5px solid ${editId===r.id?C.accent:C.border}`,padding:"12px 16px",marginBottom:6}}>
@@ -5347,8 +4584,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:10}}>
                       <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>НАИМЕНОВАНИЕ</div><input value={r.name} onChange={e=>updateRaw(r.id,"name",e.target.value)} style={inputStyle}/></div>
                       <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЕД. ИЗМ.</div><input value={r.unit} onChange={e=>updateRaw(r.id,"unit",e.target.value)} style={inputStyle}/></div>
-                      <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЗАКУП (₸)</div><input type="number" value={r.purchase_price||0} onChange={e=>updateRaw(r.id,"purchase_price",e.target.value)} style={inputStyle}/></div>
-<div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ОБЪЕМ ЗАКУПА</div><input type="number" value={r.purchase_volume||1} onChange={e=>updateRaw(r.id,"purchase_volume",e.target.value)} style={inputStyle}/></div>
+                      <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ЦЕНА (₸)</div><input type="number" value={r.price} onChange={e=>updateRaw(r.id,"price",e.target.value)} style={inputStyle}/></div>
                       <div><div style={{fontSize:11,color:C.muted,marginBottom:4}}>ОСТАТОК ({rawLoc})</div><input type="number" step="0.01" value={qtyVal} onChange={e=>updateRaw(r.id,"qty",e.target.value)} style={inputStyle}/></div>
                     </div>
                     <div style={{display:"flex",gap:8}}>
@@ -5362,7 +4598,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                     <div style={{fontWeight:600,fontSize:13}}>{r.name}</div>
                     <div style={{display:"flex",alignItems:"center",gap:16}}>
                       <div style={{fontSize:13,color:C.muted}}>{fmt(qtyVal)} {r.unit}</div>
-                      <div style={{fontWeight:700,color:C.yellow}}>{fmtM(r.purchase_price||0)} / {r.purchase_volume||1}{r.unit}</div>
+                      <div style={{fontWeight:700,color:C.yellow}}>{fmtM(r.price)}/{r.unit}</div>
                       <div style={{fontSize:12,color:C.muted}}>✏️</div>
                     </div>
                   </div>
@@ -5370,13 +4606,13 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               </div>
             );
           })}
-          <button onClick={()=>setRawStock(p=>[...p,{id:`r_${Date.now()}`,name:"Новая позиция",unit:"кг",purchase_price:0, purchase_volume:1,qty:{ "Склад":0,"Мастерская":0,"Фуд Трак":0,"Жара":0,"Парк":0 }}])} style={{marginTop:10,padding:"10px 20px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,color:C.text,cursor:"pointer",fontSize:13}}>+ Добавить сырьё</button>
+          <button onClick={()=>setRawStock(p=>[...p,{id:`r_${Date.now()}`,name:"Новая позиция",unit:"кг",price:0,qty:{ "Склад":0,"Мастерская":0,"Фуд Трак":0,"Жара":0,"Парк":0 }}])} style={{marginTop:10,padding:"10px 20px",borderRadius:10,border:`1px solid ${C.border}`,background:C.card,color:C.text,cursor:"pointer",fontSize:13}}>+ Добавить сырьё</button>
         </div>
       )}
 
       {tab==="users"&&(
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:18,fontWeight:800}}>Сотрудники и доступы</div>
             <button onClick={()=>setShowAddUser(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить сотрудника</button>
           </div>
@@ -5484,7 +4720,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
 
       {tab==="loyalty"&&(
         <div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:18,fontWeight:800}}>База клиентов (Лояльность)</div>
             <button onClick={()=>setShowAddCustomer(v=>!v)} style={{padding:"9px 20px",borderRadius:10,border:"none",background:C.accent,color:"#000",fontWeight:800,cursor:"pointer"}}>+ Добавить клиента</button>
           </div>
@@ -5501,7 +4737,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СКИДКА (%)</div>
-                  <input type="number" min="0" max="100" value={newCustomer.discount_percent} onChange={e=>setNewCustomer(f=>({...f,discount_percent:parseInt(e.target.value)||0}))} placeholder="0" style={inputStyle}/>
+                  <input type="number" min="0" max="100" value={newCustomer.discount_percent} onChange={e=>setNewCustomer(f=>({...f,discount_percent:parseInt(e.target.value)||0}))} placeholder="5" style={inputStyle}/>
                 </div>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>{
@@ -5519,7 +4755,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
             </div>
           )}
 
-          {customers.filter(c=>c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)).map((c)=>(
+          {customers.map((c)=>(
             <div key={c.id} style={{background:C.card,borderRadius:10,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:8}}>
               {editCustId === c.id ? (
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
@@ -5561,7 +4797,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses}){
+function Inventory({semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses}){
   const isCashier = currentUser?.role === "cashier";
   const myPoint = currentUser?.point;
   const [selPoint, setSelPoint] = useState(isCashier ? currentUser.point : POINTS[0]);
@@ -5699,7 +4935,7 @@ function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,current
   const currentList = activeTab === "semi" ? semiStock : rawStock;
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>📋 {isCashier ? `Инвентаризация остатков (${myPoint})` : "Инвентаризация остатков"}</div>
@@ -5777,7 +5013,7 @@ function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,current
 }
 
 // ─── СПИСАНИЯ ────────────────────────────────────────────────────────────────
-function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog}){
+function WriteOff({rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog}){
   const [form,setForm]=useState({stock:"semi",itemId:"s1",qty:"",reason:"spoil",note:"",author:""});
   const isCashier = currentUser.role === "cashier";
   const myPoint = currentUser.point;
@@ -5872,7 +5108,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
   };
 
   return(
-    <div style={{padding:isMobile?"12px 14px":"24px 28px",boxSizing:"border-box"}}>
+    <div style={{padding:"24px 28px",overflowY:"auto",boxSizing:"border-box"}}>
       <Toast toast={toast}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div style={{fontSize:18,fontWeight:800}}>✕ Коррекционное списание остатков</div>
@@ -5947,11 +5183,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
 }
 
 // ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
-// React.memo: перерендерится только при изменении списка смен
-const Shifts = React.memo(function Shifts({isMobile, shifts }){
-  const [filterPoint, setFilterPoint] = React.useState("all");
-  const [sortBy, setSortBy] = React.useState("date_desc");
-  const [search, setSearch] = React.useState("");
+function Shifts({ shifts }){
 
   const fmtDT = (iso) => {
     if(!iso) return "—";
@@ -5959,86 +5191,9 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
     return d.toLocaleDateString("ru-RU") + " " + d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
   };
 
-  const points = React.useMemo(() => {
-    if (!shifts) return [];
-    const pts = new Set(shifts.map(s => s.point).filter(Boolean));
-    return Array.from(pts);
-  }, [shifts]);
-
-  const filteredShifts = React.useMemo(() => {
-    if (!shifts) return [];
-    let res = [...shifts];
-    
-    if (filterPoint !== "all") {
-      res = res.filter(s => s.point === filterPoint);
-    }
-    
-    if (search.trim() !== "") {
-      const q = search.toLowerCase();
-      res = res.filter(s => 
-        (s.cashier_name && s.cashier_name.toLowerCase().includes(q)) ||
-        (s.point && s.point.toLowerCase().includes(q)) ||
-        (s.opened_at && fmtDT(s.opened_at).toLowerCase().includes(q))
-      );
-    }
-    
-    res.sort((a, b) => {
-      if (sortBy === "date_desc") {
-        return new Date(b.opened_at) - new Date(a.opened_at);
-      } else if (sortBy === "date_asc") {
-        return new Date(a.opened_at) - new Date(b.opened_at);
-      } else if (sortBy === "point_asc") {
-        const pA = a.point || "";
-        const pB = b.point || "";
-        return pA.localeCompare(pB);
-      } else if (sortBy === "point_desc") {
-        const pA = a.point || "";
-        const pB = b.point || "";
-        return pB.localeCompare(pA);
-      }
-      return 0;
-    });
-    
-    return res;
-  }, [shifts, filterPoint, sortBy, search]);
-
-  const inputStyle = {
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: `1px solid ${C.border}`,
-    background: C.surface,
-    color: C.text,
-    outline: "none",
-    fontSize: 13
-  };
-
   return(
-    <div style={{padding:isMobile?"12px 14px":"20px 28px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:20,fontWeight:800}}>🕐 Журнал смен</div>
-        
-        {shifts && shifts.length > 0 && (
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-            <input 
-              placeholder="Поиск (имя, дата, точка)..." 
-              value={search} 
-              onChange={e=>setSearch(e.target.value)} 
-              style={{...inputStyle, width: isMobile ? "100%" : 200}} 
-            />
-            <select value={filterPoint} onChange={e=>setFilterPoint(e.target.value)} style={inputStyle}>
-              <option value="all">Все точки</option>
-              {points.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={inputStyle}>
-              <option value="date_desc">Сначала новые (по дате)</option>
-              <option value="date_asc">Сначала старые (по дате)</option>
-              <option value="point_asc">По точкам (А-Я)</option>
-              <option value="point_desc">По точкам (Я-А)</option>
-            </select>
-          </div>
-        )}
-      </div>
-
+    <div style={{padding:"20px 28px",overflowY:"auto"}}>
+      <div style={{fontSize:20,fontWeight:800,marginBottom:16}}>🕐 Журнал смен</div>
       {!shifts ? (
         <div style={{color:C.muted,textAlign:"center",padding:40}}>⟳ Загрузка смен...</div>
       ) : shifts.length === 0 ? (
@@ -6054,7 +5209,7 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
               </tr>
             </thead>
             <tbody>
-              {filteredShifts.map(sh=>{
+              {shifts.map(sh=>{
                 const disc = sh.discrepancy||0;
                 const statusColor = sh.status==="closed" ? C.green : C.yellow;
                 return(
@@ -6072,506 +5227,38 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
               })}
             </tbody>
           </table>
-          {filteredShifts.length === 0 && (
-            <div style={{color:C.muted,textAlign:"center",padding:40}}>По вашему запросу ничего не найдено</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
-
-// ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
-function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
-  const [statusFilter, setStatusFilter] = useState("all_active"); // "all_active", "pending", "ready", "completed", "cancelled"
-  const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "tomorrow", "custom"
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  
-  // States for finishing preorder (pick up / check out)
-  const [checkoutPreorder, setCheckoutPreorder] = useState(null);
-  const [checkoutPayMode, setCheckoutPayMode] = useState("cash");
-
-
-  // Filtered preorders (always filtered to "Мастерская" because "только в мастерской")
-  const filtered = preorders.filter(p => {
-    // Only show "Мастерская" preorders
-    if (p.point !== "Мастерская") return false;
-
-    // 2. Status filter
-    if (statusFilter === "all_active") {
-      if (p.status !== "pending" && p.status !== "ready") return false;
-    } else if (p.status !== statusFilter) {
-      return false;
-    }
-
-    // 3. Date filter
-    const todayStr = new Date().toLocaleDateString("ru-RU");
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toLocaleDateString("ru-RU");
-
-    let dateNorm = p.target_date; // YYYY-MM-DD
-    if (p.target_date && p.target_date.includes("-")) {
-      const parts = p.target_date.split("-");
-      dateNorm = `${parts[2]}.${parts[1]}.${parts[0]}`;
-    }
-
-    if (dateFilter === "today" && dateNorm !== todayStr) return false;
-    if (dateFilter === "tomorrow" && dateNorm !== tomorrowStr) return false;
-    if (dateFilter === "custom") {
-      const pDate = new Date(p.target_date); // p.target_date is YYYY-MM-DD
-      pDate.setHours(0,0,0,0);
-      if (customStart) {
-        const cs = new Date(customStart);
-        cs.setHours(0,0,0,0);
-        if (pDate < cs) return false;
-      }
-      if (customEnd) {
-        const ce = new Date(customEnd);
-        ce.setHours(23,59,59,999);
-        if (pDate > ce) return false;
-      }
-    }
-
-    // 4. Search query
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const nameMatch = p.customer_name && p.customer_name.toLowerCase().includes(q);
-      const phoneMatch = p.customer_phone && p.customer_phone.includes(q);
-      const itemsMatch = p.items && p.items.some(i => i.name.toLowerCase().includes(q));
-      if (!nameMatch && !phoneMatch && !itemsMatch) return false;
-    }
-
-    return true;
-  });
-
-  // Sort by target_date + target_time (nearest first)
-  const sorted = [...filtered].sort((a, b) => {
-    const da = `${a.target_date}T${a.target_time || "00:00"}`;
-    const db = `${b.target_date}T${b.target_time || "00:00"}`;
-    return da.localeCompare(db);
-  });
-
-  const handleStatusChange = (preorderId, newStatus) => {
-    setPreorders(prev => prev.map(p => {
-      if (p.id !== preorderId) return p;
-      return { ...p, status: newStatus };
-    }));
-    showToast(`Статус предзаказа изменен на: ${newStatus === "ready" ? "Собран" : "Отменен"}`);
-  };
-
-  const handleOpenCheckout = (preorder) => {
-    if (!currentShift && currentUser.role === "cashier") {
-      showToast("Смена не открыта! Откройте смену в кассе.", true);
-      return;
-    }
-    setCheckoutPreorder(preorder);
-    setCheckoutPayMode("cash");
-  };
-
-  const handleCompletePreorder = () => {
-    if (!checkoutPreorder) return;
-    
-    const p = checkoutPreorder;
-    const remaining = p.total - p.prepayment;
-    
-    // Create sales receipt
-    const receiptPayments = [];
-    if (p.prepayment > 0) {
-      receiptPayments.push({ method: "preorder_prepayment", amount: p.prepayment });
-    }
-    if (remaining > 0) {
-      receiptPayments.push({ method: checkoutPayMode, amount: remaining });
-    }
-
-    // Determine effective pay_mode
-    const effectivePayMode = receiptPayments.length > 1 ? "split" : (remaining > 0 ? checkoutPayMode : "preorder_prepayment");
-
-    // Deduct stock
-    const newSemi = [...semiStock];
-    const newRaw = [...rawStock];
-
-    for (const item of p.items) {
-      const tc = techCards.find(t => t.product === item.name);
-      if (tc && tc.ings) {
-        for (const ing of tc.ings) {
-          const spend = ing.qty * item.qty * (1 + (ing.loss || 0) / 100);
-          if (ing.rid) {
-            const idx = newRaw.findIndex(r => r.id === ing.rid);
-            if (idx >= 0) {
-              const qtyObj = parseQtyObj(newRaw[idx].qty);
-              qtyObj[p.point] = Math.round((qtyObj[p.point] - spend) * 1000) / 1000;
-              newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
-            }
-          } else {
-            const idx = newSemi.findIndex(s => s.id === ing.sid);
-            if (idx >= 0) {
-              const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-              qtyObj[p.point] = Math.round((qtyObj[p.point] - spend) * 1000) / 1000;
-              newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
-            }
-          }
-        }
-      }
-
-      // Deduct packaging
-      const packaging = getPackagingItems(item.name);
-      for (const pkg of packaging) {
-        const idx = newRaw.findIndex(r => r.id === pkg.rawId);
-        if (idx >= 0) {
-          const qtyObj = parseQtyObj(newRaw[idx].qty);
-          qtyObj[p.point] = Math.round((qtyObj[p.point] - pkg.qty * item.qty) * 1000) / 1000;
-          newRaw[idx] = { ...newRaw[idx], qty: qtyObj };
-        }
-      }
-
-      // Deduct extras
-      if (item.extras) {
-        if (item.extras.s6 > 0) {
-          const idx = newSemi.findIndex(s => s.id === "s6");
-          if (idx >= 0) {
-            const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s6 * 50 * item.qty) * 1000) / 1000;
-            newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
-          }
-        }
-        if (item.extras.s7 > 0) {
-          const idx = newSemi.findIndex(s => s.id === "s7");
-          if (idx >= 0) {
-            const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s7 * 50 * item.qty) * 1000) / 1000;
-            newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
-          }
-        }
-        if (item.extras.s2 > 0) {
-          const idx = newSemi.findIndex(s => s.id === "s2");
-          if (idx >= 0) {
-            const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-            qtyObj[p.point] = Math.round((qtyObj[p.point] - item.extras.s2 * 15 * item.qty) * 1000) / 1000;
-            newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
-          }
-        }
-      }
-    }
-
-    setSemiStock(newSemi);
-    setRawStock(newRaw);
-
-    // Calculate COGS
-    const cogs = p.items.reduce((s, item) => {
-      const tc = techCards.find(t => t.product === item.name);
-      const itemCogs = tc ? calcCartItemCOGS({ ...tc, qty: 1, extras: item.extras }, semiStock, rawStock) : 0;
-      return s + itemCogs * item.qty;
-    }, 0);
-
-    const sale = {
-      id: generateUUID(),
-      no: 1001 + sales.length,
-      point: p.point,
-      items: p.items,
-      total: p.total,
-      subtotal: p.subtotal || p.total,
-      discAmt: p.disc_amt || 0,
-      discount: p.discount || 0,
-      cogs: cogs,
-      payMode: effectivePayMode,
-      payments: receiptPayments,
-      cashGiven: remaining > 0 && checkoutPayMode === "cash" ? remaining : 0,
-      change: 0,
-      shift_id: currentShift?.id || null,
-      date: new Date().toLocaleDateString("ru-RU"),
-      time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      status: "active",
-      created_at: new Date().toISOString()
-    };
-
-    setSales(prev => [...prev, sale]);
-
-    setPreorders(prev => prev.map(item => {
-      if (item.id !== p.id) return item;
-      return {
-        ...item,
-        status: "completed",
-        completed_shift_id: currentShift?.id || null,
-        completed_at: new Date().toISOString(),
-        remaining_payment: remaining,
-        remaining_method: remaining > 0 ? checkoutPayMode : null
-      };
-    }));
-
-    showToast("Предзаказ успешно выдан и закрыт!");
-    setCheckoutPreorder(null);
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case "pending": return <span style={{background:C.yellowSoft,color:C.yellow,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>В ожидании</span>;
-      case "ready": return <span style={{background:C.blueSoft,color:C.blue,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>Собран</span>;
-      case "completed": return <span style={{background:C.greenSoft,color:C.green,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>Выдан</span>;
-      case "cancelled": return <span style={{background:C.redSoft,color:C.red,padding:"4px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>Отменен</span>;
-      default: return null;
-    }
-  };
-
-  return (
-    <div style={{padding:isMobile?"12px 14px":"20px 28px",flex:1,display:"flex",flexDirection:"column"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-        <div style={{fontSize:22,fontWeight:900,color:C.accent}}>📅 Журнал предзаказов (Мастерская)</div>
-        <div style={{display:"flex",gap:10}}>
-          <input
-            value={searchQuery}
-            onChange={e=>setSearchQuery(e.target.value)}
-            placeholder="Поиск по имени, тел, товару..."
-            style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,padding:"8px 12px",borderRadius:8,fontSize:13,outline:"none",width:200}}
-          />
-        </div>
-      </div>
-
-      <div style={{display:"flex",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-        <div style={{display:"flex",background:C.surface,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>
-          {[
-            {id:"all_active",label:"Активные"},
-            {id:"pending",label:"В ожидании"},
-            {id:"ready",label:"Собраны"},
-            {id:"completed",label:"Выданы"},
-            {id:"cancelled",label:"Отменены"}
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={()=>setStatusFilter(f.id)}
-              style={{padding:"6px 12px",borderRadius:6,border:"none",background:statusFilter===f.id?C.card:"transparent",color:statusFilter===f.id?C.accent:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{display:"flex",background:C.surface,borderRadius:8,padding:3,border:`1px solid ${C.border}`}}>
-          {[
-            {id:"all",label:"Все даты"},
-            {id:"today",label:"На сегодня"},
-            {id:"tomorrow",label:"На завтра"},
-            {id:"custom",label:"Свой период"}
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={()=>setDateFilter(f.id)}
-              style={{padding:"6px 12px",borderRadius:6,border:"none",background:dateFilter===f.id?C.card:"transparent",color:dateFilter===f.id?C.accent:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        {dateFilter === "custom" && (
-          <div style={{display:"flex",gap:8}}>
-            <input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12}} />
-            <input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{background:C.card,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px",fontSize:12}} />
-          </div>
-        )}
-      </div>
-
-      {sorted.length === 0 ? (
-        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:60,textAlign:"center",color:C.muted}}>
-          Предзаказы не найдены
-        </div>
-      ) : (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:16}}>
-          {sorted.map(p => {
-            const isPending = p.status === "pending";
-            const isReady = p.status === "ready";
-            const remaining = p.total - p.prepayment;
-            return (
-              <div key={p.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
-                <div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:10}}>
-                    <div>
-                      <span style={{fontSize:11,color:C.muted,background:C.surface,padding:"2px 6px",borderRadius:4,marginRight:6}}>{p.point}</span>
-                      <span style={{fontSize:12,fontWeight:700,color:C.text}}>{p.target_date} в {p.target_time}</span>
-                    </div>
-                    {getStatusBadge(p.status)}
-                  </div>
-
-                  <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>{p.customer_name || "Без имени"}</div>
-                  <div style={{fontSize:12,color:C.muted,marginBottom:10}}>📞 {p.customer_phone}</div>
-
-                  <div style={{background:C.surface,borderRadius:8,padding:8,marginBottom:12}}>
-                    {p.items?.map((item, idx) => (
-                      <div key={idx} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}>
-                        <span style={{color:C.text}}>{item.name} x{item.qty}</span>
-                        <span style={{fontWeight:600}}>{fmtM(item.price * item.qty)}</span>
-                      </div>
-                    ))}
-                    {p.notes && (
-                      <div style={{fontSize:11,color:C.accent,borderTop:`1px solid ${C.border}`,paddingTop:6,marginTop:6,fontStyle:"italic"}}>
-                        💬 {p.notes}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{color:C.muted}}>Сумма:</span><span style={{fontWeight:700}}>{fmtM(p.total)}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:4}}><span style={{color:C.muted}}>Внесено (предоплата):</span><span style={{fontWeight:700,color:C.green}}>{fmtM(p.prepayment)} {p.prepayment_method && `(${PAY_LABELS[p.prepayment_method] || p.prepayment_method})`}</span></div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:12,borderTop:`1px solid ${C.border}`,paddingTop:4}}><span style={{fontWeight:700}}>Осталось:</span><span style={{fontWeight:800,color:remaining>0?C.yellow:C.green}}>{fmtM(remaining)}</span></div>
-
-                  <div style={{display:"flex",gap:8}}>
-                    {isPending && (
-                      <>
-                        <button
-                          onClick={()=>handleStatusChange(p.id, "ready")}
-                          style={{flex:1,padding:"8px 10px",background:C.accent,color:"#000",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}
-                        >
-                          Собрать / Готов
-                        </button>
-                        <button
-                          onClick={() => {
-                            if(window.confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
-                          }}
-                          style={{padding:"8px 12px",background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}
-                        >
-                          Отменить
-                        </button>
-                      </>
-                    )}
-                    {isReady && (
-                      <>
-                        <button
-                          onClick={()=>handleOpenCheckout(p)}
-                          style={{flex:1,padding:"8px 10px",background:C.green,color:"#000",border:"none",borderRadius:8,fontWeight:800,fontSize:12,cursor:"pointer"}}
-                        >
-                          Выдать клиенту
-                        </button>
-                        <button
-                          onClick={() => {
-                            if(window.confirm("Отменить этот предзаказ?")) handleStatusChange(p.id, "cancelled");
-                          }}
-                          style={{padding:"8px 12px",background:C.redSoft,color:C.red,border:`1px solid ${C.red}`,borderRadius:8,fontWeight:700,fontSize:12,cursor:"pointer"}}
-                        >
-                          Отменить
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {checkoutPreorder && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:24,width:350,maxWidth:"90vw",border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto"}}>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:16}}>🛍️ Выдача предзаказа</div>
-            <div style={{background:C.surface,borderRadius:10,padding:12,marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:C.muted,fontSize:12}}>Сумма заказа:</span><span style={{fontWeight:700}}>{fmtM(checkoutPreorder.total)}</span></div>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{color:C.muted,fontSize:12}}>Предоплата:</span><span style={{fontWeight:700,color:C.green}}>-{fmtM(checkoutPreorder.prepayment)}</span></div>
-              <div style={{display:"flex",justifyContent:"space-between",borderTop:`1px solid ${C.border}`,paddingTop:6}}><span style={{fontWeight:700,fontSize:13}}>К доплате:</span><span style={{fontWeight:900,color:C.yellow,fontSize:15}}>{fmtM(checkoutPreorder.total - checkoutPreorder.prepayment)}</span></div>
-            </div>
-
-            {checkoutPreorder.total - checkoutPreorder.prepayment > 0 && (
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:11,color:C.muted,marginBottom:6}}>МЕТОД ДОПЛАТЫ</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                  {[
-                    {id:"cash",label:"💵 Нал",color:C.green,soft:C.greenSoft},
-                    {id:"kaspi",label:"📱 Kaspi",color:C.blue,soft:C.blueSoft},
-                    {id:"halyk",label:"🏦 Халык",color:C.purple,soft:C.purpleSoft},
-                    {id:"bck",label:"🏛️ БЦК",color:C.yellow,soft:C.yellowSoft},
-                  ].map(m=>(
-                    <button
-                      key={m.id}
-                      onClick={()=>setCheckoutPayMode(m.id)}
-                      style={{padding:8,background:checkoutPayMode===m.id?m.soft:C.card,color:checkoutPayMode===m.id?m.color:C.text,border:`1px solid ${checkoutPayMode===m.id?m.color:C.border}`,borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:12}}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>setCheckoutPreorder(null)} style={{flex:1,padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontWeight:600}}>Отмена</button>
-              <button onClick={handleCompletePreorder} style={{flex:1,padding:12,borderRadius:10,border:"none",background:C.green,color:"#000",cursor:"pointer",fontWeight:800,fontSize:13}}>Подтвердить выдачу</button>
-            </div>
-          </div>
         </div>
       )}
     </div>
   );
 }
 
+// ─── PIN ЭКРАН ────────────────────────────────────────────────────────────────
 function PinScreen({users, onLogin, onClose}){
   const [selected, setSelected] = useState(null);
   const [pin, setPin]           = useState("");
   const [error, setError]       = useState("");
-  const [locked, setLocked]     = useState(false);
-  const [lockSecsLeft, setLockSecsLeft] = useState(0);
-
-  const MAX_ATTEMPTS = 5;
-  const LOCKOUT_MS   = 30_000;
-
-  const getBFState = (userId) => {
-    try { const s = JSON.parse(localStorage.getItem(`vb_bf_${userId}`) || "{}"); return { attempts: s.attempts||0, lockedUntil: s.lockedUntil||0 }; }
-    catch { return { attempts: 0, lockedUntil: 0 }; }
-  };
-  const setBFState = (userId, state) => { try { localStorage.setItem(`vb_bf_${userId}`, JSON.stringify(state)); } catch {} };
-  const clearBFState = (userId) => { try { localStorage.removeItem(`vb_bf_${userId}`); } catch {} };
-
-  const handleSelectUser = (u) => {
-    setPin(""); setError("");
-    const { lockedUntil } = getBFState(u.id);
-    setSelected(u);
-    setLocked(Date.now() < lockedUntil);
-  };
-
-  useEffect(() => {
-    if (!locked || !selected) return;
-    const update = () => {
-      const { lockedUntil } = getBFState(selected.id);
-      const rem = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
-      setLockSecsLeft(rem);
-      if (rem === 0) { setLocked(false); setError(""); }
-    };
-    update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, selected]);
 
   const handleDigit = (d) => {
-    if (locked || pin.length >= 4) return;
+    if(pin.length >= 4) return;
     const next = pin + d;
     setPin(next);
     setError("");
-    if (next.length === 4) {
-      setTimeout(() => {
-        const latestUser = users.find(u => u.id === selected.id) || selected;
-        if (String(next) === String(latestUser.pin)) {
-          clearBFState(selected.id);
-          onLogin(latestUser);
-          setPin(""); setSelected(null); setLocked(false);
+    if(next.length === 4){
+      setTimeout(()=>{
+        if(next === selected.pin){
+          onLogin(selected);
+          setPin("");
+          setSelected(null);
         } else {
-          const bf = getBFState(selected.id);
-          const newAttempts = bf.attempts + 1;
-          if (newAttempts >= MAX_ATTEMPTS) {
-            setBFState(selected.id, { attempts: 0, lockedUntil: Date.now() + LOCKOUT_MS });
-            setLocked(true);
-            setError(`Слишком много попыток. Блокировка ${LOCKOUT_MS/1000} сек.`);
-          } else {
-            setBFState(selected.id, { attempts: newAttempts, lockedUntil: 0 });
-            setError(`Неверный PIN. Осталось попыток: ${MAX_ATTEMPTS - newAttempts}`);
-          }
+          setError("Неверный PIN");
           setPin("");
         }
       }, 200);
     }
   };
 
-  const handleBack = () => { if (!locked) { setPin(p=>p.slice(0,-1)); setError(""); } };
+  const handleBack = () => { setPin(p=>p.slice(0,-1)); setError(""); };
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(15,15,19,0.97)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,flexDirection:"column",gap:24}}>
@@ -6579,7 +5266,7 @@ function PinScreen({users, onLogin, onClose}){
       <div style={{fontSize:28,fontWeight:900,letterSpacing:-1,color:"#E8A0B4"}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
 
       {!selected ? (
-        <div style={{display:"flex",flexDirection:"column",gap:12,width:280,maxHeight:"65vh",overflowY:"auto",paddingRight:4}}>
+        <div style={{display:"flex",flexDirection:"column",gap:12,width:280}}>
           <div style={{color:"#7A7A94",fontSize:13,textAlign:"center",marginBottom:4}}>Выберите профиль сотрудника</div>
           {[...users].sort((a, b) => {
             const getWeight = (u) => {
@@ -6598,17 +5285,15 @@ function PinScreen({users, onLogin, onClose}){
             return getWeight(a) - getWeight(b);
           }).map(u=>{
             const r = ROLES[u.role] || { label: u.role||"Неизвестно", icon:"👤", color:C.muted, nav:["dashboard"] };
-            const { lockedUntil } = getBFState(u.id);
-            const isUserLocked = Date.now() < lockedUntil;
             return(
-              <button key={u.id} onClick={()=>handleSelectUser(u)}
-                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left",opacity:isUserLocked?0.6:1}}
+              <button key={u.id} onClick={()=>{setSelected(u);setPin("");setError("");}}
+                style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderRadius:14,border:"1px solid #2A2A38",background:"#16161D",color:"#EAEAF0",cursor:"pointer",textAlign:"left"}}
                 onMouseEnter={e=>e.currentTarget.style.borderColor="#E8A0B4"}
                 onMouseLeave={e=>e.currentTarget.style.borderColor="#2A2A38"}>
                 <div style={{width:40,height:40,borderRadius:20,background:r.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{r.icon}</div>
                 <div>
                   <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
-                  <div style={{fontSize:12,color:"#7A7A94"}}>{r.label}{u.point?" · "+u.point:""}{isUserLocked?" 🔒":""}</div>
+                  <div style={{fontSize:12,color:"#7A7A94"}}>{r.label}{u.point?" · "+u.point:""}</div>
                 </div>
               </button>
             );
@@ -6616,39 +5301,29 @@ function PinScreen({users, onLogin, onClose}){
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:20,width:280}}>
-          <button onClick={()=>{setSelected(null);setPin("");setError("");setLocked(false);}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
+          <button onClick={()=>{setSelected(null);setPin("");setError("");}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             {(()=>{ const sr = ROLES[selected.role] || { color:C.muted, icon:"👤" }; return (
             <div style={{width:40,height:40,borderRadius:20,background:sr.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{sr.icon}</div>
             ); })()}
             <div style={{fontWeight:700}}>{selected.name}</div>
           </div>
-          {locked ? (
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:40,marginBottom:8}}>🔒</div>
-              <div style={{color:"#E74C3C",fontSize:14,fontWeight:700}}>Слишком много попыток</div>
-              <div style={{color:"#7A7A94",fontSize:13,marginTop:4}}>Повторите через <b style={{color:"#EAEAF0"}}>{lockSecsLeft}</b> сек.</div>
-            </div>
-          ) : (
-            <>
-              <div style={{color:"#7A7A94",fontSize:13}}>Введите PIN-код</div>
-              <div style={{display:"flex",gap:14}}>
-                {[0,1,2,3].map(i=>(
-                  <div key={i} style={{width:16,height:16,borderRadius:8,background:pin.length>i?"#E8A0B4":"#2A2A38",transition:"background .15s"}}/>
-                ))}
-              </div>
-              {error&&<div style={{color:"#E74C3C",fontSize:13,fontWeight:600,textAlign:"center"}}>{error}</div>}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
-                {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
-                  <button key={i} onClick={()=> d==="⌫"?handleBack():d!==""?handleDigit(String(d)):null}
-                    disabled={d===""}
-                    style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background:d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
-                    {d}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          <div style={{color:"#7A7A94",fontSize:13}}>Введите PIN-код</div>
+          <div style={{display:"flex",gap:14}}>
+            {[0,1,2,3].map(i=>(
+              <div key={i} style={{width:16,height:16,borderRadius:8,background:pin.length>i?"#E8A0B4":"#2A2A38",transition:"background .15s"}}/>
+            ))}
+          </div>
+          {error&&<div style={{color:"#E74C3C",fontSize:13,fontWeight:600}}>{error}</div>}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,width:"100%"}}>
+            {[1,2,3,4,5,6,7,8,9,"",0,"⌫"].map((d,i)=>(
+              <button key={i} onClick={()=> d==="⌫"?handleBack():d!==""?handleDigit(String(d)):null}
+                disabled={d===""}
+                style={{padding:"18px 0",borderRadius:14,border:"1px solid #2A2A38",background:d===""?"transparent":"#1C1C26",color:"#EAEAF0",fontSize:20,fontWeight:600,cursor:d===""?"default":"pointer",opacity:d===""?0:1}}>
+                {d}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -6671,26 +5346,11 @@ async function supaFetch(method, table, body=null, params="") {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
 
-  // Вспомогательная функция добавления в очередь с UUID и дедупликацией PATCH
-  const enqueueOp = () => {
-    try {
-      const queue = LS("vb_sync_queue", []);
-      const op = { method, table, body, params, id: generateUUID(), enqueuedAt: Date.now() };
-      // Дедупликация: для PATCH/DELETE заменяем существующую операцию для той же записи
-      if (method === "PATCH" || method === "DELETE") {
-        const existIdx = queue.findIndex(q => q.table === table && q.params === params && q.method === method);
-        if (existIdx >= 0) { queue[existIdx] = op; }
-        else { queue.push(op); }
-      } else {
-        queue.push(op);
-      }
-      localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
-    } catch {}
-  };
-
   // Оффлайн-очередь для операций записи (POST, PATCH, DELETE)
-  if (method !== "GET" && typeof window !== "undefined" && window.navigator && !window.navigator.onLine) {
-    enqueueOp();
+  if (method !== "GET" && typeof navigator !== "undefined" && !navigator.onLine) {
+    const queue = LS("vb_sync_queue", []);
+    queue.push({ method, table, body, params, id: Date.now() });
+    localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
     console.warn(`Устройство оффлайн. Запрос ${method} ${table} добавлен в очередь синхронизации.`);
     return true;
   }
@@ -6709,10 +5369,12 @@ async function supaFetch(method, table, body=null, params="") {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
-      if (method !== "GET") {
-        if (!(res.status === 404 && method === "DELETE")) {
-          enqueueOp();
-        }
+      
+      // В случае серверной ошибки (500+) добавляем в очередь на повтор
+      if (method !== "GET" && res.status >= 500) {
+        const queue = LS("vb_sync_queue", []);
+        queue.push({ method, table, body, params, id: Date.now() });
+        localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
       }
       return method === "GET" ? [] : false;
     }
@@ -6723,83 +5385,31 @@ async function supaFetch(method, table, body=null, params="") {
     return true;
   } catch (e) {
     console.warn(`supaFetch ${method} ${table} network error:`, e);
-    if (method !== "GET") { enqueueOp(); }
+    // При сбое сети добавляем операцию в очередь
+    if (method !== "GET") {
+      const queue = LS("vb_sync_queue", []);
+      queue.push({ method, table, body, params, id: Date.now() });
+      localStorage.setItem("vb_sync_queue", JSON.stringify(queue));
+    }
     return method === "GET" ? [] : false;
   }
-}
-
-// Проверка наличия RPC для атомарного списания (защита от гонки данных)
-let RPC_ENABLED = false;
-async function checkRpcExists() {
-  try {
-    const res = await fetch(`${SUPA_URL}/rest/v1/rpc/update_raw_stock_atomic`, {
-      method: "POST", headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ p_raw_id: "test", p_point: "test", p_delta: 0 })
-    });
-    RPC_ENABLED = res.status !== 404;
-  } catch(e) {}
-}
-// Запускаем проверку при загрузке
-if (typeof window !== "undefined") {
-  checkRpcExists();
 }
 
 function fmtUnit(u) { return u === "г" ? "гр." : u; }
 
 // ─── ГЛАВНОЕ ПРИЛОЖЕНИЕ ───────────────────────────────────────────────────────
-const checkIsMobile = () => {
-  if (typeof window === "undefined") return false;
-  // window.screen.width/height — физический размер, не зависит от ориентации
-  const minDim = Math.min((window.screen && window.screen.width) || 0, (window.screen && window.screen.height) || 0);
-  const isPhone = minDim < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test((window.navigator && window.navigator.userAgent) || "");
-  return isPhone;
-};
-
-// Портретный режим: надёжное определение для Android (включая Samsung One UI)
-const checkIsPortrait = () => {
-  if (typeof window === "undefined") return false;
-  // Наиболее надёжный: сравниваем innerWidth vs innerHeight — всегда актуально
-  if (window.innerWidth > 0 && window.innerHeight > 0) {
-    return window.innerWidth < window.innerHeight;
-  }
-  // Современный API (Chrome Android, Safari iOS 16.4+)
-  if (window.screen && window.screen.orientation) {
-    return window.screen.orientation.type.startsWith("portrait");
-  }
-  // Fallback: устаревший window.orientation
-  if (typeof window.orientation !== "undefined") {
-    return window.orientation === 0 || window.orientation === 180;
-  }
-  return true;
-};
-
 export default function App(){
-  // Восстанавливаем сессию из localStorage (с проверкой TTL 8 часов)
-  const [currentUser,setCurrentUser] = useState(() => {
-    if (!isSessionValid()) {
-      // Сессия истекла — чистим хранилище и показываем PIN-экран
-      localStorage.removeItem("vb_session_user");
-      localStorage.removeItem("vb_session_page");
-      localStorage.removeItem("vb_session_shift");
-      return null;
-    }
-    return LS("vb_session_user", null);
-  });
-  const [page,setPage]               = useState(() =>
-    isSessionValid() ? LS("vb_session_page", "dashboard") : "dashboard"
-  );
+  const [currentUser,setCurrentUser] = useState(null);
+  const [page,setPage]               = useState("dashboard");
   const [sidebarOpen,setSidebarOpen] = useState(true);
   const [showUserMenu,setUserMenu]   = useState(false);
   const [loading,setLoading]         = useState(true);
+  const checkIsMobile = () => {
+    if (typeof window === "undefined") return false;
+    return (window.innerWidth < 1024) || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
   const [isMobile, setIsMobile]      = useState(checkIsMobile());
-  const [isPortrait, setIsPortrait]   = useState(checkIsPortrait());
-  const [isOffline, setIsOffline]     = useState(typeof window !== "undefined" && window.navigator ? !window.navigator.onLine : false);
-
-  // useRef для currentUser — решает stale closure в Realtime-подписке
-  const currentUserRef = useRef(currentUser);
-  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
-
-  // Временная метка сессии touchSession() сохранена для совместимости, автоматический выход отключен по требованию пользователя.
+  const [isOffline, setIsOffline]     = useState(typeof navigator !== "undefined" ? !navigator.onLine : false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -6838,23 +5448,16 @@ export default function App(){
   });
   const [users,     setUsers]      = useState(() => {
     const loaded = LS("vb_users", INIT_USERS);
-    const clean = Array.isArray(loaded)
-      ? loaded.filter(u => u.id && u.id.length >= 36)
-              .map(u => ({ ...u, pin: String(u.pin || "") }))  // ВСЕГДА строка!
-      : [];
+    const clean = Array.isArray(loaded) ? loaded.filter(u => u.id && u.id.length >= 36) : [];
     return clean.length ? clean : INIT_USERS;
   });
   const [toast,showToast]          = useToast();
-  const [currentShift,setCurrentShift] = useState(() => LS("vb_session_shift", null));
+  const [currentShift,setCurrentShift] = useState(null);
   const [showOpenShift,setShowOpenShift] = useState(false);
   const [customers, setCustomers] = useState(() => LS("vb_customers", []));
   const [warehouseHistory, setWarehouseHistory] = useState(() => LS("vb_warehouse_history", []));
   const [writeOffs, setWriteOffs] = useState(() => LS("vb_writeoffs_log", []));
   const [shifts, setShifts] = useState(() => LS("vb_shifts", []));
-  const [preorders, setPreorders] = useState(() => {
-    const loaded = LS("vb_preorders", []);
-    return Array.isArray(loaded) ? loaded : [];
-  });
 const setWarehouseHistoryWithSync = (updater) => {
     setWarehouseHistory(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -6942,26 +5545,7 @@ const setRawStockWithSync = (updater) => {
       next.forEach(newItem => {
         const oldItem = prev.find(p => p.id === newItem.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          let qtyChangedOnly = false;
-          if (RPC_ENABLED && oldItem) {
-            const oldNoQty = {...oldItem, qty:null};
-            const newNoQty = {...newItem, qty:null};
-            if (JSON.stringify(oldNoQty) === JSON.stringify(newNoQty)) {
-              qtyChangedOnly = true;
-              const qtyOld = typeof oldItem.qty === 'string' ? JSON.parse(oldItem.qty) : (oldItem.qty || {});
-              const qtyNew = typeof newItem.qty === 'string' ? JSON.parse(newItem.qty) : (newItem.qty || {});
-              const allPts = new Set([...Object.keys(qtyOld), ...Object.keys(qtyNew)]);
-              for (const pt of allPts) {
-                const diff = (qtyNew[pt] || 0) - (qtyOld[pt] || 0);
-                if (diff !== 0) {
-                  supaFetch("POST", "rpc/update_raw_stock_atomic", { p_raw_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
-                }
-              }
-            }
-          }
-          if (!qtyChangedOnly) {
-            supaFetch("POST", "raw_stock", newItem).catch(()=>{});
-          }
+          supaFetch("POST", "raw_stock", newItem).catch(()=>{});
         }
       });
       prev.forEach(oldItem => {
@@ -6979,26 +5563,7 @@ const setSemiStockWithSync = (updater) => {
       next.forEach(newItem => {
         const oldItem = prev.find(p => p.id === newItem.id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
-          let qtyChangedOnly = false;
-          if (RPC_ENABLED && oldItem) {
-            const oldNoQty = {...oldItem, qty:null};
-            const newNoQty = {...newItem, qty:null};
-            if (JSON.stringify(oldNoQty) === JSON.stringify(newNoQty)) {
-              qtyChangedOnly = true;
-              const qtyOld = typeof oldItem.qty === 'string' ? JSON.parse(oldItem.qty) : (oldItem.qty || {});
-              const qtyNew = typeof newItem.qty === 'string' ? JSON.parse(newItem.qty) : (newItem.qty || {});
-              const allPts = new Set([...Object.keys(qtyOld), ...Object.keys(qtyNew)]);
-              for (const pt of allPts) {
-                const diff = (qtyNew[pt] || 0) - (qtyOld[pt] || 0);
-                if (diff !== 0) {
-                  supaFetch("POST", "rpc/update_semi_stock_atomic", { p_semi_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
-                }
-              }
-            }
-          }
-          if (!qtyChangedOnly) {
-            supaFetch("POST", "semi_stock", newItem).catch(()=>{});
-          }
+          supaFetch("POST", "semi_stock", newItem).catch(()=>{});
         }
       });
       prev.forEach(oldItem => {
@@ -7121,71 +5686,6 @@ const setExpensesWithSync = (updater) => {
     });
   };
 
-  const setPreordersWithSync = (updater) => {
-    setPreorders(prev => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-
-      // Added preorders
-      const added = next.filter(n => !prev.find(p => p.id === n.id));
-      added.forEach(p => {
-        supaFetch("POST", "preorders", {
-          id: p.id,
-          point: p.point,
-          customer_id: p.customer_id || null,
-          customer_name: p.customer_name,
-          customer_phone: p.customer_phone,
-          items: p.items,
-          subtotal: p.subtotal,
-          discount: p.discount || 0,
-          disc_amt: p.disc_amt || 0,
-          total: p.total,
-          prepayment: p.prepayment || 0,
-          prepayment_method: p.prepayment_method || null,
-          prepayment_shift_id: p.prepayment_shift_id || null,
-          target_date: p.target_date,
-          target_time: p.target_time,
-          status: p.status || "pending",
-          notes: p.notes || "",
-          created_by: p.created_by || null,
-          created_at: p.created_at || new Date().toISOString(),
-          completed_shift_id: p.completed_shift_id || null,
-          completed_at: p.completed_at || null,
-          remaining_payment: p.remaining_payment || 0,
-          remaining_method: p.remaining_method || null,
-        }).catch(()=>{});
-      });
-
-      // Modified preorders
-      next.forEach(newItem => {
-        const oldItem = prev.find(p => p.id === newItem.id);
-        if (oldItem && (
-          oldItem.status !== newItem.status ||
-          oldItem.completed_shift_id !== newItem.completed_shift_id ||
-          oldItem.completed_at !== newItem.completed_at ||
-          oldItem.remaining_payment !== newItem.remaining_payment ||
-          oldItem.remaining_method !== newItem.remaining_method
-        )) {
-          supaFetch("PATCH", "preorders", {
-            status: newItem.status,
-            completed_shift_id: newItem.completed_shift_id,
-            completed_at: newItem.completed_at,
-            remaining_payment: newItem.remaining_payment,
-            remaining_method: newItem.remaining_method,
-          }, `?id=eq.${newItem.id}`).catch(()=>{});
-        }
-      });
-
-      // Deleted preorders
-      prev.forEach(oldItem => {
-        if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "preorders", null, `?id=eq.${oldItem.id}`).catch(()=>{});
-        }
-      });
-
-      return next;
-    });
-  };
-
 
 
 
@@ -7197,7 +5697,7 @@ const setExpensesWithSync = (updater) => {
   const processSyncQueue = async () => {
     const queue = LS("vb_sync_queue", []);
     if (!queue.length) return;
-    if (typeof window !== "undefined" && window.navigator && !window.navigator.onLine) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     
     console.log(`Обработка очереди офлайн-синхронизации: ${queue.length} элементов`);
     const nextQueue = [];
@@ -7223,10 +5723,7 @@ const setExpensesWithSync = (updater) => {
         } else {
           const errText = await res.text().catch(() => "");
           console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
-          // Prevent data loss: retain item in queue even for 4xx errors (e.g. 401 Unauthorized token expiry)
-          if (res.status === 404 && item.method === "DELETE") {
-             // Safe to drop 404 on DELETE, it's already gone
-          } else {
+          if (res.status >= 500) {
             nextQueue.push(item);
           }
         }
@@ -7250,8 +5747,12 @@ const setExpensesWithSync = (updater) => {
     };
     window.addEventListener("online", handleOnline);
     
+    // Периодический опрос очереди (каждые 15 секунд)
+    const timer = setInterval(processSyncQueue, 15000);
+    
     return () => {
       window.removeEventListener("online", handleOnline);
+      clearInterval(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -7263,36 +5764,19 @@ const setExpensesWithSync = (updater) => {
     document.title = "VkusBuket";
     const handleResize = () => {
       const mobile = checkIsMobile();
-      const portrait = checkIsPortrait();
       setIsMobile(mobile);
-      setIsPortrait(portrait);
       if (mobile) setSidebarOpen(false);
       else setSidebarOpen(true);
     };
-    // Задержка при orientationchange — браузер обновляет window.screen.orientation асинхронно
-    const handleOrientationChange = () => setTimeout(handleResize, 100);
-
     window.addEventListener("resize", handleResize);
-    window.addEventListener("orientationchange", handleOrientationChange);
-    // Современный API (Chrome Android, Safari iOS 16.4+)
-    if (window.screen && window.screen.orientation) {
-      window.screen.orientation.addEventListener("change", handleOrientationChange);
-    }
     handleResize();
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("orientationchange", handleOrientationChange);
-      if (window.screen && window.screen.orientation) {
-        window.screen.orientation.removeEventListener("change", handleOrientationChange);
-      }
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(()=>{
     const load = async () => {
       try {
-        await processSyncQueue();
-        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs,preords] = await Promise.all([
+        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs] = await Promise.all([
           supaFetch("GET","raw_stock"),
           supaFetch("GET","semi_stock"),
           supaFetch("GET","tech_cards"),
@@ -7303,7 +5787,6 @@ const setExpensesWithSync = (updater) => {
           supaFetch("GET","shifts","",`?order=opened_at.desc&limit=100`),
           supaFetch("GET","warehouse_history","",`?order=created_at.desc&limit=500`),
           supaFetch("GET","write_offs","",`?order=created_at.desc&limit=500`),
-          supaFetch("GET","preorders","",`?order=created_at.desc&limit=500`),
         ]);
         
         if (Array.isArray(custs)) {
@@ -7349,29 +5832,11 @@ const setExpensesWithSync = (updater) => {
           const mapped = exp.map(e=>({...e,desc:e.note,date:e.expense_date}));
           setExpenses(prev => getMergedList(mapped, prev, "expenses"));
         }
-        if (Array.isArray(preords)) {
-          setPreorders(prev => getMergedList(preords, prev, "preorders"));
-        }
 
         // Phase 5: Load users from app_users, populate if empty
         if (Array.isArray(appUsers) && appUsers.length) {
-          setUsers(prev => {
-            const mapped = appUsers.map(u => {
-              const localUser = prev.find(p => p.id === u.id);
-              const pinVal = String(u.pin || "");
-              const finalPin = (pinVal === "" && localUser && localUser.pin) ? String(localUser.pin) : pinVal;
-              return { ...u, pin: finalPin };
-            });
-            const merged = getMergedList(mapped, prev, "app_users");
-            // Принудительно восстанавливаем PIN из БД, если локальный кэш затер его пустым значением
-            return merged.map(m => {
-              const dbUser = appUsers.find(u => u.id === m.id);
-              if (dbUser && dbUser.pin && (!m.pin || m.pin === "")) {
-                return { ...m, pin: dbUser.pin };
-              }
-              return m;
-            });
-          });
+          const mapped = appUsers.map(u=>({id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin}));
+          setUsers(prev => getMergedList(mapped, prev, "app_users"));
         } else if (Array.isArray(appUsers) && appUsers.length === 0) {
           // Populate app_users from INIT_USERS (one-time)
           for(const u of INIT_USERS) {
@@ -7392,14 +5857,6 @@ const setExpensesWithSync = (updater) => {
       }
     };
     load();
-    
-    const timer = setInterval(() => {
-      processSyncQueue();
-      load();
-    }, 15000);
-    
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{
@@ -7419,9 +5876,7 @@ const setExpensesWithSync = (updater) => {
 
   useEffect(()=>{
     if(loading) return;
-    // pin сохраняем как строку, чтобы при чтении тип был корректным
-    const usersToSave = users.map(u => ({ ...u, pin: String(u.pin || "") }));
-    localStorage.setItem("vb_users", JSON.stringify(usersToSave));
+    localStorage.setItem("vb_users",JSON.stringify(users));
   },[users,loading]);
 
   useEffect(()=>{
@@ -7453,47 +5908,6 @@ const setExpensesWithSync = (updater) => {
     if(loading) return;
     localStorage.setItem("vb_writeoffs_log",JSON.stringify(writeOffs));
   },[writeOffs,loading]);
-
-  useEffect(()=>{
-    if(loading) return;
-    localStorage.setItem("vb_preorders",JSON.stringify(preorders));
-  },[preorders,loading]);
-
-  // Сохраняем сессию пользователя в localStorage для восстановления после авто-перезагрузки PWA
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem("vb_session_user", JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem("vb_session_user");
-      localStorage.removeItem("vb_session_page");
-      localStorage.removeItem("vb_session_shift");
-      localStorage.removeItem("vb_pos_cart");
-      // Очищаем локальные кэши таблиц для исключения утечек состояний между кассирами
-      localStorage.removeItem("vb_raw");
-      localStorage.removeItem("vb_semi");
-      localStorage.removeItem("vb_sales");
-      localStorage.removeItem("vb_exp");
-      localStorage.removeItem("vb_customers");
-      localStorage.removeItem("vb_warehouse_history");
-      localStorage.removeItem("vb_writeoffs_log");
-      localStorage.removeItem("vb_shifts");
-      localStorage.removeItem("vb_preorders");
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (page) {
-      localStorage.setItem("vb_session_page", JSON.stringify(page));
-    }
-  }, [page]);
-
-  useEffect(() => {
-    if (currentShift) {
-      localStorage.setItem("vb_session_shift", JSON.stringify(currentShift));
-    } else {
-      localStorage.removeItem("vb_session_shift");
-    }
-  }, [currentShift]);
 
   // Realtime subscription
   // Realtime subscription (consolidated for all tables)
@@ -7628,8 +6042,7 @@ const setExpensesWithSync = (updater) => {
         if (eventType === "DELETE") {
           setUsers(prev => prev.filter(u => u.id !== oldRow.id));
         } else {
-          // pin может приходить как integer из Realtime — всегда приводим к String
-          const parsed = { id: newRow.id, name: newRow.name, role: newRow.role, point: newRow.point, pin: String(newRow.pin||"") };
+          const parsed = { id: newRow.id, name: newRow.name, role: newRow.role, point: newRow.point, pin: newRow.pin };
           setUsers(prev => {
             const idx = prev.findIndex(u => u.id === parsed.id);
             if (idx >= 0) {
@@ -7693,24 +6106,6 @@ const setExpensesWithSync = (updater) => {
           });
         }
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "preorders" }, (payload) => {
-        const { eventType, new: newRow, old: oldRow } = payload;
-        if (eventType === "DELETE") {
-          setPreorders(prev => prev.filter(p => p.id !== oldRow.id));
-        } else {
-          setPreorders(prev => {
-            const idx = prev.findIndex(p => p.id === newRow.id);
-            if (idx >= 0) {
-              if (JSON.stringify(prev[idx]) === JSON.stringify(newRow)) return prev;
-              const next = [...prev];
-              next[idx] = newRow;
-              return next;
-            } else {
-              return [...prev, newRow];
-            }
-          });
-        }
-      })
       .on("postgres_changes", { event: "*", schema: "public", table: "shifts" }, (payload) => {
         const { eventType, new: newRow, old: oldRow } = payload;
         if (eventType === "DELETE") {
@@ -7728,9 +6123,7 @@ const setExpensesWithSync = (updater) => {
               return [newRow, ...prev];
             }
           });
-          // Используем currentUserRef.current вместо currentUser из замыкания (stale closure fix)
-          const cu = currentUserRef.current;
-          if (cu && newRow.cashier_pin === cu.pin && newRow.point === cu.point) {
+          if (currentUser && newRow.cashier_pin === currentUser.pin && newRow.point === currentUser.point) {
             if (newRow.status === "open") {
               setCurrentShift(newRow);
             } else if (newRow.status === "closed") {
@@ -7778,13 +6171,11 @@ const setExpensesWithSync = (updater) => {
   const ROLE_FALLBACK = { label:"?", icon:"👤", color:C.muted, nav:["dashboard","pos"] };
 
   // Phase 3: handle login with shift check for cashiers
-  // ── Stale closure fix: используем Ref вместо переменной из замыкания
   const handleLogin = async (u) => {
     setCurrentUser(u);
-    touchSession(); // Записываем timestamp входа для TTL
     setPage((ROLES[u.role]||ROLE_FALLBACK).nav[0]);
     if(u.role==="cashier" && u.point) {
-      const localOpen = shifts.find(s => String(s.cashier_pin) === String(u.pin) && s.point === u.point && s.status === "open");
+      const localOpen = shifts.find(s => s.cashier_pin === u.pin && s.point === u.point && s.status === "open");
       if (localOpen) {
         setCurrentShift(localOpen);
       } else {
@@ -7842,11 +6233,6 @@ const setExpensesWithSync = (updater) => {
       setShifts(prev => prev.map(s => s.id === currentShift.id ? { ...s, ...updated } : s));
       supaFetch("PATCH", "shifts", updated, `?id=eq.${currentShift.id}`).catch(()=>{});
     }
-    // Очищаем сессию при закрытии смены
-    localStorage.removeItem("vb_session_user");
-    localStorage.removeItem("vb_session_page");
-    localStorage.removeItem("vb_session_shift");
-    localStorage.removeItem("vb_pos_cart");
     setCurrentShift(null);
     setCurrentUser(null);
     showToast("Смена закрыта, выход из системы");
@@ -7857,10 +6243,9 @@ const setExpensesWithSync = (updater) => {
   const role       = ROLES[currentUser.role] || ROLE_FALLBACK;
   const userNav    = [...role.nav];
   if (currentUser.role === "cashier" && currentUser.point === "Мастерская") {
-    if (!userNav.includes("production")) userNav.push("production");
-    if (!userNav.includes("preorders")) userNav.push("preorders");
-    if (!userNav.includes("expenses")) userNav.push("expenses");
-    if (!userNav.includes("warehouse")) userNav.push("warehouse");
+    if (!userNav.includes("production")) {
+      userNav.push("production");
+    }
   }
   const allowedNav = NAV.filter(n=>userNav.includes(n.id));
 
@@ -7868,14 +6253,14 @@ const setExpensesWithSync = (updater) => {
   const totalOrd = sales.length;
 
   return(
-    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,height:"100dvh",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative",paddingTop:"env(safe-area-inset-top)",paddingBottom:"env(safe-area-inset-bottom)",paddingLeft:"env(safe-area-inset-left)",paddingRight:"env(safe-area-inset-right)",boxSizing:"border-box"}}>
+    <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,minHeight:"100vh",display:"flex",color:C.text,overflow:"hidden",position:"relative"}}>
       <Toast toast={toast}/>
       {showUserMenu && <PinScreen users={users} onLogin={(u)=>{handleLogin(u);setUserMenu(false);showToast(`Вошли как: ${u.name}`);}} onClose={()=>setUserMenu(false)}/>}
 
       {/* Модалка открытия смены */}
       {showOpenShift && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}}>
-          <div style={{background:C.card,borderRadius:16,padding:28,width:340,maxWidth:"90vw",border:`1px solid ${C.border}`,textAlign:"center",maxHeight:"90vh",overflowY:"auto"}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:340,maxWidth:"90vw",border:`1px solid ${C.border}`,textAlign:"center"}}>
             <div style={{fontSize:36,marginBottom:12}}>🔓</div>
             <div style={{fontSize:18,fontWeight:800,marginBottom:8}}>Открыть смену?</div>
             <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Точка: <b>{currentUser?.point}</b><br/>Кассир: <b>{currentUser?.name}</b></div>
@@ -7888,13 +6273,12 @@ const setExpensesWithSync = (updater) => {
       )}
 
       {/* САЙДБАР (МОБИЛЬНЫЙ ВЫЕЗДНОЙ ИЛИ ДЕКСТОПНЫЙ СТАТИЧЕСКИЙ) */}
-      {/* В портретном режиме на телефоне — сайдбар скрыт, навигация снизу */}
-      {isMobile && sidebarOpen && !isPortrait && (
+      {isMobile && sidebarOpen && (
         <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:998}} />
       )}
       
       <div style={{
-        width: (isMobile && isPortrait) ? 0 : (sidebarOpen ? 220 : isMobile ? 0 : 58),
+        width:sidebarOpen?220:isMobile?0:58,
         background:C.surface,
         borderRight:`1px solid ${C.border}`,
         display:"flex",
@@ -7903,13 +6287,13 @@ const setExpensesWithSync = (updater) => {
         transition:"width .2s, left .2s",
         overflow:"hidden",
         height:"100vh",
-        position: isMobile ? "fixed" : "sticky",
-        left: (isMobile && isPortrait) ? -220 : (isMobile ? (sidebarOpen ? 0 : -220) : 0),
+        position:isMobile?"fixed":"sticky",
+        left:isMobile ? (sidebarOpen ? 0 : -220) : 0,
         top:0,
         zIndex:999
       }}>
-        <div style={{padding:(sidebarOpen || isMobile)?"18px 14px":"18px 0",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"space-between":"center"}}>
-          {(sidebarOpen || isMobile) && <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>}
+        <div style={{padding:"18px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>
           <button onClick={()=>setSidebarOpen(v=>!v)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0}}>{sidebarOpen?"←":"→"}</button>
         </div>
 
@@ -7917,7 +6301,7 @@ const setExpensesWithSync = (updater) => {
           {allowedNav.map(n=>{
             const active=page===n.id;
             return(
-              <button key={n.id} onClick={()=>{setPage(n.id); if(isMobile) setSidebarOpen(false);}} title={!sidebarOpen?n.label:""} style={{display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"flex-start":"center",gap:10,padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:active?C.accentSoft:"transparent",color:active?C.accent:C.muted,fontWeight:active?700:400,width:"100%",textAlign:"left",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden"}}>
+              <button key={n.id} onClick={()=>{setPage(n.id); if(isMobile) setSidebarOpen(false);}} title={!sidebarOpen?n.label:""} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 10px",borderRadius:10,border:"none",cursor:"pointer",background:active?C.accentSoft:"transparent",color:active?C.accent:C.muted,fontWeight:active?700:400,width:"100%",textAlign:"left",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden"}}>
                 <span style={{fontSize:18,flexShrink:0}}>{n.icon}</span>
                 {(sidebarOpen || isMobile) &&<span style={{fontSize:13}}>{n.label}</span>}
               </button>
@@ -7926,19 +6310,12 @@ const setExpensesWithSync = (updater) => {
         </div>
 
         <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`}}>
-          <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"flex-start":"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
+          <button onClick={()=>setUserMenu(true)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 8px",borderRadius:10,border:"none",background:"transparent",color:C.text,cursor:"pointer",width:"100%",textAlign:"left"}}>
             <div style={{width:32,height:32,borderRadius:16,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{role.icon}</div>
             {(sidebarOpen || isMobile) &&<div>
               <div style={{fontSize:12,fontWeight:700}}>{currentUser.name}</div>
               <div style={{fontSize:10,color:C.muted}}>{role.label}{currentUser.point?" · "+currentUser.point:""}</div>
             </div>}
-          </button>
-          <button onClick={()=>{
-            setCurrentUser(null);
-            localStorage.removeItem("vb_session_user");
-          }} style={{marginTop:8, display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"flex-start":"center",gap:10,padding:"10px 10px",borderRadius:10,border:`1px solid ${C.red}33`,background:"transparent",color:C.red,cursor:"pointer",width:"100%",fontWeight:700}}>
-            <span style={{fontSize:16,flexShrink:0}}>🚪</span>
-            {(sidebarOpen || isMobile) && <span style={{fontSize:13}}>Выйти (Сменить)</span>}
           </button>
         </div>
       </div>
@@ -7947,7 +6324,7 @@ const setExpensesWithSync = (updater) => {
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",width:"100%"}}>
         <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"13px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {isMobile && !isPortrait && (
+            {isMobile && (
               <button onClick={()=>setSidebarOpen(true)} style={{background:"transparent",border:"none",color:C.text,fontSize:22,cursor:"pointer",padding:0}}>☰</button>
             )}
             <div style={{fontSize:16,fontWeight:800}}>{NAV.find(n=>n.id===page)?.label}</div>
@@ -7955,17 +6332,6 @@ const setExpensesWithSync = (updater) => {
               <div style={{background:C.redSoft, border:`1px solid ${C.red}`, color:C.red, borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, marginLeft:10}}>
                 ⚠️ Нет связи, работаем автономно
               </div>
-            )}
-            {!isOffline && (
-              <button 
-                onClick={() => { 
-                  showToast("Синхронизация..."); 
-                  processSyncQueue().then(() => window.location.reload());
-                }}
-                style={{background:C.blue + "1a", border:`1px solid ${C.blue}40`, color:C.blue, borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, marginLeft:10, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}
-              >
-                🔄 Обновить
-              </button>
             )}
           </div>
           <div style={{display:"flex",gap:10}}>
@@ -7978,78 +6344,19 @@ const setExpensesWithSync = (updater) => {
           </div>
         </div>
 
-        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
-          {page==="dashboard"        && <>
-            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser}/>
-            <div style={{padding:20, background:"#fcc"}}>
-              <h3 style={{color:"red"}}>Отладка (Скриншот для разраба)</h3>
-              <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 200, fontSize:10, fontFamily:"monospace"}} />
-            </div>
-          </>}
-          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
-          {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
-          {page==="production" && <Production isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
-          {page==="warehouse"  && <Warehouse  isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
-          {page==="inventory"  && <Inventory  isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
-          {page==="writeoff"   && <WriteOff   isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
-          {page==="expenses"   && <Expenses   isMobile={isMobile} expenses={expenses} setExpenses={setExpensesWithSync} currentUser={currentUser}/>}
-          {page==="reports"    && <Reports    isMobile={isMobile} sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
-          {page==="shifts"     && <Shifts     isMobile={isMobile} shifts={shifts}/>}
-          {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync} currentUser={currentUser}/>}
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+          {page==="dashboard"  && <Dashboard  sales={sales} semiStock={semiStock} rawStock={rawStock} expenses={expenses} currentUser={currentUser} onCancelSale={handleCancelSale} users={users} setSales={setSales} showToast={showToast}/>}
+          {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers}/>}
+          {page==="production" && <Production rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
+          {page==="warehouse"  && <Warehouse  rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
+          {page==="inventory"  && <Inventory  semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
+          {page==="writeoff"   && <WriteOff   rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
+          {page==="expenses"   && <Expenses   expenses={expenses} setExpenses={setExpensesWithSync}/>}
+          {page==="reports"    && <Reports    sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
+          {page==="shifts"     && <Shifts     shifts={shifts}/>}
+          {page==="settings"   && <Settings   techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync}/>}
         </div>
       </div>
-
-      {/* НИЖНЯЯ НАВИГАЦИЯ ДЛЯ ПОРТРЕТНОГО МОБИЛЬНОГО */}
-      {isMobile && isPortrait && (
-        <div style={{position:"fixed",bottom:0,left:0,right:0,height:64,background:C.surface,borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-around",zIndex:999,paddingBottom:"env(safe-area-inset-bottom)"}}>
-          {allowedNav.slice(0,4).map(n => (
-            <button key={n.id} onClick={()=>setPage(n.id)}
-              style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:page===n.id?C.accent:C.muted,transition:"color .15s"}}>
-              <span style={{fontSize:20}}>{n.icon}</span>
-              <span style={{fontSize:9,fontWeight:page===n.id?700:400,letterSpacing:0}}>{n.label}</span>
-            </button>
-          ))}
-          <button onClick={()=>setSidebarOpen(v=>!v)}
-            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",cursor:"pointer",padding:"6px 0",gap:2,color:sidebarOpen?C.accent:C.muted}}>
-            <span style={{fontSize:20}}>{sidebarOpen?"👤":"☰"}</span>
-            <span style={{fontSize:9,fontWeight:sidebarOpen?700:400}}>Профиль</span>
-          </button>
-        </div>
-      )}
-
-      {/* ВЫЕЗДНОЕ МЕНЮ «ЕЩЁ» в портрете */}
-      {isMobile && isPortrait && sidebarOpen && (
-        <>
-          <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:1000}}/>
-          <div style={{position:"fixed",bottom:64,left:0,right:0,background:C.surface,borderTop:`1px solid ${C.border}`,zIndex:1001,display:"flex",flexDirection:"column",padding:"12px 16px",gap:16}}>
-            {/* User Profile in Overflow Menu */}
-            <div style={{display:"flex",alignItems:"center",gap:12,paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
-              <div style={{width:40,height:40,borderRadius:20,background:role.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{role.icon}</div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:14,fontWeight:700}}>{currentUser.name}</div>
-                <div style={{fontSize:12,color:C.muted}}>{role.label}{currentUser.point?" · "+currentUser.point:""}</div>
-              </div>
-              <button onClick={()=>{
-                setSidebarOpen(false);
-                setCurrentUser(null);
-                localStorage.removeItem("vb_session_user");
-              }} style={{padding:"8px 12px",borderRadius:8,border:`1px solid ${C.red}33`,background:"transparent",color:C.red,fontWeight:700,cursor:"pointer"}}>
-                Выйти
-              </button>
-            </div>
-
-            {/* Overflow Nav Items */}
-            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-              {allowedNav.slice(4).map(n => (
-                <button key={n.id} onClick={()=>{setPage(n.id);setSidebarOpen(false);}}
-                  style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:page===n.id?C.accentSoft:C.card,border:`1px solid ${page===n.id?C.accent:C.border}`,borderRadius:10,color:page===n.id?C.accent:C.text,cursor:"pointer",fontSize:13,fontWeight:page===n.id?700:400}}>
-                  {n.icon} {n.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
