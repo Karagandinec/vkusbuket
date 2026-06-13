@@ -5373,7 +5373,7 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
 }
 
 // ─── НАСТРОЙКИ ───────────────────────────────────────────────────────────────
-function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers,currentUser}){
+function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers,currentUser,tenantAuth}){
   const [tab,setTab]=useState("products");
   const [search,setSearch]=useState("");
   const [isRawCollapsed, setIsRawCollapsed] = useState(false);
@@ -5862,6 +5862,44 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
               )}
             </div>
           ))}
+
+          {currentUser?.role === "owner" && tenantAuth && (
+            <div style={{background:C.card,borderRadius:10,border:`1px solid ${C.red}`,padding:20,marginTop:20}}>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:10,color:C.red}}>Смена Мастер-пароля (SaaS)</div>
+              <div style={{fontSize:13,color:C.muted,marginBottom:15}}>Внимание: это изменит пароль от вашей Мастерской. Сообщите новый пароль кассирам для входа на рабочих устройствах. Ваша почта останется прежней.</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"end"}}>
+                <div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:4}}>НОВЫЙ ПАРОЛЬ</div>
+                  <input type="text" id="newMasterPassword" placeholder="Минимум 6 символов" style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",color:C.text,fontSize:14,boxSizing:"border-box",outline:"none",width:200}} />
+                </div>
+                <button onClick={async ()=>{
+                  const newPw = document.getElementById("newMasterPassword").value;
+                  if(newPw.length < 6) return alert("Пароль должен быть не менее 6 символов");
+                  if(!window.confirm("Точно изменить мастер-пароль?")) return;
+                  try {
+                    const res = await fetch("https://zsplctffdvyzbzlnxuew.supabase.co/auth/v1/user", {
+                      method: "PUT",
+                      headers: {
+                        "apikey": "sb_publishable_7bNd98DdOHOzUr3-cGNBJA_7enkN_6s",
+                        "Authorization": "Bearer " + tenantAuth.access_token,
+                        "Content-Type": "application/json"
+                      },
+                      body: JSON.stringify({ password: newPw })
+                    });
+                    if (res.ok) {
+                      alert("Мастер-пароль успешно изменён! Вы можете давать его кассирам.");
+                      document.getElementById("newMasterPassword").value = "";
+                    } else {
+                      const err = await res.json();
+                      alert("Ошибка: " + err.msg);
+                    }
+                  } catch(e) { alert("Ошибка сети"); }
+                }} style={{padding:"11px 20px",borderRadius:8,border:"none",background:C.red,color:"#fff",fontWeight:800,cursor:"pointer"}}>
+                  Установить пароль
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -8489,7 +8527,7 @@ useEffect(()=>{
           {page==="expenses"   && <Expenses   isMobile={isMobile} expenses={expenses} setExpenses={setExpensesWithSync} currentUser={currentUser}/>}
           {page==="reports"    && <Reports    isMobile={isMobile} sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
           {page==="shifts"     && <Shifts     isMobile={isMobile} shifts={shifts}/>}
-          {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync} currentUser={currentUser}/>}
+          {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync} currentUser={currentUser} tenantAuth={tenantAuth}/>}
         </div>
       </div>
 
