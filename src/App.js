@@ -4443,14 +4443,14 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:20,alignItems:"flex-start",marginBottom:20}}>
         <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
         <div 
-          onClick={() => { if(isMobile) setIsRawCollapsed(!isRawCollapsed) }}
-          style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
+          onClick={() => setIsRawCollapsed(!isRawCollapsed)}
+          style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}
         >
           <span>📦 Остатки сырья и упаковки</span>
-          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isRawCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
+          <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isRawCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>
         </div>
         {!isRawCollapsed && (
-          <div style={{overflowX:"auto"}}>
+          <div style={{overflowX:"auto", overflowY:"auto", maxHeight:"50vh"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
             <thead>
               <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
@@ -4508,14 +4508,14 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       {/* Таблица полуфабрикатов */}
         <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
         <div 
-          onClick={() => { if(isMobile) setIsSemiCollapsed(!isSemiCollapsed) }}
-          style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
+          onClick={() => setIsSemiCollapsed(!isSemiCollapsed)}
+          style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}
         >
           <span>⚗️ Полуфабрикаты на кухне</span>
-          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isSemiCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
+          <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isSemiCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>
         </div>
         {!isSemiCollapsed && (
-          <div style={{overflowX:"auto"}}>
+          <div style={{overflowX:"auto", overflowY:"auto", maxHeight:"50vh"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
             <thead>
               <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
