@@ -7054,6 +7054,19 @@ async function supaFetch(method, table, body=null, params="") {
   if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
 
+  if (body && (method === "POST" || method === "PATCH" || method === "PUT")) {
+    try {
+      const tid = localStorage.getItem("vb_tenant_id");
+      if (tid) {
+        if (Array.isArray(body)) {
+          body = body.map(item => ({ ...item, tenant_id: tid }));
+        } else if (typeof body === "object") {
+          body = { ...body, tenant_id: tid };
+        }
+      }
+    } catch (e) {}
+  }
+
   // Вспомогательная функция добавления в очередь с UUID и дедупликацией PATCH
   const enqueueOp = () => {
     try {
@@ -7083,7 +7096,7 @@ async function supaFetch(method, table, body=null, params="") {
       method,
       headers:{
         "apikey":SUPA_KEY,
-        "Authorization":`Bearer ${SUPA_KEY}`,
+        "Authorization":`Bearer ${localStorage.getItem("vb_tenant_jwt") || SUPA_KEY}`,
         "Content-Type":"application/json",
         "Prefer": method === "POST" ? "resolution=merge-duplicates" : "return=minimal",
       },
@@ -7116,7 +7129,7 @@ let RPC_ENABLED = false;
 async function checkRpcExists() {
   try {
     const res = await fetch(`${SUPA_URL}/rest/v1/rpc/update_raw_stock_atomic`, {
-      method: "POST", headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": "application/json" },
+      method: "POST", headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${localStorage.getItem("vb_tenant_jwt") || SUPA_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ p_raw_id: "test", p_point: "test", p_delta: 0 })
     });
     RPC_ENABLED = res.status !== 404;
@@ -7157,6 +7170,49 @@ const checkIsPortrait = () => {
 };
 
 export default function App(){
+  const [tenantAuth, setTenantAuth] = useState(() => {
+    try {
+      const token = localStorage.getItem("vb_tenant_jwt");
+      return token ? { access_token: token } : null;
+    } catch { return null; }
+  });
+  const [tenantEmail, setTenantEmail] = useState("");
+  const [tenantPassword, setTenantPassword] = useState("");
+  const [tenantAuthenticating, setTenantAuthenticating] = useState(false);
+  const [tenantError, setTenantError] = useState("");
+  const [showTenantPassword, setShowTenantPassword] = useState(false);
+
+  const loginTenant = async () => {
+    if (!supabase) return;
+    setTenantAuthenticating(true);
+    setTenantError("");
+    const { data, error } = await supabase.auth.signInWithPassword({ email: tenantEmail, password: tenantPassword });
+    setTenantAuthenticating(false);
+      if (error) {
+        setTenantError("Ошибка входа: " + error.message);
+      } else {
+        localStorage.setItem("vb_tenant_jwt", data.session.access_token);
+        if (data.user?.app_metadata?.tenant_id) {
+          localStorage.setItem("vb_tenant_id", data.user.app_metadata.tenant_id);
+        }
+        localStorage.removeItem("vb_sync_queue");
+        setTenantAuth({ access_token: data.session.access_token });
+      }
+    };
+
+  const registerTenant = async () => {
+    if (!supabase) return;
+    setTenantAuthenticating(true);
+    setTenantError("");
+    const { data, error } = await supabase.auth.signUp({ email: tenantEmail, password: tenantPassword });
+    setTenantAuthenticating(false);
+    if (error) {
+      setTenantError("Ошибка регистрации: " + error.message);
+    } else {
+      setTenantError("Регистрация успешна! Теперь вы можете войти.");
+    }
+  };
+
   // Восстанавливаем сессию из localStorage (с проверкой TTL 8 часов)
   const [currentUser,setCurrentUser] = useState(() => {
     if (!isSessionValid()) {
@@ -7578,6 +7634,7 @@ const setExpensesWithSync = (updater) => {
   
   
   const processSyncQueue = async () => {
+    if (!localStorage.getItem("vb_tenant_jwt")) return;
     const queue = LS("vb_sync_queue", []);
     if (!queue.length) return;
     if (typeof window !== "undefined" && window.navigator && !window.navigator.onLine) return;
@@ -7593,7 +7650,7 @@ const setExpensesWithSync = (updater) => {
           method: item.method,
           headers: {
             "apikey": SUPA_KEY,
-            "Authorization": `Bearer ${SUPA_KEY}`,
+            "Authorization": `Bearer ${localStorage.getItem("vb_tenant_jwt") || SUPA_KEY}`,
             "Content-Type": "application/json",
             "Prefer": item.method === "POST" ? "resolution=merge-duplicates" : "return=minimal",
           },
@@ -7640,9 +7697,7 @@ const setExpensesWithSync = (updater) => {
   }, []);
 
   // Эффект Realtime-подписок на таблицы Supabase объединен ниже с основным эффектом
-
-
-  useEffect(()=>{
+useEffect(()=>{
     document.title = "VkusBuket";
     const handleResize = () => {
       const mobile = checkIsMobile();
@@ -7672,6 +7727,7 @@ const setExpensesWithSync = (updater) => {
   }, []);
 
   useEffect(()=>{
+    if (!localStorage.getItem("vb_tenant_jwt")) return;
     const load = async () => {
       try {
         await processSyncQueue();
@@ -7783,7 +7839,7 @@ const setExpensesWithSync = (updater) => {
     
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
+  },[tenantAuth]);
 
   useEffect(()=>{
     if(loading) return;
@@ -8150,7 +8206,7 @@ const setExpensesWithSync = (updater) => {
 
   
   // ── ЭКРАН ЗАГРУЗКИ ──
-  if(loading) return(
+  if(loading && tenantAuth) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
       <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
       <div style={{fontSize:14,color:"#7A7A94"}}>⟳ Загрузка данных...</div>
@@ -8234,6 +8290,55 @@ const setExpensesWithSync = (updater) => {
     setCurrentUser(null);
     showToast("Смена закрыта, выход из системы");
   };
+
+  if (!tenantAuth) {
+    return (
+      <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,height:"100dvh",display:"flex",flexDirection:"column",color:C.text,alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{fontSize:32,fontWeight:900,color:C.accent,marginBottom:30}}>VKUS<span style={{fontWeight:300,color:C.text}}>BUKET</span></div>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:30,width:"100%",maxWidth:400}}>
+          <div style={{fontSize:20,fontWeight:800,marginBottom:20,textAlign:"center"}}>Вход в Мастерскую</div>
+          {tenantError && <div style={{color:C.red,fontSize:13,marginBottom:15,textAlign:"center"}}>{tenantError}</div>}
+          <div style={{marginBottom:15}}>
+            <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Email</div>
+            <input 
+              type="email" 
+              value={tenantEmail} 
+              onChange={e => setTenantEmail(e.target.value)} 
+              placeholder="mail@example.com"
+              style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}} 
+            />
+          </div>
+          <div style={{marginBottom:25,position:"relative"}}>
+            <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Пароль</div>
+            <input 
+              type={showTenantPassword ? "text" : "password"} 
+              value={tenantPassword} 
+              onChange={e => setTenantPassword(e.target.value)} 
+              placeholder="••••••••"
+              style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 14px",color:C.text,fontSize:14,boxSizing:"border-box",outline:"none"}} 
+            />
+            <button 
+              onClick={() => setShowTenantPassword(!showTenantPassword)}
+              style={{position:"absolute",right:12,top:32,background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:12}}>
+              {showTenantPassword ? "Скрыть" : "Показать"}
+            </button>
+          </div>
+          <button 
+            disabled={tenantAuthenticating || !tenantEmail || !tenantPassword}
+            onClick={loginTenant}
+            style={{width:"100%",padding:14,borderRadius:10,background:C.accent,color:"#000",fontWeight:800,border:"none",cursor:"pointer",marginBottom:15,opacity:(tenantAuthenticating || !tenantEmail || !tenantPassword)?0.5:1}}>
+            {tenantAuthenticating ? "Вход..." : "Войти"}
+          </button>
+          <button 
+            disabled={tenantAuthenticating || !tenantEmail || !tenantPassword}
+            onClick={registerTenant}
+            style={{width:"100%",padding:14,borderRadius:10,background:"transparent",color:C.accent,fontWeight:800,border:`1px solid ${C.accent}`,cursor:"pointer",opacity:(tenantAuthenticating || !tenantEmail || !tenantPassword)?0.5:1}}>
+            Зарегистрировать Мастерскую
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if(!currentUser) return <PinScreen users={users} onLogin={handleLogin} />;
 
