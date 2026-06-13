@@ -2255,6 +2255,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [selPoint, setSelPoint] = useState(POINTS[0]);
+  const [kpiModal, setKpiModal] = useState(null);
 
   const now = new Date();
   const todayStr = now.toLocaleDateString("ru-RU");
@@ -2357,14 +2358,124 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
 
   const isAdmin = currentUser?.role === "admin";
   const KPI = isAdmin ? [
-    {label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
-    {label:"РАСХОДЫ",        val:fmtS(totalExp),  color:C.red },
+    {id:"rev", label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
+    {id:"exp", label:"РАСХОДЫ",        val:fmtS(totalExp),  color:C.red },
   ] : [
-    {label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
-    {label:"COGS (себест.)", val:fmtS(totalCOGS), color:C.yellow },
-    {label:"ВАЛОВАЯ ПРИБЫЛЬ",val:fmtS(grossP),    color:grossP>=0?C.green:C.red },
-    {label:"ЧИСТАЯ ПРИБЫЛЬ", val:fmtS(netP),      color:netP>=0?C.green:C.red },
+    {id:"rev", label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
+    {id:"cogs",label:"COGS (себест.)", val:fmtS(totalCOGS), color:C.yellow },
+    {id:"gross",label:"ВАЛОВАЯ ПРИБЫЛЬ",val:fmtS(grossP),    color:grossP>=0?C.green:C.red },
+    {id:"net", label:"ЧИСТАЯ ПРИБЫЛЬ", val:fmtS(netP),      color:netP>=0?C.green:C.red },
   ];
+  const renderKpiModal = () => {
+    if (!kpiModal) return null;
+    let title = "";
+    let contentNode = null;
+    if (kpiModal === "rev") {
+       title = "Детализация Выручки";
+       contentNode = (
+           <div>
+             <div style={{marginBottom: 10, fontSize: 13, color: C.muted}}>Данные построены на основе проведенных продаж за выбранный период ({periodFilter}). Всего чеков: {filteredSales.length}.</div>
+             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                 <thead><tr style={{borderBottom:`1px solid ${C.border}`}}><th style={{textAlign:"left",paddingBottom:8}}>Чек</th><th style={{textAlign:"left",paddingBottom:8}}>Точка</th><th style={{textAlign:"right",paddingBottom:8}}>Сумма</th></tr></thead>
+                 <tbody>
+                    {filteredSales.map(s => (
+                       <tr key={s.id} style={{borderBottom:`1px solid ${C.border}40`}}>
+                          <td style={{padding:"8px 0"}}>#{s.no} <span style={{fontSize:10,color:C.muted}}>({s.date})</span></td>
+                          <td>{s.point}</td>
+                          <td style={{textAlign:"right",fontWeight:"bold",color:C.green}}>{fmtM(s.total)}</td>
+                       </tr>
+                    ))}
+                 </tbody>
+             </table>
+           </div>
+       );
+    } else if (kpiModal === "cogs") {
+       title = "Детализация Себестоимости (COGS)";
+       contentNode = (
+           <div>
+             <div style={{marginBottom: 10, fontSize: 13, color: C.muted}}>Себестоимость рассчитывается на основе технологических карт (ингредиентов) для каждого проданного товара за {periodFilter}.</div>
+             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                 <thead><tr style={{borderBottom:`1px solid ${C.border}`}}><th style={{textAlign:"left",paddingBottom:8}}>Чек</th><th style={{textAlign:"left",paddingBottom:8}}>Точка</th><th style={{textAlign:"right",paddingBottom:8}}>Себестоимость</th></tr></thead>
+                 <tbody>
+                    {filteredSales.map(s => (
+                       <tr key={s.id} style={{borderBottom:`1px solid ${C.border}40`}}>
+                          <td style={{padding:"8px 0"}}>#{s.no}</td>
+                          <td>{s.point}</td>
+                          <td style={{textAlign:"right",fontWeight:"bold",color:C.yellow}}>{fmtM(s.cogs || 0)}</td>
+                       </tr>
+                    ))}
+                 </tbody>
+             </table>
+           </div>
+       );
+    } else if (kpiModal === "exp") {
+       title = "Детализация Расходов";
+       contentNode = (
+           <div>
+             <div style={{marginBottom: 10, fontSize: 13, color: C.muted}}>Расходы берутся из вкладки «Расходы», за исключением внесений и изъятий в сейф за {periodFilter}. Общекорпоративные расходы делятся на количество точек (если выбрана конкретная точка).</div>
+             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                 <thead><tr style={{borderBottom:`1px solid ${C.border}`}}><th style={{textAlign:"left",paddingBottom:8}}>Расход</th><th style={{textAlign:"left",paddingBottom:8}}>Точка</th><th style={{textAlign:"right",paddingBottom:8}}>Сумма</th></tr></thead>
+                 <tbody>
+                    {filteredExpenses.map(e => {
+                       let amt = e.amount;
+                       let note = "";
+                       if (pointFilter !== "Все" && e.point === "Вся компания") {
+                           amt = amt / activePointsCount;
+                           note = "(разд.)";
+                       }
+                       return (
+                         <tr key={e.id} style={{borderBottom:`1px solid ${C.border}40`}}>
+                            <td style={{padding:"8px 0"}}>{e.name} <span style={{fontSize:10,color:C.muted}}>({e.date})</span></td>
+                            <td>{e.point} <span style={{fontSize:10,color:C.muted}}>{note}</span></td>
+                            <td style={{textAlign:"right",fontWeight:"bold",color:C.red}}>{fmtM(amt)}</td>
+                         </tr>
+                       );
+                    })}
+                 </tbody>
+             </table>
+           </div>
+       );
+    } else if (kpiModal === "gross") {
+       title = "Расчёт Валовой Прибыли";
+       contentNode = (
+           <div style={{textAlign:"center", padding: 20}}>
+             <div style={{fontSize: 16, color: C.muted, marginBottom: 20}}>Валовая прибыль = Выручка − Себестоимость проданных товаров (COGS)</div>
+             <div style={{fontSize: 24, fontWeight: "bold", marginBottom: 10}}>
+               <span style={{color: C.green}}>{fmtM(totalRev)}</span> − <span style={{color: C.yellow}}>{fmtM(totalCOGS)}</span>
+             </div>
+             <div style={{fontSize: 32, fontWeight: 900, color: grossP >= 0 ? C.green : C.red}}>
+               = {fmtM(grossP)}
+             </div>
+           </div>
+       );
+    } else if (kpiModal === "net") {
+       title = "Расчёт Чистой Прибыли";
+       contentNode = (
+           <div style={{textAlign:"center", padding: 20}}>
+             <div style={{fontSize: 16, color: C.muted, marginBottom: 20}}>Чистая прибыль = Валовая прибыль − Операционные расходы</div>
+             <div style={{fontSize: 24, fontWeight: "bold", marginBottom: 10}}>
+               <span style={{color: grossP >= 0 ? C.green : C.red}}>{fmtM(grossP)}</span> − <span style={{color: C.red}}>{fmtM(totalExp)}</span>
+             </div>
+             <div style={{fontSize: 32, fontWeight: 900, color: netP >= 0 ? C.green : C.red}}>
+               = {fmtM(netP)}
+             </div>
+           </div>
+       );
+    }
+
+    return (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:"90%",maxWidth:600,border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto", WebkitOverflowScrolling:"touch"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+               <h3 style={{margin:0, color:C.text}}>{title}</h3>
+               <button onClick={()=>setKpiModal(null)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:20}}>✕</button>
+            </div>
+            {contentNode}
+          </div>
+        </div>
+    );
+  };
+
 
   const pendingDeletions = sales.filter(s => s.status === "pending");
   const isOwnerOrDirector = currentUser?.role === "owner" || currentUser?.role === "director";
@@ -2437,9 +2548,17 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
         </div>
       </div>
 
+      {renderKpiModal()}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:22}}>
         {KPI.map((k,i)=>(
-          <div key={i} style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`}}>
+          <div 
+            key={i} 
+            onClick={() => { if (isOwnerOrDirector) setKpiModal(k.id) }}
+            style={{background:C.card,borderRadius:14,padding:"18px 20px",border:`1px solid ${C.border}`, cursor: isOwnerOrDirector ? "pointer" : "default", transition:"transform 0.1s", transform: "scale(1)"}}
+            onMouseOver={(e)=>{ if(isOwnerOrDirector) e.currentTarget.style.transform="scale(1.02)" }}
+            onMouseOut={(e)=>{ if(isOwnerOrDirector) e.currentTarget.style.transform="scale(1)" }}
+            title={isOwnerOrDirector ? "Кликните для детализации расчёта" : ""}
+          >
             <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>{k.label}</div>
             <div style={{fontSize:26,fontWeight:900,color:k.color}}>{k.val}</div>
           </div>
@@ -3887,6 +4006,54 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
 
 // ─── СКЛАД ───────────────────────────────────────────────────────────────────
 function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,sales,expenses,techCards,history,setHistory}){
+  const handleCorrection = (item, loc, currentQty, isRaw) => {
+     if (currentUser?.role !== "owner" && currentUser?.role !== "director") {
+         return; // Only owner/director can correct
+     }
+     const val = window.prompt(`Введите правильный остаток для "${item.name}" в локации "${loc}" (сейчас: ${currentQty}):`, currentQty);
+     if (val === null) return;
+     const newQty = parseFloat(val.replace(',', '.'));
+     if (isNaN(newQty) || newQty < 0) {
+         alert("Некорректное значение");
+         return;
+     }
+     if (newQty === currentQty) return;
+     
+     const diff = newQty - currentQty;
+     const sign = diff > 0 ? "+" : "";
+
+     if (isRaw) {
+        setRawStock(prev => prev.map(r => {
+           if(r.id !== item.id) return r;
+           const qObj = parseQtyObj(r.qty);
+           qObj[loc] = newQty;
+           return {...r, qty: qObj};
+        }));
+     } else {
+        setSemiStock(prev => prev.map(s => {
+           if(s.id !== item.id) return s;
+           const qObj = parseSemiQtyObj(s.qty);
+           qObj[loc] = newQty;
+           return {...s, qty: qObj};
+        }));
+     }
+     
+     const histId = generateUUID();
+     const newHistItem = {
+      id: histId,
+      date: new Date().toLocaleDateString("ru-RU"),
+      item: item.name,
+      qty: diff,
+      unit: item.unit,
+      price: item.price || 0,
+      supplier: "Корректировка",
+      location: loc,
+      type: "correction"
+     };
+     setHistory(h => [newHistItem, ...h]);
+     showToast(`Корректировка: ${item.name} (${sign}${diff} ${item.unit})`);
+  };
+
   const [showAdd,setShowAdd]=useState(false);
   const [search,setSearch]=useState("");
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
@@ -4205,7 +4372,8 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск по складу..." style={{width:"100%",padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none",boxSizing:"border-box",fontSize:14}}/>
       </div>
       {/* Таблица сырья */}
-      <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden",marginBottom:20}}>
+      <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:20,alignItems:"flex-start",marginBottom:20}}>
+        <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
         <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>📦 Остатки сырья и упаковки</div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
@@ -4239,11 +4407,11 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
                       <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qObj[myPoint])}</td>
                     ) : (
                       <>
-                        <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qObj["Склад"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qObj["Мастерская"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qObj["Фуд Трак"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qObj["Жара"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qObj["Парк"])}</td>
+                        <td onClick={() => handleCorrection(r, "Склад", qObj["Склад"] || 0, true)} style={{padding:"13px 18px",fontWeight:800, cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}} title="Кликните для корректировки">{fmt(qObj["Склад"]||0)}</td>
+                        <td onClick={() => handleCorrection(r, "Мастерская", qObj["Мастерская"] || 0, true)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qObj["Мастерская"]||0)}</td>
+                        <td onClick={() => handleCorrection(r, "Фуд Трак", qObj["Фуд Трак"] || 0, true)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qObj["Фуд Трак"]||0)}</td>
+                        <td onClick={() => handleCorrection(r, "Жара", qObj["Жара"] || 0, true)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qObj["Жара"]||0)}</td>
+                        <td onClick={() => handleCorrection(r, "Парк", qObj["Парк"] || 0, true)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qObj["Парк"]||0)}</td>
                         <td style={{padding:"13px 18px",color:C.green,fontWeight:700}}>{fmtM(r.price)}</td>
                         <td style={{padding:"13px 18px",color:C.accent,fontWeight:700}}>{fmtM(Math.round(totalQty*r.price))}</td>
                       </>
@@ -4262,7 +4430,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       </div>
 
       {/* Таблица полуфабрикатов */}
-      <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden",marginBottom:20}}>
+        <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
         <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>⚗️ Полуфабрикаты на кухне</div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
@@ -4299,11 +4467,11 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
                       <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qtyObj[myPoint])}</td>
                     ) : (
                       <>
-                        <td style={{padding:"13px 18px",fontWeight:800}}>{fmt(qtyObj["Склад"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qtyObj["Мастерская"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qtyObj["Фуд Трак"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qtyObj["Жара"])}</td>
-                        <td style={{padding:"13px 18px"}}>{fmt(qtyObj["Парк"])}</td>
+                        <td onClick={() => handleCorrection(s, "Склад", qtyObj["Склад"] || 0, false)} style={{padding:"13px 18px",fontWeight:800, cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}} title="Кликните для корректировки">{fmt(qtyObj["Склад"]||0)}</td>
+                        <td onClick={() => handleCorrection(s, "Мастерская", qtyObj["Мастерская"] || 0, false)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qtyObj["Мастерская"]||0)}</td>
+                        <td onClick={() => handleCorrection(s, "Фуд Трак", qtyObj["Фуд Трак"] || 0, false)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qtyObj["Фуд Трак"]||0)}</td>
+                        <td onClick={() => handleCorrection(s, "Жара", qtyObj["Жара"] || 0, false)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qtyObj["Жара"]||0)}</td>
+                        <td onClick={() => handleCorrection(s, "Парк", qtyObj["Парк"] || 0, false)} style={{padding:"13px 18px", cursor:(currentUser?.role==="owner"||currentUser?.role==="director")?"pointer":"default", textDecoration:(currentUser?.role==="owner"||currentUser?.role==="director")?"underline dashed":"none"}}>{fmt(qtyObj["Парк"]||0)}</td>
                       </>
                     )}
                     <td style={{padding:"13px 18px"}}>
