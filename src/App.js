@@ -4635,7 +4635,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
                 )}
               </div>
             </div>
-          ))}
+          )))}
         </div>
       )}
     </div>
@@ -6388,7 +6388,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
                 )}
               </div>
             </div>
-          ))}
+          )))}
         </div>
       )}
     </div>
