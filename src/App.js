@@ -2249,13 +2249,14 @@ function useToast(){
 }
 
 // ─── ДАШБОРД ─────────────────────────────────────────────────────────────────
-function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast}){
+function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCancelSale,users,setSales,showToast,setActiveMenu}){
   const [pointFilter, setPointFilter] = useState("Все");
   const [periodFilter, setPeriodFilter] = useState("Сегодня");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [selPoint, setSelPoint] = useState(POINTS[0]);
   const [kpiModal, setKpiModal] = useState(null);
+  const [pointModal, setPointModal] = useState(null);
 
   const now = new Date();
   const todayStr = now.toLocaleDateString("ru-RU");
@@ -2340,6 +2341,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
 
   const grossP    = totalRev - totalCOGS;
   const netP      = grossP - totalExp;
+  const foodCost  = totalRev > 0 ? (totalCOGS / totalRev * 100).toFixed(1) + "%" : "0%";
 
   const byPoint = POINTS.map((p,i)=>({
     name:p, color:POINT_COLORS[i],
@@ -2363,9 +2365,38 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
   ] : [
     {id:"rev", label:"ВЫРУЧКА",        val:fmtS(totalRev),  color:C.accent },
     {id:"cogs",label:"COGS (себест.)", val:fmtS(totalCOGS), color:C.yellow },
+    {id:"foodcost",label:"ФУДКОСТ",    val:foodCost,        color:C.blue },
     {id:"gross",label:"ВАЛОВАЯ ПРИБЫЛЬ",val:fmtS(grossP),    color:grossP>=0?C.green:C.red },
     {id:"net", label:"ЧИСТАЯ ПРИБЫЛЬ", val:fmtS(netP),      color:netP>=0?C.green:C.red },
   ];
+  const renderPointModal = () => {
+    if (!pointModal) return null;
+    const pointSales = filteredSales.filter(s => s.point === pointModal);
+    return (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:C.card,borderRadius:16,padding:28,width:"90%",maxWidth:600,border:`1px solid ${C.border}`,maxHeight:"90vh",overflowY:"auto", WebkitOverflowScrolling:"touch"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+               <h3 style={{margin:0, color:C.text}}>Детализация выручки: {pointModal}</h3>
+               <button onClick={()=>setPointModal(null)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:20}}>✕</button>
+            </div>
+            {pointSales.length === 0 ? <p style={{color:C.muted}}>Нет данных за этот период.</p> : (
+               <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                 <thead><tr style={{borderBottom:`1px solid ${C.border}`}}><th style={{textAlign:"left",paddingBottom:8}}>Чек</th><th style={{textAlign:"right",paddingBottom:8}}>Сумма</th></tr></thead>
+                 <tbody>
+                    {pointSales.map(s => (
+                       <tr key={s.id} style={{borderBottom:`1px solid ${C.border}40`}}>
+                          <td style={{padding:"8px 0"}}>#{s.no} <span style={{fontSize:10,color:C.muted}}>({s.date})</span></td>
+                          <td style={{textAlign:"right",fontWeight:"bold",color:C.green}}>{fmtM(s.total)}</td>
+                       </tr>
+                    ))}
+                 </tbody>
+               </table>
+            )}
+          </div>
+        </div>
+    );
+  };
+
   const renderKpiModal = () => {
     if (!kpiModal) return null;
     let title = "";
@@ -2445,6 +2476,19 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
              </div>
              <div style={{fontSize: 32, fontWeight: 900, color: grossP >= 0 ? C.green : C.red}}>
                = {fmtM(grossP)}
+             </div>
+           </div>
+       );
+    } else if (kpiModal === "foodcost") {
+       title = "Расчёт Фудкоста";
+       contentNode = (
+           <div style={{textAlign:"center", padding: 20}}>
+             <div style={{fontSize: 16, color: C.muted, marginBottom: 20}}>Фудкост = (Себестоимость проданных товаров / Выручка) × 100%</div>
+             <div style={{fontSize: 24, fontWeight: "bold", marginBottom: 10}}>
+               (<span style={{color: C.yellow}}>{fmtM(totalCOGS)}</span> ÷ <span style={{color: C.green}}>{fmtM(totalRev)}</span>) × 100
+             </div>
+             <div style={{fontSize: 32, fontWeight: 900, color: C.blue}}>
+               = {foodCost}
              </div>
            </div>
        );
@@ -2549,6 +2593,7 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
       </div>
 
       {renderKpiModal()}
+      {renderPointModal()}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:14,marginBottom:22}}>
         {KPI.map((k,i)=>(
           <div 
@@ -2569,7 +2614,14 @@ function Dashboard({isMobile,sales,semiStock,rawStock,expenses,currentUser,onCan
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
           <div style={{fontSize:14,fontWeight:700,marginBottom:16}}>Выручка по точкам ({periodFilter})</div>
           {byPoint.map((p,i)=>(
-            <div key={i} style={{marginBottom:14}}>
+            <div 
+              key={i} 
+              style={{marginBottom:14, cursor: isOwnerOrDirector ? "pointer" : "default", padding: "8px", borderRadius: "8px", transition: "background 0.2s"}}
+              onClick={() => { if(isOwnerOrDirector) setPointModal(p.name); }}
+              onMouseOver={(e)=>{ if(isOwnerOrDirector) e.currentTarget.style.background=C.surface }}
+              onMouseOut={(e)=>{ if(isOwnerOrDirector) e.currentTarget.style.background="transparent" }}
+              title={isOwnerOrDirector ? "Посмотреть чеки по этой точке" : ""}
+            >
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{width:8,height:8,borderRadius:4,background:p.color}}/>
@@ -3799,6 +3851,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
   const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
   const [search,setSearch]=useState("");
+  const [isRawCollapsed, setIsRawCollapsed] = useState(false);
+  const [isSemiCollapsed, setIsSemiCollapsed] = useState(false);
   const [modal,setModal]=useState(null);
   const [form,setForm]=useState({targetId:"s1",qty:"",point:"Мастерская"});
   
@@ -3915,8 +3969,14 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
       {activeTab === "produce" ? (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
-            <h3 style={{marginTop:0,marginBottom:16}}>🏭 Склад сырья (Центральный)</h3>
-            {rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
+            <h3 
+              onClick={() => { if(isMobile) setIsProdRawCollapsed(!isProdRawCollapsed) }}
+              style={{marginTop:0,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
+            >
+              <span>🏭 Склад сырья (Центральный)</span>
+              {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isProdRawCollapsed ? "▼" : "▲"}</span>}
+            </h3>
+            {!isProdRawCollapsed && rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
               const matchedSemi = semiStock.find(s=>s.rawId === r.id);
               if (!matchedSemi) return null;
               const wQty = getQty(r.qty, "Склад");
@@ -3933,12 +3993,18 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
           </div>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
-              <h3 style={{margin:0}}>⚗️ Полуфабрикаты по точкам</h3>
+              <h3 
+                onClick={() => { if(isMobile) setIsProdSemiCollapsed(!isProdSemiCollapsed) }}
+                style={{margin:0,display:"flex",alignItems:"center",gap:8,cursor:isMobile?"pointer":"default",flex:1}}
+              >
+                <span>⚗️ Полуфабрикаты по точкам</span>
+                {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isProdSemiCollapsed ? "▼" : "▲"}</span>}
+              </h3>
               <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
                 {POINTS.map(p=><option key={p}>{p}</option>)}
               </select>
             </div>
-            {semiStock.map(s=>{
+            {!isProdSemiCollapsed && semiStock.map(s=>{
               const pQty = getQty(s.qty, form.point);
               return (
                 <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}>
@@ -4056,6 +4122,8 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
 
   const [showAdd,setShowAdd]=useState(false);
   const [search,setSearch]=useState("");
+  const [isRawCollapsed, setIsRawCollapsed] = useState(false);
+  const [isSemiCollapsed, setIsSemiCollapsed] = useState(false);
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
   const [toast,showToast]=useToast();
 
@@ -4374,8 +4442,15 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       {/* Таблица сырья */}
       <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:20,alignItems:"flex-start",marginBottom:20}}>
         <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
-        <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>📦 Остатки сырья и упаковки</div>
-        <div style={{overflowX:"auto"}}>
+        <div 
+          onClick={() => { if(isMobile) setIsRawCollapsed(!isRawCollapsed) }}
+          style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
+        >
+          <span>📦 Остатки сырья и упаковки</span>
+          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:normal}}>{isRawCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
+        </div>
+        {!isRawCollapsed && (
+          <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
             <thead>
               <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
@@ -4427,12 +4502,20 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Таблица полуфабрикатов */}
         <div style={{flex:1,minWidth:0,background:C.card,borderRadius:12,border:`1px solid ${C.border}`,overflow:"hidden"}}>
-        <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700}}>⚗️ Полуфабрикаты на кухне</div>
-        <div style={{overflowX:"auto"}}>
+        <div 
+          onClick={() => { if(isMobile) setIsSemiCollapsed(!isSemiCollapsed) }}
+          style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
+        >
+          <span>⚗️ Полуфабрикаты на кухне</span>
+          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:normal}}>{isSemiCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
+        </div>
+        {!isSemiCollapsed && (
+          <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",textAlign:"left",fontSize:13,minWidth:650}}>
             <thead>
               <tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
@@ -4485,6 +4568,8 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             </tbody>
           </table>
         </div>
+        )}
+      </div>
       </div>
 
       {filteredHistory.length>0&&(
@@ -5253,6 +5338,8 @@ function Reports({isMobile,sales,expenses,rawStock,semiStock,currentUser,techCar
 function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStock,users,setUsers,customers,setCustomers,currentUser}){
   const [tab,setTab]=useState("products");
   const [search,setSearch]=useState("");
+  const [isRawCollapsed, setIsRawCollapsed] = useState(false);
+  const [isSemiCollapsed, setIsSemiCollapsed] = useState(false);
   useEffect(()=>{setSearch("");},[tab]);
   const [editId,setEditId]=useState(null);
   const [showAddProduct,setShowAddProduct]=useState(false);
@@ -8238,7 +8325,7 @@ const setExpensesWithSync = (updater) => {
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
           {page==="dashboard"        && <>
-            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser}/>
+            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser} setActiveMenu={setActiveMenu}/>
             <div style={{padding:20, background:"#fcc"}}>
               <h3 style={{color:"red"}}>Отладка (Скриншот для разраба)</h3>
               <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 200, fontSize:10, fontFamily:"monospace"}} />
