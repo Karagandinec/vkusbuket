@@ -2851,7 +2851,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   const [catFilter,setCatFilter] = useState("Все");
   const [search,setSearch]      = useState("");
   const [posTab,setPosTab]          = useState("products");
-  const [ordersPointFilter,setOrdersPointFilter] = useState("Все точки");
+  const [ordersPointFilter,setOrdersPointFilter] = useState(currentUser?.role==="cashier" ? currentUser.point : "Все точки");
   const [toast,showToast]           = useToast();
   const [splitMode,setSplitMode]    = useState(false);
   const [payments,setPayments]      = useState([]);
@@ -8213,8 +8213,14 @@ const setExpensesWithSync = (updater) => {
   }
   const allowedNav = NAV.filter(n=>userNav.includes(n.id));
 
-  const totalRev = sales.reduce((s,i)=>s+i.total,0);
-  const totalOrd = sales.length;
+  const todayStrHeader = new Date().toLocaleDateString("ru-RU");
+  const headerSales = sales.filter(s => {
+    if(s.date !== todayStrHeader) return false;
+    if(currentUser?.role === "cashier") return s.point === currentUser.point;
+    return true;
+  });
+  const totalRev = headerSales.reduce((s,i)=>s+i.total,0);
+  const totalOrd = headerSales.length;
 
   return(
     <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,height:"100dvh",display:"flex",flexDirection:(isMobile && isPortrait)?"column":"row",color:C.text,overflow:"hidden",position:"relative",paddingTop:"env(safe-area-inset-top)",paddingBottom:"env(safe-area-inset-bottom)",paddingLeft:"env(safe-area-inset-left)",paddingRight:"env(safe-area-inset-right)",boxSizing:"border-box"}}>
