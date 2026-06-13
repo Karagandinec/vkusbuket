@@ -3970,13 +3970,13 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
             <h3 
-              onClick={() => { if(isMobile) setIsProdRawCollapsed(!isProdRawCollapsed) }}
+              onClick={() => { if(isMobile) setIsRawCollapsed(!isRawCollapsed) }}
               style={{marginTop:0,marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
             >
               <span>🏭 Склад сырья (Центральный)</span>
-              {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isProdRawCollapsed ? "▼" : "▲"}</span>}
+              {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isRawCollapsed ? "▼" : "▲"}</span>}
             </h3>
-            {!isProdRawCollapsed && rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
+            {!isRawCollapsed && rawStock.filter(r=>r.name.toLowerCase().includes(search.toLowerCase())).map(r=>{
               const matchedSemi = semiStock.find(s=>s.rawId === r.id);
               if (!matchedSemi) return null;
               const wQty = getQty(r.qty, "Склад");
@@ -3994,17 +3994,17 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
           <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
               <h3 
-                onClick={() => { if(isMobile) setIsProdSemiCollapsed(!isProdSemiCollapsed) }}
+                onClick={() => { if(isMobile) setIsSemiCollapsed(!isSemiCollapsed) }}
                 style={{margin:0,display:"flex",alignItems:"center",gap:8,cursor:isMobile?"pointer":"default",flex:1}}
               >
                 <span>⚗️ Полуфабрикаты по точкам</span>
-                {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isProdSemiCollapsed ? "▼" : "▲"}</span>}
+                {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isSemiCollapsed ? "▼" : "▲"}</span>}
               </h3>
               <select value={form.point} onChange={e=>setForm(f=>({...f,point:e.target.value}))} style={{background:C.surface,color:C.text,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",outline:"none",fontSize:12}}>
                 {POINTS.map(p=><option key={p}>{p}</option>)}
               </select>
             </div>
-            {!isProdSemiCollapsed && semiStock.map(s=>{
+            {!isSemiCollapsed && semiStock.map(s=>{
               const pQty = getQty(s.qty, form.point);
               return (
                 <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:`1px solid ${C.border}`}}>
@@ -4447,7 +4447,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
           style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
         >
           <span>📦 Остатки сырья и упаковки</span>
-          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:normal}}>{isRawCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
+          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isRawCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
         </div>
         {!isRawCollapsed && (
           <div style={{overflowX:"auto"}}>
@@ -4512,7 +4512,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
           style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,fontWeight:700,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:isMobile?"pointer":"default"}}
         >
           <span>⚗️ Полуфабрикаты на кухне</span>
-          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:normal}}>{isSemiCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
+          {isMobile && <span style={{fontSize:13,color:C.muted,fontWeight:"normal"}}>{isSemiCollapsed ? "▼ Развернуть" : "▲ Свернуть"}</span>}
         </div>
         {!isSemiCollapsed && (
           <div style={{overflowX:"auto"}}>
@@ -8325,7 +8325,7 @@ const setExpensesWithSync = (updater) => {
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
           {page==="dashboard"        && <>
-            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser} setActiveMenu={setActiveMenu}/>
+            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser} setActiveMenu={setPage}/>
             <div style={{padding:20, background:"#fcc"}}>
               <h3 style={{color:"red"}}>Отладка (Скриншот для разраба)</h3>
               <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 200, fontSize:10, fontFamily:"monospace"}} />
