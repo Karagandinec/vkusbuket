@@ -4618,7 +4618,7 @@ const EXP_CATS = [
 
 function Expenses({isMobile,expenses,setExpenses,currentUser}){
   const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
+  const [form,setForm]=useState({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense", source:"наличка"});
   const [toast,showToast]=useToast();
   
   const [periodFilter, setPeriodFilter] = useState("Сегодня");
@@ -4664,7 +4664,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
     if(!form.desc||!form.amount){showToast("Заполните поля",true);return;}
     const catVal = form.type && form.type !== "expense" ? form.type : form.cat;
     setExpenses(p=>[...p,{id:generateUUID(),...form,cat:catVal,amount:parseInt(form.amount)||0,date:new Date().toLocaleDateString("ru-RU")}]);
-    setForm({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense"});
+    setForm({cat:"rent",desc:"",amount:"",point: currentUser?.role === "cashier" ? currentUser.point : "Вся компания",paid:true,type:"expense", source:"наличка"});
     setShowForm(false);
     showToast(form.type === "deposit" ? "Средства внесены" : form.type === "safe" ? "Наличные сняты (Сейф)" : "Расход добавлен");
   };
@@ -4754,6 +4754,15 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
               <div style={{fontSize:11,color:C.muted,marginBottom:5}}>СУММА (₸)</div>
               <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:11,color:C.text,outline:"none",boxSizing:"border-box"}}/>
             </div>
+            <div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ИСТОЧНИК</div>
+              <select value={form.source} onChange={e=>setForm(f=>({...f,source:e.target.value}))} style={{width:"100%",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 10px",color:C.text,outline:"none"}}>
+                <option value="наличка">💵 Наличка</option>
+                <option value="каспи">Kaspi</option>
+                <option value="халык">Halyk</option>
+                <option value="bск">БЦК</option>
+              </select>
+            </div>
             {currentUser?.role !== "cashier" && (
               <div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:5}}>ТОЧКА / КАССА</div>
@@ -4799,7 +4808,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:500}}>
               <thead>
                 <tr style={{borderBottom:`1px solid ${C.border}`}}>
-                  {["Категория","Назначение","Точка","Статус","Сумма","Дата"].map((h,i)=>
+                  {["Категория","Назначение","Источник","Точка","Статус","Сумма","Дата"].map((h,i)=>
                     <th key={i} style={{padding:"8px 12px",textAlign:"left",color:C.muted,fontSize:11,fontWeight:600,textTransform:"uppercase"}}>{h}</th>
                   )}
                 </tr>
@@ -4809,6 +4818,7 @@ function Expenses({isMobile,expenses,setExpenses,currentUser}){
                   <tr key={e.id} style={{borderBottom:`1px solid ${C.border}40`}}>
                     <td style={{padding:"10px 12px"}}>{EXP_CATS.find(x=>x.id===e.cat)?.icon} {EXP_CATS.find(x=>x.id===e.cat)?.label}</td>
                     <td style={{padding:"10px 12px",color:C.text}}>{e.desc||e.note}</td>
+                    <td style={{padding:"10px 12px",color:C.muted}}>{e.source === "наличка" ? "💵 Наличка" : e.source === "каспи" ? "Kaspi" : e.source === "халык" ? "Halyk" : e.source === "bск" ? "БЦК" : (e.source || "—")}</td>
                     <td style={{padding:"10px 12px",color:C.muted}}>{e.point}</td>
                     <td style={{padding:"10px 12px"}}>
                       {(e.cat === "deposit" || e.cat === "safe") ? (
