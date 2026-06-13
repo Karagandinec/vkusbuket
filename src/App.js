@@ -3028,11 +3028,20 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
           // Разбиваем вес на количество выбранных шариков
           const scoopSpend = totalSpend / item.baseIceCream.length;
           item.baseIceCream.forEach(scoopSid => {
-            const idx = newSemi.findIndex(s=>s.id===scoopSid);
-            if(idx>=0) {
-              const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
-              qtyObj[selPoint] = Math.round((qtyObj[selPoint] - scoopSpend)*1000)/1000;
-              newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+            if (scoopSid === "none") {
+              const idxS1 = newSemi.findIndex(s=>s.id==="s1");
+              if (idxS1 >= 0) {
+                const qtyObj = parseSemiQtyObj(newSemi[idxS1].qty);
+                qtyObj[selPoint] = Math.round((qtyObj[selPoint] - 55 * item.qty)*1000)/1000;
+                newSemi[idxS1] = { ...newSemi[idxS1], qty: qtyObj };
+              }
+            } else {
+              const idx = newSemi.findIndex(s=>s.id===scoopSid);
+              if(idx>=0) {
+                const qtyObj = parseSemiQtyObj(newSemi[idx].qty);
+                qtyObj[selPoint] = Math.round((qtyObj[selPoint] - scoopSpend)*1000)/1000;
+                newSemi[idx] = { ...newSemi[idx], qty: qtyObj };
+              }
             }
           });
         } else if (ing.rid) {
@@ -3383,7 +3392,15 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                           >
                             🍦 Шок.
                           </button>
-                        </div>
+                                                  {!item.isRozhok && (
+                            <button
+                              onClick={() => setCart(prev => prev.map(i => i.id === item.id ? { ...i, baseIceCream: i.baseIceCream.map((sc, index) => index === sIdx ? "none" : sc) } : i))}
+                              style={{flex: 1, padding: "4px 8px", borderRadius: 6, border: `1px solid ${scoop === "none" ? C.accent : C.border}`, background: scoop === "none" ? C.accentSoft : "transparent", color: scoop === "none" ? C.accent : C.muted, fontSize: 11, cursor: "pointer", fontWeight: 700}}
+                            >
+                              Без мороженого (+50г ягод)
+                            </button>
+                          )}
+</div>
                       ))}
                     </div>
                   </div>
