@@ -3147,7 +3147,11 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
   const renderOrders = () => {
     const todayStr = new Date().toLocaleDateString("ru-RU");
-    const todaySales = sales.filter(s => (ordersPointFilter === "Все точки" || s.point === ordersPointFilter) && s.date === todayStr);
+    const todaySales = sales.filter(s => {
+      if(s.date !== todayStr) return false;
+      if(currentUser?.role === "cashier") return s.point === currentUser.point;
+      return ordersPointFilter === "Все точки" || s.point === ordersPointFilter;
+    });
     
     return (
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",height:"100%",maxHeight:"100vh"}}>
