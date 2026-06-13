@@ -3853,7 +3853,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
 
 // ─── ПРОИЗВОДСТВО И ПЕРЕМЕЩЕНИЕ ──────────────────────────────────────────────
 function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser}){
-  const [activeTab, setActiveTab] = useState("produce"); // "produce" или "transfer"
+  const [activeTab, setActiveTab] = useState("transfer"); // "produce" или "transfer"
   const [search,setSearch]=useState("");
   const [isRawCollapsed, setIsRawCollapsed] = useState(false);
   const [isSemiCollapsed, setIsSemiCollapsed] = useState(false);
@@ -3938,8 +3938,8 @@ function Production({isMobile,rawStock,setRawStock,semiStock,setSemiStock,curren
       
       {/* РЕЖИМЫ */}
       <div style={{display:"flex",gap:6,marginBottom:20}}>
-        <button onClick={()=>setActiveTab("produce")} style={{padding:"10px 18px",borderRadius:10,border:"none",background:activeTab==="produce"?C.accent:C.card,color:activeTab==="produce"?"#000":C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>🍓 Производство полуфабрикатов</button>
-        <button onClick={()=>setActiveTab("transfer")} style={{padding:"10px 18px",borderRadius:10,border:"none",background:activeTab==="transfer"?C.accent:C.card,color:activeTab==="transfer"?"#000":C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>📦 Распределение упаковки и сырья</button>
+        <button onClick={()=>setActiveTab("transfer")} style={{padding:"10px 18px",borderRadius:10,border:"none",background:activeTab==="transfer"?C.accent:C.card,color:activeTab==="transfer"?"#000":C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>📦 Центральный склад (сырья и упаковки)</button>
+        <button onClick={()=>setActiveTab("produce")} style={{padding:"10px 18px",borderRadius:10,border:"none",background:activeTab==="produce"?C.accent:C.card,color:activeTab==="produce"?"#000":C.muted,fontWeight:700,cursor:"pointer",fontSize:13}}>🍓 Производство (полуфабрикаты)</button>
       </div>
 
       {modal&&(
