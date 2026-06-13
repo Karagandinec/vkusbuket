@@ -2914,9 +2914,9 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
       if (p.find(i => (i.baseTcId || i.id) === tc.id)) {
         return p.map(i => (i.baseTcId || i.id) === tc.id ? {...i, qty: i.qty+1} : i);
       } else {
-        const isKremanok = tc.product && tc.product.toLowerCase().includes("креманка");
         const isRozhok = tc.product && tc.product.toLowerCase().includes("рожок");
-        const is3Scoops = isKremanok && tc.product.toLowerCase().includes("3 шар");
+        const isKremanok = !isRozhok && (tc.cat === "Креманки" || (tc.product && tc.product.toLowerCase().includes("креманка")));
+        const is3Scoops = isKremanok && tc.product && tc.product.toLowerCase().includes("3 шар");
         let initialIceCream = [];
         if (is3Scoops) initialIceCream = ["s6", "s6", "s6"];
         else if (isKremanok) initialIceCream = ["s6"];
@@ -4150,6 +4150,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
 
   const [showAdd,setShowAdd]=useState(false);
   const [search,setSearch]=useState("");
+  const [historyDateFilter, setHistoryDateFilter] = useState("");
   const [isRawCollapsed, setIsRawCollapsed] = useState(false);
   const [isSemiCollapsed, setIsSemiCollapsed] = useState(false);
   const [form,setForm]=useState({itemId:"r1",price:"",qty:"",supplier:"",location:currentUser.role==="cashier"?currentUser.point:"Склад",manualEntry:false,customName:"",customType:"raw",customUnit:"г"});
@@ -4260,6 +4261,13 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
   const isCashier = currentUser.role === "cashier";
   const myPoint = currentUser.point;
   const filteredHistory = isCashier ? history.filter(h => h.location === myPoint) : history;
+
+  const displayedHistory = React.useMemo(() => {
+    if (!historyDateFilter) return filteredHistory;
+    const [y, m, d] = historyDateFilter.split("-");
+    const fmtDate = `${d}.${m}.${y}`;
+    return filteredHistory.filter(h => h.date === fmtDate);
+  }, [filteredHistory, historyDateFilter]);
 
   // Данные за сегодня для кассира
   const todayStr = new Date().toLocaleDateString("ru-RU");
@@ -4600,11 +4608,17 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
       </div>
       </div>
 
-      {filteredHistory.length>0&&(
+      {(filteredHistory.length>0 || historyDateFilter)&&(
         <div style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:20}}>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>История поступлений {isCashier ? `на точку ${myPoint}` : ""}</div>
-          {filteredHistory.map((h,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<filteredHistory.length-1?`1px solid ${C.border}`:"none"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:14,fontWeight:700}}>История поступлений {isCashier ? `на точку ${myPoint}` : ""}</div>
+            <input type="date" value={historyDateFilter} onChange={e=>setHistoryDateFilter(e.target.value)} style={{padding:8,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none"}}/>
+          </div>
+          {displayedHistory.length === 0 ? (
+            <div style={{color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0"}}>Нет поступлений за выбранную дату</div>
+          ) : (
+            displayedHistory.map((h,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<displayedHistory.length-1?`1px solid ${C.border}`:"none"}}>
               <div>
                 <div style={{fontWeight:600,fontSize:13}}>{h.item}</div>
                 <div style={{fontSize:11,color:C.muted}}>{h.supplier} · {h.location} · {h.date}</div>
@@ -6205,7 +6219,15 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
   const [selPoint, setSelPoint] = useState(currentUser.role === "cashier" ? currentUser.point : POINTS[0]);
   const [toast,showToast]=useToast();
 
+  const [logDateFilter, setLogDateFilter] = useState("");
   const filteredLog = isCashier ? log.filter(l => l.location === myPoint) : log;
+
+  const displayedLog = React.useMemo(() => {
+    if (!logDateFilter) return filteredLog;
+    const [y, m, d] = logDateFilter.split("-");
+    const fmtDate = `${d}.${m}.${y}`;
+    return filteredLog.filter(l => l.date === fmtDate);
+  }, [filteredLog, logDateFilter]);
 
   const allItems=[...semiStock.map(s=>({...s,stock:"semi"})),...rawStock.map(r=>({...r,stock:"raw"}))];
   const filtered=allItems.filter(i=>i.stock===form.stock);
@@ -6341,11 +6363,17 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
         <button type="submit" style={{marginTop:16,width:"100%",padding:14,background:C.red,border:"none",borderRadius:10,color:"#fff",fontWeight:900,cursor:"pointer",fontSize:15}}>✓ Провести списание</button>
       </form>
 
-      {filteredLog.length>0&&(
+      {(filteredLog.length>0 || logDateFilter)&&(
         <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
-          <div style={{fontSize:15,fontWeight:800,marginBottom:14}}>История списаний</div>
-          {filteredLog.map((l,i)=>(
-            <div key={l.id || i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<filteredLog.length-1?`1px solid ${C.border}`:"none"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
+            <div style={{fontSize:15,fontWeight:800}}>История списаний</div>
+            <input type="date" value={logDateFilter} onChange={e=>setLogDateFilter(e.target.value)} style={{padding:8,borderRadius:8,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none"}}/>
+          </div>
+          {displayedLog.length === 0 ? (
+            <div style={{color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0"}}>Нет списаний за выбранную дату</div>
+          ) : (
+            displayedLog.map((l,i)=>(
+              <div key={l.id || i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<displayedLog.length-1?`1px solid ${C.border}`:"none"}}>
               <div>
                 <div style={{fontWeight:600,fontSize:13}}>{l.item} ({l.location})</div>
                 <div style={{fontSize:11,color:C.muted}}>{l.reason} · {l.author} · {l.date} {l.time}</div>
