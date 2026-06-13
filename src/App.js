@@ -2616,11 +2616,11 @@ function CustomBouquetModal({ baseTc, onClose, onAdd, rawStock, C }) {
 
   return (
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",zIndex:99999,display:"flex",alignItems:"center",justifyContent:"center"}}>
-      <div style={{background:C.surface,padding:24,borderRadius:16,width:"90%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)"}}>
+      <div style={{background:C.surface,padding:24,borderRadius:16,width:"90%",maxWidth:440,boxShadow:"0 8px 32px rgba(0,0,0,0.3)", maxHeight:"90vh", overflowY:"auto", WebkitOverflowScrolling:"touch"}}>
         <h3 style={{marginTop:0,marginBottom:8,color:C.text}}>Сборка: {baseTc.product}</h3>
         <p style={{fontSize:13,color:C.muted,marginTop:0,marginBottom:20}}>Каждая ягода: 20г клубники + 9г шоколада + 0.2г посыпки.</p>
         
-        <div style={{maxHeight:"45vh",overflowY:"auto",paddingRight:4}}>
+        <div style={{maxHeight:"45vh",overflowY:"auto",paddingRight:4, paddingBottom: 40, WebkitOverflowScrolling:"touch"}}>
           {groups.map((g, idx) => (
             <div key={g.id} style={rowStyle}>
               <div style={{flex:1}}>
@@ -3893,9 +3893,36 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
   const [toast,showToast]=useToast();
 
   const handleDeleteHistory = (itemToDelete) => {
-    if (!window.confirm("Удалить эту запись из истории приходов? (Внимание: остатки на складе не изменятся автоматически)")) return;
+    if (!window.confirm("Удалить этот приход и списать добавленное количество со склада?")) return;
+    
+    let itemRef = rawStock.find(r => r.name === itemToDelete.item);
+    if (!itemRef) itemRef = semiStock.find(s => s.name === itemToDelete.item);
+
+    if (itemRef) {
+       const qtyToRevert = parseFloat(itemToDelete.qty) || 0;
+       const loc = itemToDelete.location || "Мастерская";
+       
+       if (rawStock.some(r => r.id === itemRef.id)) {
+          setRawStock(prev => prev.map(item => {
+             if (item.id !== itemRef.id) return item;
+             const qtyObj = typeof item.qty === 'object' ? {...item.qty} : {"Мастерская": parseFloat(item.qty)||0};
+             const cur = qtyObj[loc] || 0;
+             qtyObj[loc] = Math.max(0, Math.round((cur - qtyToRevert)*1000)/1000);
+             return {...item, qty: qtyObj};
+          }));
+       } else {
+          setSemiStock(prev => prev.map(item => {
+             if (item.id !== itemRef.id) return item;
+             const qtyObj = typeof item.qty === 'object' ? {...item.qty} : {"Мастерская": parseFloat(item.qty)||0};
+             const cur = qtyObj[loc] || 0;
+             qtyObj[loc] = Math.max(0, Math.round((cur - qtyToRevert)*1000)/1000);
+             return {...item, qty: qtyObj};
+          }));
+       }
+    }
+
     setHistory(prev => prev.filter(h => h.id !== itemToDelete.id));
-    showToast("Запись удалена из истории");
+    showToast("Приход удален, количество списано");
   };
 
   const handleAdd=(e)=>{
