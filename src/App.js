@@ -2915,9 +2915,13 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
         return p.map(i => (i.baseTcId || i.id) === tc.id ? {...i, qty: i.qty+1} : i);
       } else {
         const isKremanok = tc.product && tc.product.toLowerCase().includes("креманка");
+        const isRozhok = tc.product && tc.product.toLowerCase().includes("рожок");
         const is3Scoops = isKremanok && tc.product.toLowerCase().includes("3 шар");
-        const initialIceCream = is3Scoops ? ["s6", "s6", "s6"] : (isKremanok ? ["s6"] : []);
-        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream, bowlType: isKremanok ? "Пластиковая" : null, baseTcId: tc.id}];
+        let initialIceCream = [];
+        if (is3Scoops) initialIceCream = ["s6", "s6", "s6"];
+        else if (isKremanok) initialIceCream = ["s6"];
+        else if (isRozhok) initialIceCream = ["s6", "s6"];
+        return [...p, {...tc, qty:1, extras:{s6:0,s7:0,s2:0}, baseIceCream: initialIceCream, bowlType: isKremanok ? "бумажная" : null, isRozhok: isRozhok, baseTcId: tc.id}];
       }
     }), []);
 
@@ -3331,7 +3335,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                 {/* Выбор базы для креманок */}
                 {Array.isArray(item.baseIceCream) && item.baseIceCream.length > 0 && (
                   <div style={{marginTop: 8, display:"flex", flexDirection:"column", gap:10}}>
-                    <div>
+                    {!item.isRozhok && (
+<div>
                       <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ТИП ТАРЫ</div>
                       <div style={{display: "flex", gap: 6}}>
                         <button
@@ -3360,6 +3365,8 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
                         </button>
                       </div>
                     </div>
+)}
+
                     <div>
                       <div style={{fontSize: 10, color: C.muted, marginBottom: 4, fontWeight:700}}>ШАРИКИ МОРОЖЕНОГО (ПО 50Г)</div>
                       {item.baseIceCream.map((scoop, sIdx) => (
