@@ -8634,7 +8634,7 @@ useEffect(()=>{
 
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
           {page==="dashboard"        && <>
-            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser} setActiveMenu={setPage}/>
+            <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser} setActiveMenu={setPage} onCancelSale={handleCancelSale} users={users} setSales={setSalesWithSync} showToast={showToast} />
             <div style={{padding:20, background:"#fcc"}}>
               <h3 style={{color:"red"}}>Отладка (Скриншот для разраба)</h3>
               <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 200, fontSize:10, fontFamily:"monospace"}} />
