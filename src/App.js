@@ -4368,45 +4368,6 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
         </button>
       </div>
 
-      {/* Карточки сводки за сегодня для кассира */}
-      {isCashier && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:20}}>
-          {/* Блок Приход за сегодня */}
-          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
-            <div style={{fontSize:12,color:C.muted,textTransform:"uppercase",marginBottom:12,fontWeight:700}}>📥 Поступило сегодня на точку</div>
-            {Object.keys(receivedGrouped).length === 0 ? (
-              <div style={{color:C.muted,fontSize:13,fontStyle:"italic"}}>Поступлений сегодня не было</div>
-            ) : (
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {Object.entries(receivedGrouped).map(([name, info]) => (
-                  <div key={name} style={{display:"flex",justifyContent:"space-between",fontSize:13,borderBottom:`1px solid ${C.border}40`,paddingBottom:6}}>
-                    <span style={{fontWeight:600}}>{name}</span>
-                    <span style={{color:C.blue,fontWeight:800}}>+{fmt(info.qty)} {info.unit}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Блок Расход за сегодня */}
-          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
-            <div style={{fontSize:12,color:C.muted,textTransform:"uppercase",marginBottom:12,fontWeight:700}}>📤 Израсходовано сегодня (POS + списания)</div>
-            {Object.keys(consumedGrouped).length === 0 ? (
-              <div style={{color:C.muted,fontSize:13,fontStyle:"italic"}}>Расхода сегодня не было</div>
-            ) : (
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {Object.entries(consumedGrouped).map(([name, info]) => (
-                  <div key={name} style={{display:"flex",justifyContent:"space-between",fontSize:13,borderBottom:`1px solid ${C.border}40`,paddingBottom:6}}>
-                    <span style={{fontWeight:600}}>{name}</span>
-                    <span style={{color:C.red,fontWeight:800}}>-{fmt(info.qty)} {info.unit}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {showAdd&&(
         <form onSubmit={handleAdd} style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:22,marginBottom:24}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:15}}>
@@ -4487,6 +4448,47 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
           </div>
         </form>
       )}
+
+      {/* Карточки сводки за сегодня для кассира */}
+      {isCashier && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:20}}>
+          {/* Блок Приход за сегодня */}
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            <div style={{fontSize:12,color:C.muted,textTransform:"uppercase",marginBottom:12,fontWeight:700}}>📥 Поступило сегодня на точку</div>
+            {Object.keys(receivedGrouped).length === 0 ? (
+              <div style={{color:C.muted,fontSize:13,fontStyle:"italic"}}>Поступлений сегодня не было</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {Object.entries(receivedGrouped).map(([name, info]) => (
+                  <div key={name} style={{display:"flex",justifyContent:"space-between",fontSize:13,borderBottom:`1px solid ${C.border}40`,paddingBottom:6}}>
+                    <span style={{fontWeight:600}}>{name}</span>
+                    <span style={{color:C.blue,fontWeight:800}}>+{fmt(info.qty)} {info.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Блок Расход за сегодня */}
+          <div style={{background:C.card,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+            <div style={{fontSize:12,color:C.muted,textTransform:"uppercase",marginBottom:12,fontWeight:700}}>📤 Израсходовано сегодня (POS + списания)</div>
+            {Object.keys(consumedGrouped).length === 0 ? (
+              <div style={{color:C.muted,fontSize:13,fontStyle:"italic"}}>Расхода сегодня не было</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {Object.entries(consumedGrouped).map(([name, info]) => (
+                  <div key={name} style={{display:"flex",justifyContent:"space-between",fontSize:13,borderBottom:`1px solid ${C.border}40`,paddingBottom:6}}>
+                    <span style={{fontWeight:600}}>{name}</span>
+                    <span style={{color:C.red,fontWeight:800}}>-{fmt(info.qty)} {info.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      
 
       <div style={{marginBottom:16}}>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Поиск по складу..." style={{width:"100%",padding:12,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,color:C.text,outline:"none",boxSizing:"border-box",fontSize:14}}/>
