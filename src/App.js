@@ -140,14 +140,7 @@ const ROLES = {
   cashier:     { label:"Кассир",          icon:"🧾", color:C.green,   nav:["pos","writeoff","inventory"] },
 };
 
-const INIT_USERS = [
-  { id:"00000000-0000-4000-a000-000000000001", name:"Владелец",          role:"owner",    point:null,          pin:"7663" },
-  { id:"00000000-0000-4000-a000-000000000002", name:"Директор",          role:"director", point:null,          pin:"8888" },
-  { id:"00000000-0000-4000-a000-000000000003", name:"Кассир Мастерская", role:"cashier",  point:"Мастерская",  pin:"1111" },
-  { id:"00000000-0000-4000-a000-000000000004", name:"Кассир Фуд Трак",   role:"cashier",  point:"Фуд Трак",    pin:"2222" },
-  { id:"00000000-0000-4000-a000-000000000005", name:"Кассир Жара",       role:"cashier",  point:"Жара",        pin:"3333" },
-  { id:"00000000-0000-4000-a000-000000000006", name:"Кассир Парк",       role:"cashier",  point:"Парк",        pin:"4444" },
-];
+const INIT_USERS = [];
 
 // Инициализируем остатки на "Склад" согласно данным из Excel
 const initRawStock = [
@@ -7879,19 +7872,35 @@ useEffect(()=>{
     const load = async () => {
       try {
         await processSyncQueue();
-        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs,preords] = await Promise.all([
-          supaFetch("GET","raw_stock"),
-          supaFetch("GET","semi_stock"),
-          supaFetch("GET","tech_cards"),
-          supaFetch("GET","sales","",`?order=created_at.desc&limit=500`),
-          supaFetch("GET","expenses"),
-          supaFetch("GET","app_users","",`?is_active=eq.true`),
-          supaFetch("GET","customers"),
-          supaFetch("GET","shifts","",`?order=opened_at.desc&limit=100`),
-          supaFetch("GET","warehouse_history","",`?order=created_at.desc&limit=500`),
-          supaFetch("GET","write_offs","",`?order=created_at.desc&limit=500`),
-          supaFetch("GET","preorders","",`?order=created_at.desc&limit=500`),
+        const tid = localStorage.getItem("vb_tenant_id");
+        const f = tid ? `?tenant_id=eq.${tid}` : "";
+        const fAnd = tid ? `&tenant_id=eq.${tid}` : "";
+        const [raw,semi,tc,sl,exp,appUsers,custs,sh,whHist,wrOffs,preords,tPoints] = await Promise.all([
+          supaFetch("GET","raw_stock",null,f),
+          supaFetch("GET","semi_stock",null,f),
+          supaFetch("GET","tech_cards",null,f),
+          supaFetch("GET","sales",null,`?order=created_at.desc&limit=500${fAnd}`),
+          supaFetch("GET","expenses",null,f),
+          supaFetch("GET","app_users",null,`?is_active=eq.true${fAnd}`),
+          supaFetch("GET","customers",null,f),
+          supaFetch("GET","shifts",null,`?order=opened_at.desc&limit=100${fAnd}`),
+          supaFetch("GET","warehouse_history",null,`?order=created_at.desc&limit=500${fAnd}`),
+          supaFetch("GET","write_offs",null,`?order=created_at.desc&limit=500${fAnd}`),
+          supaFetch("GET","preorders",null,`?order=created_at.desc&limit=500${fAnd}`),
+          supaFetch("GET","tenant_points",null,f)
         ]);
+        
+        if (Array.isArray(tPoints) && tPoints.length) {
+          POINTS.length = 0;
+          POINT_COLORS.length = 0;
+          ALL_LOCATIONS.length = 0;
+          ALL_LOCATIONS.push("Все");
+          tPoints.forEach(tp => {
+            POINTS.push(tp.name);
+            POINT_COLORS.push(tp.color || "#E8A0B4");
+            ALL_LOCATIONS.push(tp.name);
+          });
+        }
         
         if (Array.isArray(custs)) {
           setCustomers(prev => getMergedList(custs, prev, "customers"));
@@ -7960,10 +7969,6 @@ useEffect(()=>{
             });
           });
         } else if (Array.isArray(appUsers) && appUsers.length === 0) {
-          // Populate app_users from INIT_USERS (one-time)
-          for(const u of INIT_USERS) {
-            supaFetch("POST","app_users",{id:u.id,name:u.name,role:u.role,point:u.point,pin:u.pin,is_active:true}).catch(()=>{});
-          }
         }
 
         // Phase 4: Populate raw_material_prices if empty (one-time)
