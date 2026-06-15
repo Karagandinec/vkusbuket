@@ -6278,7 +6278,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
     if(!qty||!form.author){showToast("Заполните все поля",true);return;}
     
     if(form.stock==="semi") {
-      setSemiStockWithSync(p=>p.map(s=>{
+      setSemiStock(p=>p.map(s=>{
         if (s.id===form.itemId) {
           const q = parseSemiQtyObj(s.qty);
           q[selPoint] = Math.round((q[selPoint] - qty)*1000)/1000;
@@ -6287,7 +6287,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
         return s;
       }));
     } else {
-      setRawStockWithSync(p=>p.map(r=>{
+      setRawStock(p=>p.map(r=>{
         if (r.id===form.itemId) {
           const q = parseQtyObj(r.qty);
           q[selPoint] = Math.round((q[selPoint] - qty)*1000)/1000;
