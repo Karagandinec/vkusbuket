@@ -2036,24 +2036,29 @@ const parseLocalDate = (dateStr) => {
   return new Date(dateStr);
 };
 
-const getPackagingItems = (productName) => {
-  const p = (productName || "").toLowerCase();
+const getPackagingItems = (item) => {
+  const p = (item.name || item.product || "").toLowerCase();
+  const id = (item.id || "").toLowerCase();
   const items = [];
   
+  // Helper for word boundary matches (prevents "15" matching "150")
+  const hasNum = (num) => new RegExp(`\\b${num}\\b`).test(p);
+  const hasAny = (nums) => nums.some(n => hasNum(n));
+  
   // 1. Коробки и пакеты для наборов
-  if (p.includes("набор")) {
-    if (p.includes("8")) items.push({ rawId: "r29", qty: 1 });
-    else if (p.includes("10") || p.includes("12")) items.push({ rawId: "r30", qty: 1 });
-    else if (p.includes("15")) items.push({ rawId: "r31", qty: 1 });
-    else if (p.includes("20")) items.push({ rawId: "r32", qty: 1 });
-    else if (p.includes("25")) items.push({ rawId: "r33", qty: 1 });
-    else if (p.includes("35")) items.push({ rawId: "r34", qty: 1 });
-    else if (p.includes("48")) items.push({ rawId: "r35", qty: 1 });
-    else if (p.includes("64")) items.push({ rawId: "r36", qty: 1 });
+  if (p.includes("набор") && !p.includes("букет")) {
+    if (hasNum("8")) items.push({ rawId: "r29", qty: 1 });
+    else if (hasAny(["10", "12"])) items.push({ rawId: "r30", qty: 1 });
+    else if (hasNum("15")) items.push({ rawId: "r31", qty: 1 });
+    else if (hasNum("20")) items.push({ rawId: "r32", qty: 1 });
+    else if (hasNum("25")) items.push({ rawId: "r33", qty: 1 });
+    else if (hasNum("35")) items.push({ rawId: "r34", qty: 1 });
+    else if (hasNum("48")) items.push({ rawId: "r35", qty: 1 });
+    else if (hasNum("64")) items.push({ rawId: "r36", qty: 1 });
     
-    if (p.includes("8") || p.includes("10") || p.includes("12")) {
+    if (hasAny(["8", "10", "12"])) {
       items.push({ rawId: "r19", qty: 1 }); // малый пакет
-    } else if (p.includes("15") || p.includes("20") || p.includes("25")) {
+    } else if (hasAny(["15", "20", "25"])) {
       items.push({ rawId: "r20", qty: 1 }); // средний пакет
     } else {
       items.push({ rawId: "r21", qty: 1 }); // большой пакет
@@ -2074,18 +2079,26 @@ const getPackagingItems = (productName) => {
     items.push({ rawId: "r26", qty: 1 }); // салфетка
   }
   
-  // 3. Букеты
-  else if (p.includes("букет")) {
-    let berries = 15;
-    if (p.includes("xxs") || p.includes("9")) berries = 9;
-    else if (p.includes("xs") || p.includes("15")) berries = 15;
-    else if (p.includes("s+") || p.includes("22") || p.includes("23") || p.includes("24") || p.includes("25")) berries = 24;
-    else if (p.includes("s") || p.includes("17") || p.includes("18") || p.includes("19")) berries = 18;
-    else if (p.includes("m+") || p.includes("43") || p.includes("44") || p.includes("45")) berries = 44;
-    else if (p.includes("m") || p.includes("33") || p.includes("34") || p.includes("35") || p.includes("36")) berries = 35;
-    else if (p.includes("l+") || p.includes("68") || p.includes("69") || p.includes("70")) berries = 69;
-    else if (p.includes("l") || p.includes("56") || p.includes("57") || p.includes("58") || p.includes("59") || p.includes("60")) berries = 58;
-    else if (p.includes("xl") || p.includes("87") || p.includes("88") || p.includes("89") || p.includes("90")) berries = 89;
+  // 3. Букеты и Кастомные товары
+  else if (p.includes("букет") || id.startsWith("custom_")) {
+    let berries = 15; // default for custom
+    
+    // Пытаемся вытащить количество клубник из названия или состава
+    const match = p.match(/(\d+)\s*(шт|клуб|ягод)/);
+    if (match) {
+       berries = parseInt(match[1]);
+    } else {
+      if (p.includes("xxs") || hasNum("9")) berries = 9;
+      else if (p.includes("xs") || hasNum("15")) berries = 15;
+      else if (p.includes("s+") || hasAny(["22","23","24","25"])) berries = 24;
+      else if (p.includes("s") || hasAny(["17","18","19"])) berries = 18;
+      else if (p.includes("m+") || hasAny(["43","44","45"])) berries = 44;
+      else if (p.includes("m") || hasAny(["33","34","35","36"])) berries = 35;
+      else if (p.includes("l+") || hasAny(["68","69","70"])) berries = 69;
+      else if (p.includes("l") || hasAny(["56","57","58","59","60"])) berries = 58;
+      else if (p.includes("xl") || hasAny(["87","88","89","90"])) berries = 89;
+      else if (p.includes("xxl") || hasAny(["120","150"])) berries = 150;
+    }
     
     items.push({ rawId: "r13", qty: berries / 70 }); // шпажки (упаковки по 70 шт)
     items.push({ rawId: "r10", qty: 0.02 }); // лента 1см (0.02 рулона = 1 метр)
@@ -2119,7 +2132,7 @@ const calcCost = (ings, semiStock, rawStock) =>
 const calcProductCOGS = (item, semiStock, rawStock) => {
   if (!item) return 0;
   const kitchenCost = calcCost(item.ings, semiStock, rawStock);
-  const packaging = getPackagingItems(item.product || "");
+  const packaging = getPackagingItems(item);
   const pkgCost = (packaging||[]).reduce((sum, pkg) => {
     const raw = (rawStock||[]).find(r => r.id === pkg.rawId);
     return sum + pkg.qty * (raw?.price || 0);
@@ -2137,7 +2150,17 @@ const calcCartItemCOGS = (item, semiStock, rawStock) => {
   const chocIceCost = (item.extras?.s7 || 0) * 50 * chocolateIcePrice;
   const milkChocCost = (item.extras?.s2 || 0) * 15 * milkChocPrice;
   
-  return baseCOGS + vanillaCost + chocIceCost + milkChocCost;
+  // Add packaging costs
+  const packaging = getPackagingItems(item);
+  let packagingCost = 0;
+  for(const pkg of packaging){
+    const rItem = rawStock.find(r => r.id === pkg.rawId);
+    if(rItem && rItem.purchase_price && rItem.purchase_volume) {
+      packagingCost += (rItem.purchase_price / rItem.purchase_volume) * pkg.qty;
+    }
+  }
+  
+  return baseCOGS + vanillaCost + chocIceCost + milkChocCost + packagingCost;
 };
 
 // eslint-disable-next-line no-unused-vars
@@ -2191,7 +2214,7 @@ const restoreStockForSale = (sale, rawStock, semiStock, techCards) => {
     }
     
     // Restore packaging
-    const packaging = getPackagingItems(item.name);
+    const packaging = getPackagingItems(item);
     for (const pkg of packaging) {
       const idx = newRaw.findIndex(r => r.id === pkg.rawId);
       if (idx >= 0) {
@@ -3062,7 +3085,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
       }
       
       // 2. Списываем коробки, стаканчики, ленты, шпажки со склада точки
-      const packaging = getPackagingItems(item.product);
+      const packaging = getPackagingItems(item);
       for(const pkg of packaging){
         const idx = newRaw.findIndex(r=>r.id===pkg.rawId);
         if(idx>=0) {
@@ -4311,7 +4334,7 @@ function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSemiStock,current
             if (semi) addCons(semi.name, spend, semi.unit);
           }
         });
-        const packaging = getPackagingItems(item.name);
+        const packaging = getPackagingItems(item);
         (packaging || []).forEach(pkg => {
           const raw = (rawStock || []).find(r => r.id === pkg.rawId);
           if (raw) addCons(raw.name, pkg.qty * item.qty, raw.unit);
@@ -5996,7 +6019,7 @@ function Settings({isMobile,techCards,setTechCards,rawStock,setRawStock,semiStoc
 }
 
 // ─── ИНВЕНТАРИЗАЦИЯ ───────────────────────────────────────────────────────────
-function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses}){
+function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,currentUser,setExpenses,currentShift}){
   const isCashier = currentUser?.role === "cashier";
   const myPoint = currentUser?.point;
   const [selPoint, setSelPoint] = useState(isCashier ? currentUser.point : POINTS[0]);
@@ -6005,6 +6028,10 @@ function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,current
   const [toast,showToast]=useToast();
 
   const handleCommitInventory = async () => {
+    if (!currentShift) {
+      showToast("Операция невозможна: нет открытой смены", true);
+      return;
+    }
     const auditedKeys = Object.keys(facts).filter(k => facts[k] !== "");
     if (auditedKeys.length === 0) {
       showToast("Введите хотя бы одно фактическое значение", true);
@@ -6212,7 +6239,7 @@ function Inventory({isMobile,semiStock,setSemiStock,rawStock,setRawStock,current
 }
 
 // ─── СПИСАНИЯ ────────────────────────────────────────────────────────────────
-function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog}){
+function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentUser,log,setLog,currentShift}){
   const [form,setForm]=useState({stock:"semi",itemId:"s1",qty:"",reason:"spoil",note:"",author:""});
   const isCashier = currentUser.role === "cashier";
   const myPoint = currentUser.point;
@@ -6243,11 +6270,15 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
 
   const handleSubmit=(e)=>{
     e.preventDefault();
+    if (!currentShift) {
+      showToast("Операция невозможна: нет открытой смены", true);
+      return;
+    }
     const qty=parseFloat(form.qty)||0;
     if(!qty||!form.author){showToast("Заполните все поля",true);return;}
     
     if(form.stock==="semi") {
-      setSemiStock(p=>p.map(s=>{
+      setSemiStockWithSync(p=>p.map(s=>{
         if (s.id===form.itemId) {
           const q = parseSemiQtyObj(s.qty);
           q[selPoint] = Math.round((q[selPoint] - qty)*1000)/1000;
@@ -6256,7 +6287,7 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
         return s;
       }));
     } else {
-      setRawStock(p=>p.map(r=>{
+      setRawStockWithSync(p=>p.map(r=>{
         if (r.id===form.itemId) {
           const q = parseQtyObj(r.qty);
           q[selPoint] = Math.round((q[selPoint] - qty)*1000)/1000;
@@ -6397,8 +6428,9 @@ function WriteOff({isMobile,rawStock,setRawStock,semiStock,setSemiStock,currentU
 
 // ─── ЖУРНАЛ СМЕН ──────────────────────────────────────────────────────────────
 // React.memo: перерендерится только при изменении списка смен
-const Shifts = React.memo(function Shifts({isMobile, shifts }){
+const Shifts = React.memo(function Shifts({isMobile, shifts, currentUser, sales, expenses }){
   const [filterPoint, setFilterPoint] = React.useState("all");
+  const [expandedShift, setExpandedShift] = React.useState(null);
   const [sortBy, setSortBy] = React.useState("date_desc");
   const [search, setSearch] = React.useState("");
 
@@ -6417,6 +6449,9 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
   const filteredShifts = React.useMemo(() => {
     if (!shifts) return [];
     let res = [...shifts];
+    if (currentUser?.role === "cashier") {
+      res = res.filter(s => s.cashier_id === currentUser.id || s.cashier_name === currentUser.name);
+    }
     
     if (filterPoint !== "all") {
       res = res.filter(s => s.point === filterPoint);
@@ -6497,7 +6532,7 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,minWidth:800}}>
             <thead>
               <tr style={{background:C.surface}}>
-                {["Точка","Кассир","Открыта","Закрыта","Ожидаемая ₸","Фактическая ₸","Расхождение","Статус"].map((h,i)=>(
+                {["Точка","Кассир","Открыта","Закрыта","Ожидаемая ₸","Фактическая ₸","Расхождение","Статус","Детали"].map((h,i)=>(
                   <th key={i} style={{padding:"10px 14px",textAlign:"left",fontSize:11,color:C.muted,fontWeight:700,textTransform:"uppercase",borderBottom:`1px solid ${C.border}`}}>{h}</th>
                 ))}
               </tr>
@@ -6507,16 +6542,48 @@ const Shifts = React.memo(function Shifts({isMobile, shifts }){
                 const disc = sh.discrepancy||0;
                 const statusColor = sh.status==="closed" ? C.green : C.yellow;
                 return(
-                  <tr key={sh.id} style={{borderBottom:`1px solid ${C.border}`}}>
-                    <td style={{padding:"10px 14px",fontWeight:600}}>{sh.point||"—"}</td>
-                    <td style={{padding:"10px 14px"}}>{sh.cashier_name||"—"}</td>
-                    <td style={{padding:"10px 14px",fontSize:12}}>{fmtDT(sh.opened_at)}</td>
-                    <td style={{padding:"10px 14px",fontSize:12}}>{fmtDT(sh.closed_at)}</td>
-                    <td style={{padding:"10px 14px",fontWeight:700}}>{sh.expected_cash!=null?fmtM(sh.expected_cash):"—"}</td>
-                    <td style={{padding:"10px 14px",fontWeight:700}}>{sh.actual_cash!=null?fmtM(sh.actual_cash):"—"}</td>
-                    <td style={{padding:"10px 14px",fontWeight:700,color:disc===0?C.green:disc>0?C.blue:C.red}}>{disc!==0?(disc>0?"+":"")+fmtM(disc):"—"}</td>
-                    <td style={{padding:"10px 14px"}}><span style={{background:sh.status==="closed"?C.greenSoft:C.yellowSoft,color:statusColor,padding:"4px 10px",borderRadius:6,fontWeight:700,fontSize:11}}>{sh.status==="closed"?"Закрыта":"Открыта"}</span></td>
-                  </tr>
+                  <React.Fragment key={sh.id}>
+                    <tr style={{borderBottom:`1px solid ${C.border}`, cursor:"pointer"}} onClick={() => setExpandedShift(expandedShift === sh.id ? null : sh.id)}>
+                      <td style={{padding:"10px 14px",fontWeight:600}}>{sh.point||"—"}</td>
+                      <td style={{padding:"10px 14px"}}>{sh.cashier_name||"—"}</td>
+                      <td style={{padding:"10px 14px",fontSize:12}}>{fmtDT(sh.opened_at)}</td>
+                      <td style={{padding:"10px 14px",fontSize:12}}>{fmtDT(sh.closed_at)}</td>
+                      <td style={{padding:"10px 14px",fontWeight:700}}>{sh.expected_cash!=null?fmtM(sh.expected_cash):"—"}</td>
+                      <td style={{padding:"10px 14px",fontWeight:700}}>{sh.actual_cash!=null?fmtM(sh.actual_cash):"—"}</td>
+                      <td style={{padding:"10px 14px",fontWeight:700,color:disc===0?C.green:disc>0?C.blue:C.red}}>{disc!==0?(disc>0?"+":"")+fmtM(disc):"—"}</td>
+                      <td style={{padding:"10px 14px"}}><span style={{background:sh.status==="closed"?C.greenSoft:C.yellowSoft,color:statusColor,padding:"4px 10px",borderRadius:6,fontWeight:700,fontSize:11}}>{sh.status==="closed"?"Закрыта":"Открыта"}</span></td>
+                      <td style={{padding:"10px 14px"}}>{expandedShift === sh.id ? "▲" : "▼"}</td>
+                    </tr>
+                    {expandedShift === sh.id && (
+                      <tr style={{borderBottom:`1px solid ${C.border}`, background: C.surface}}>
+                        <td colSpan={9} style={{padding:"16px 20px"}}>
+                          {(() => {
+                            const sSales = (sales||[]).filter(x => x.shift_id === sh.id);
+                            const sExp = (expenses||[]).filter(x => x.shift_id === sh.id);
+                            const totalSales = sSales.reduce((sum, x) => sum + x.total, 0);
+                            const totalCash = sSales.filter(x => x.pay_mode === 'cash' || x.pay_mode === 'split').reduce((sum, x) => sum + (x.cash_given ? Math.min(x.cash_given, x.total) : (x.pay_mode === 'cash' ? x.total : 0)), 0);
+                            const totalExp = sExp.reduce((sum, x) => sum + x.amount, 0);
+                            return (
+                              <div style={{fontSize:13, display:"flex", gap: 30}}>
+                                <div>
+                                  <div style={{color:C.muted, marginBottom:4}}>Продажи смены:</div>
+                                  <div style={{fontWeight:700, fontSize:15}}>{totalSales.toLocaleString("ru-RU")} ₸ <span style={{fontSize:12, fontWeight:400}}>({sSales.length} шт)</span></div>
+                                </div>
+                                <div>
+                                  <div style={{color:C.muted, marginBottom:4}}>Наличными:</div>
+                                  <div style={{fontWeight:700, fontSize:15}}>{totalCash.toLocaleString("ru-RU")} ₸</div>
+                                </div>
+                                <div>
+                                  <div style={{color:C.muted, marginBottom:4}}>Расходы:</div>
+                                  <div style={{fontWeight:700, fontSize:15, color:C.redSoft}}>{totalExp.toLocaleString("ru-RU")} ₸</div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -6666,7 +6733,7 @@ function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock
       }
 
       // Deduct packaging
-      const packaging = getPackagingItems(item.name);
+      const packaging = getPackagingItems(item);
       for (const pkg of packaging) {
         const idx = newRaw.findIndex(r => r.id === pkg.rawId);
         if (idx >= 0) {
@@ -7123,7 +7190,7 @@ async function supaFetch(method, table, body=null, params="") {
   if (body && (method === "POST" || method === "PATCH" || method === "PUT")) {
     try {
       const tid = localStorage.getItem("vb_tenant_id");
-      if (tid) {
+      if (tid && !table.startsWith("rpc/")) {
         if (Array.isArray(body)) {
           body = body.map(item => ({ ...item, tenant_id: tid }));
         } else if (typeof body === "object") {
@@ -7712,6 +7779,21 @@ const setExpensesWithSync = (updater) => {
     for (const item of queue) {
       try {
         const url = `${SUPA_URL}/rest/v1/${item.table}${item.params || ""}`;
+        
+        // Strip tenant_id from old queued RPC calls to avoid Postgres 400 Bad Request
+        let reqBody = item.body;
+        if (reqBody && item.table.startsWith("rpc/")) {
+          if (Array.isArray(reqBody)) {
+            reqBody = reqBody.map(b => {
+              const { tenant_id, ...rest } = b;
+              return rest;
+            });
+          } else {
+            const { tenant_id, ...rest } = reqBody;
+            reqBody = rest;
+          }
+        }
+        
         const res = await fetch(url, {
           method: item.method,
           headers: {
@@ -7720,7 +7802,7 @@ const setExpensesWithSync = (updater) => {
             "Content-Type": "application/json",
             "Prefer": item.method === "POST" ? "resolution=merge-duplicates" : "return=minimal",
           },
-          body: item.body ? JSON.stringify(item.body) : null,
+          body: reqBody ? JSON.stringify(reqBody) : null,
         });
         
         if (res.ok) {
@@ -7730,8 +7812,8 @@ const setExpensesWithSync = (updater) => {
           const errText = await res.text().catch(() => "");
           console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
           // Prevent data loss: retain item in queue even for 4xx errors (e.g. 401 Unauthorized token expiry)
-          if (res.status === 404 && item.method === "DELETE") {
-             // Safe to drop 404 on DELETE, it's already gone
+          if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 429) {
+            console.error(`Fatal client error (Poison Pill) ${res.status} on ${item.method} ${item.table}. Dropping from queue.`);
           } else {
             nextQueue.push(item);
           }
@@ -8550,11 +8632,11 @@ useEffect(()=>{
           {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
           {page==="production" && <Production isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser}/>}
           {page==="warehouse"  && <Warehouse  isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} sales={sales} expenses={expenses} techCards={techCards} history={warehouseHistory} setHistory={setWarehouseHistoryWithSync}/>}
-          {page==="inventory"  && <Inventory  isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync}/>}
-          {page==="writeoff"   && <WriteOff   isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync}/>}
+          {page==="inventory"  && <Inventory  isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} setExpenses={setExpensesWithSync} currentShift={currentShift}/>}
+          {page==="writeoff"   && <WriteOff   isMobile={isMobile} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} currentUser={currentUser} log={writeOffs} setLog={setWriteOffsWithSync} currentShift={currentShift}/>}
           {page==="expenses"   && <Expenses   isMobile={isMobile} expenses={expenses} setExpenses={setExpensesWithSync} currentUser={currentUser}/>}
           {page==="reports"    && <Reports    isMobile={isMobile} sales={sales} expenses={expenses} rawStock={rawStock} semiStock={semiStock} currentUser={currentUser}/>}
-          {page==="shifts"     && <Shifts     isMobile={isMobile} shifts={shifts}/>}
+          {page==="shifts"     && <Shifts     isMobile={isMobile} shifts={shifts} currentUser={currentUser} sales={sales} expenses={expenses} />}
           {page==="settings"   && <Settings   isMobile={isMobile} techCards={techCards} setTechCards={setTechCardsWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} semiStock={semiStock} users={users} setUsers={setUsersWithSync} customers={customers} setCustomers={setCustomersWithSync} currentUser={currentUser} tenantAuth={tenantAuth}/>}
         </div>
       </div>
