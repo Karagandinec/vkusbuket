@@ -7774,6 +7774,7 @@ const setExpensesWithSync = (updater) => {
     
     for (const item of queue) {
       if (item.table === "raw_material_prices") continue;
+      if (item.method === "POST" && Array.isArray(item.body) && (item.table === "raw_stock" || item.table === "semi_stock")) continue;
       try {
         const url = `${SUPA_URL}/rest/v1/${item.table}${item.params || ""}`;
         
