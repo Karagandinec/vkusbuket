@@ -7415,6 +7415,7 @@ export default function App(){
   const [currentShift,setCurrentShift] = useState(() => LS("vb_session_shift", null));
   const [showOpenShift,setShowOpenShift] = useState(false);
   const [customers, setCustomers] = useState(() => LS("vb_customers", []));
+  const [companyName, setCompanyName] = useState("SweetSync");
   const [warehouseHistory, setWarehouseHistory] = useState(() => LS("vb_warehouse_history", []));
   const [writeOffs, setWriteOffs] = useState(() => LS("vb_writeoffs_log", []));
   const [shifts, setShifts] = useState(() => LS("vb_shifts", []));
@@ -7772,6 +7773,7 @@ const setExpensesWithSync = (updater) => {
     let processedAny = false;
     
     for (const item of queue) {
+      if (item.table === "raw_material_prices") continue;
       try {
         const url = `${SUPA_URL}/rest/v1/${item.table}${item.params || ""}`;
         
@@ -7841,7 +7843,7 @@ const setExpensesWithSync = (updater) => {
 
   // Эффект Realtime-подписок на таблицы Supabase объединен ниже с основным эффектом
 useEffect(()=>{
-    document.title = "VkusBuket";
+    document.title = companyName || "SweetSync";
     const handleResize = () => {
       const mobile = checkIsMobile();
       const portrait = checkIsPortrait();
@@ -7973,11 +7975,12 @@ useEffect(()=>{
         } else if (Array.isArray(appUsers) && appUsers.length === 0) {
         }
 
-        // Phase 4: Populate raw_material_prices if empty (one-time)
-        const prices = await supaFetch("GET","raw_material_prices","",`?limit=1`);
-        if(Array.isArray(prices)&&prices.length===0&&Array.isArray(raw)&&raw.length) {
-          const priceRows = raw.map(r=>({raw_id:r.id,price:r.price,effective_from:new Date().toISOString()}));
-          supaFetch("POST","raw_material_prices",priceRows).catch(()=>{});
+        // Phase 5: Fetch Tenant Company Name
+        if (tenantAuth && tenantAuth.tenant_id) {
+          const tData = await supaFetch("GET","tenants","",`?id=eq.${tenantAuth.tenant_id}&select=company_name`);
+          if (Array.isArray(tData) && tData.length > 0 && tData[0].company_name) {
+            setCompanyName(tData[0].company_name);
+          }
         }
       } catch(e) {
         console.warn("Supabase недоступен, работаем локально:",e);
@@ -8094,8 +8097,9 @@ useEffect(()=>{
   useEffect(() => {
     if (!supabase || loading) return;
 
+    const channelName = tenantAuth?.tenant_id ? `sweetsync-realtime-${tenantAuth.tenant_id}` : "sweetsync-realtime";
     const channel = supabase
-      .channel("vkusbuket-realtime")
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "raw_stock" }, (payload) => {
         const { eventType, new: newRow, old: oldRow } = payload;
         if (eventType === "DELETE") {
@@ -8363,7 +8367,7 @@ useEffect(()=>{
   // ── ЭКРАН ЗАГРУЗКИ ──
   if(loading && tenantAuth) return(
     <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#0F0F13",color:"#E8A0B4",flexDirection:"column",gap:16}}>
-      <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>VKUS<span style={{color:"#EAEAF0",fontWeight:300}}>BUKET</span></div>
+      <div style={{fontSize:32,fontWeight:900,letterSpacing:-1}}>Sweet<span style={{color:"#EAEAF0",fontWeight:300}}>Sync</span></div>
       <div style={{fontSize:14,color:"#7A7A94"}}>⟳ Загрузка данных...</div>
     </div>
   );
@@ -8449,9 +8453,9 @@ useEffect(()=>{
   if (!tenantAuth) {
     return (
       <div style={{fontFamily:"'Segoe UI',sans-serif",background:C.bg,height:"100dvh",display:"flex",flexDirection:"column",color:C.text,alignItems:"center",justifyContent:"center",padding:20}}>
-        <div style={{fontSize:32,fontWeight:900,color:C.accent,marginBottom:30}}>VKUS<span style={{fontWeight:300,color:C.text}}>BUKET</span></div>
+        <div style={{fontSize:32,fontWeight:900,color:C.accent,marginBottom:30}}>Sweet<span style={{fontWeight:300,color:C.text}}>Sync</span></div>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:30,width:"100%",maxWidth:400}}>
-          <div style={{fontSize:20,fontWeight:800,marginBottom:20,textAlign:"center"}}>Вход в Мастерскую</div>
+          <div style={{fontSize:20,fontWeight:800,marginBottom:20,textAlign:"center"}}>Вход в систему</div>
           {tenantError && <div style={{color:C.red,fontSize:13,marginBottom:15,textAlign:"center"}}>{tenantError}</div>}
           <div style={{marginBottom:15}}>
             <div style={{fontSize:12,color:C.muted,marginBottom:6}}>Email</div>
@@ -8488,7 +8492,7 @@ useEffect(()=>{
             disabled={tenantAuthenticating || !tenantEmail || !tenantPassword}
             onClick={registerTenant}
             style={{width:"100%",padding:14,borderRadius:10,background:"transparent",color:C.accent,fontWeight:800,border:`1px solid ${C.accent}`,cursor:"pointer",opacity:(tenantAuthenticating || !tenantEmail || !tenantPassword)?0.5:1}}>
-            Зарегистрировать Мастерскую
+            Зарегистрировать Бизнес
           </button>
         </div>
       </div>
@@ -8558,7 +8562,7 @@ useEffect(()=>{
         zIndex:999
       }}>
         <div style={{padding:(sidebarOpen || isMobile)?"18px 14px":"18px 0",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:(sidebarOpen || isMobile)?"space-between":"center"}}>
-          {(sidebarOpen || isMobile) && <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5}}>VKUS<span style={{color:C.text,fontWeight:300}}>BUKET</span></span>}
+          {(sidebarOpen || isMobile) && <span style={{fontSize:20,fontWeight:900,color:C.accent,letterSpacing:-0.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{companyName}</span>}
           <button onClick={()=>setSidebarOpen(v=>!v)} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,padding:4,flexShrink:0}}>{sidebarOpen?"←":"→"}</button>
         </div>
 
