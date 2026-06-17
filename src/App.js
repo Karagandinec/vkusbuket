@@ -7292,7 +7292,91 @@ const checkIsPortrait = () => {
   return true;
 };
 
+
+const SupportBot = () => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [messages, setMessages] = React.useState([{role: "assistant", content: "Привет! Я умный ассистент SweetSync. Чем могу помочь?"}]);
+  const [input, setInput] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(false);
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+    const userMsg = {role: "user", content: input};
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
+    
+    try {
+      const res = await fetch("https://zsplctffdvyzbzlnxuew.supabase.co/functions/v1/support-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userMsg.content })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, {role: "assistant", content: data.answer || "Ошибка ответа"}]);
+    } catch (e) {
+      setMessages(prev => [...prev, {role: "assistant", content: "Ошибка соединения."}]);
+    }
+    setIsLoading(false);
+  };
+
+  return (
+    <>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          position: "fixed", bottom: 20, right: 20, zIndex: 99999, 
+          width: 50, height: 50, borderRadius: 25, border: "none", 
+          background: C.accent, color: "#fff", cursor: "pointer", 
+          boxShadow: "0 4px 12px rgba(255, 64, 129, 0.4)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24
+        }}
+      >
+        {isOpen ? "×" : "💬"}
+      </button>
+      {isOpen && (
+        <div style={{
+          position: "fixed", bottom: 80, right: 20, zIndex: 99999,
+          width: 300, height: 400, background: C.card, borderRadius: 12,
+          border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+          display: "flex", flexDirection: "column", overflow: "hidden"
+        }}>
+          <div style={{background: C.accent, color: "#fff", padding: "10px 15px", fontWeight: "bold", fontSize: 14}}>
+            🤖 AI Support
+          </div>
+          <div style={{flex: 1, padding: 10, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8}}>
+            {messages.map((m, i) => (
+              <div key={i} style={{
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                background: m.role === "user" ? C.accentSoft : C.surface,
+                color: m.role === "user" ? C.accent : C.text,
+                padding: "8px 12px", borderRadius: 8, maxWidth: "85%", fontSize: 13,
+                border: m.role === "user" ? "none" : `1px solid ${C.border}`
+              }}>
+                {m.content}
+              </div>
+            ))}
+            {isLoading && <div style={{fontSize: 12, color: C.muted}}>Печатает...</div>}
+          </div>
+          <div style={{display: "flex", padding: 10, borderTop: `1px solid ${C.border}`, background: C.surface}}>
+            <input 
+              value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && sendMessage()}
+              placeholder="Спросить..." 
+              style={{flex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", color: C.text, outline: "none", fontSize: 13}}
+            />
+            <button onClick={sendMessage} style={{marginLeft: 8, background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "0 12px", cursor: "pointer", fontWeight: "bold"}}>
+              →
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 export default function App(){
+
   const [tenantAuth, setTenantAuth] = useState(() => {
     try {
       const token = localStorage.getItem("vb_tenant_jwt");
@@ -8708,6 +8792,7 @@ useEffect(()=>{
           </div>
         </>
       )}
+      <SupportBot />
     </div>
   );
 }
