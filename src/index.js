@@ -6,33 +6,95 @@ import reportWebVitals from './reportWebVitals';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 
 
-class ErrorBoundary extends React.Component {
+class GlobalErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, info: null };
+    this.state = { 
+      hasError: false, 
+      isFixed: false,
+      initialVersion: null 
+    };
   }
+  
   static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+    return { hasError: true };
   }
+
   componentDidCatch(error, info) {
-    this.setState({ info });
-    console.error("ErrorBoundary caught:", error, info);
+    console.error("AutoHealing ErrorBoundary caught:", error, info);
+    
+    // 1. Report Error to AI Team
+    fetch("/api/report-error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        error_message: error.toString(),
+        component_stack: info.componentStack,
+        url: window.location.href
+      })
+    }).catch(console.error);
+
+    // 2. Fetch current version and start polling
+    fetch("/api/version")
+      .then(r => r.json())
+      .then(data => {
+        this.setState({ initialVersion: data.version });
+        this.pollForFix(data.version);
+      }).catch(() => {
+        this.pollForFix("unknown");
+      });
   }
+
+  pollForFix = (brokenVersion) => {
+    this.interval = setInterval(() => {
+      fetch("/api/version")
+        .then(r => r.json())
+        .then(data => {
+          if (data.version && data.version !== brokenVersion) {
+            clearInterval(this.interval);
+            this.setState({ isFixed: true });
+            setTimeout(() => {
+              window.location.reload();
+            }, 3000); // Reload after 3 seconds showing "Fixed!"
+          }
+        }).catch(console.error);
+    }, 5000);
+  }
+
+  componentWillUnmount() {
+    if (this.interval) clearInterval(this.interval);
+  }
+
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{padding:40,color:"#fff",background:"#1a1a2e",fontFamily:"monospace",minHeight:"100vh"}}>
-          <h1 style={{color:"#e74c3c"}}>⚠ Ошибка приложения</h1>
-          <pre style={{color:"#f39c12",whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
-            {this.state.error?.toString()}
-          </pre>
-          <pre style={{color:"#888",whiteSpace:"pre-wrap",wordBreak:"break-word",fontSize:12}}>
-            {this.state.info?.componentStack}
-          </pre>
-          <button onClick={() => { localStorage.clear(); window.location.reload(); }}
-            style={{marginTop:20,padding:"12px 24px",background:"#e74c3c",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontSize:14}}>
-            🗑 Очистить кэш и перезагрузить
-          </button>
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          height: "100vh", backgroundColor: "#0F0F13", color: "#fff", fontFamily: "sans-serif", textAlign: "center", padding: 20
+        }}>
+          {this.state.isFixed ? (
+            <>
+              <div style={{fontSize: 64, marginBottom: 20}}>✨</div>
+              <h1 style={{color: "#4CAF50"}}>Код успешно обновлён!</h1>
+              <p style={{color: "#888", maxWidth: 400}}>Наши ИИ-инженеры выкатили новую версию. Сейчас страница будет перезагружена...</p>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize: 64, marginBottom: 20, animation: "spin 2s linear infinite", display: "inline-block"}}>⚙️</div>
+              <h1 style={{color: "#FF4081"}}>Упс, произошел сбой</h1>
+              <p style={{color: "#888", maxWidth: 400, lineHeight: 1.5, marginBottom: 30}}>
+                Но не переживайте! Наши автономные ИИ-инженеры уже получили отчет об ошибке и прямо сейчас пересобирают код. <br/><br/>
+                Пожалуйста, не закрывайте страницу. Как только выйдет фикс, она обновится автоматически.
+              </p>
+              
+              {/* Fallback button if user doesn't want to wait */}
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }}
+                style={{padding:"10px 20px",background:"transparent",color:"#FF4081",border:"1px solid #FF4081",borderRadius:8,cursor:"pointer",fontSize:13}}>
+                Перезагрузить вручную
+              </button>
+              <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+            </>
+          )}
         </div>
       );
     }
@@ -43,9 +105,9 @@ class ErrorBoundary extends React.Component {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
+    <GlobalErrorBoundary>
       <App />
-    </ErrorBoundary>
+    </GlobalErrorBoundary>
   </React.StrictMode>
 );
 
@@ -55,5 +117,5 @@ root.render(
 reportWebVitals();
 
 // Регистрация сервис-воркера для поддержки автономной работы (PWA)
-serviceWorkerRegistration.register();
+serviceWorkerRegistration.unregister();
 
