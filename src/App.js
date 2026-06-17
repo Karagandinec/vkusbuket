@@ -3705,12 +3705,7 @@ function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStock,sales,setSale
   return(
     <div style={{display:"flex",height:"calc(100vh - 57px)"}}>
       <Toast toast={toast}/>
-      {(localStorage.getItem("vb_sync_queue") && JSON.parse(localStorage.getItem("vb_sync_queue")||"[]").length > 0) && (
-        <div style={{padding:20, background:"#fcc", zIndex:99999, position:"fixed", bottom:0, left:0, right:0, maxHeight:"30vh", overflow:"auto"}}>
-          <h4 style={{color:"red", margin:0}}>Отладка Очереди (Скриншот разрабу)</h4>
-          <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 150, fontSize:10, fontFamily:"monospace"}} />
-        </div>
-      )}
+
       {!isMobile ? (
         <>
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -7522,19 +7517,25 @@ const setRawStockWithSync = (updater) => {
               for (const pt of allPts) {
                 const diff = (qtyNew[pt] || 0) - (qtyOld[pt] || 0);
                 if (diff !== 0) {
-                  supaFetch("POST", "rpc/update_raw_stock_atomic", { p_raw_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
+                  if (String(newItem.id).length === 36) {
+                    supaFetch("POST", "rpc/update_raw_stock_atomic", { p_raw_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
+                  }
                 }
               }
             }
           }
           if (!qtyChangedOnly) {
-            supaFetch("POST", "raw_stock", newItem).catch(()=>{});
+            if (String(newItem.id).length === 36) {
+              supaFetch("POST", "raw_stock", newItem).catch(()=>{});
+            }
           }
         }
       });
       prev.forEach(oldItem => {
         if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "raw_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+          if (String(oldItem.id).length === 36) {
+            supaFetch("DELETE", "raw_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+          }
         }
       });
       return next;
@@ -7559,19 +7560,25 @@ const setSemiStockWithSync = (updater) => {
               for (const pt of allPts) {
                 const diff = (qtyNew[pt] || 0) - (qtyOld[pt] || 0);
                 if (diff !== 0) {
-                  supaFetch("POST", "rpc/update_semi_stock_atomic", { p_semi_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
+                  if (String(newItem.id).length === 36) {
+                    supaFetch("POST", "rpc/update_semi_stock_atomic", { p_semi_id: newItem.id, p_point: pt, p_delta: diff }).catch(()=>{});
+                  }
                 }
               }
             }
           }
           if (!qtyChangedOnly) {
-            supaFetch("POST", "semi_stock", newItem).catch(()=>{});
+            if (String(newItem.id).length === 36) {
+              supaFetch("POST", "semi_stock", newItem).catch(()=>{});
+            }
           }
         }
       });
       prev.forEach(oldItem => {
         if (!next.find(n => n.id === oldItem.id)) {
-          supaFetch("DELETE", "semi_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+          if (String(oldItem.id).length === 36) {
+            supaFetch("DELETE", "semi_stock", null, `?id=eq.${oldItem.id}`).catch(()=>{});
+          }
         }
       });
       return next;
@@ -8635,10 +8642,7 @@ useEffect(()=>{
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:(isMobile && isPortrait) ? 68 : 0,minHeight:0}}>
           {page==="dashboard"        && <>
             <Dashboard sales={sales} currentShift={currentShift} expenses={expenses} rawStock={rawStock} semiStock={semiStock} isMobile={isMobile} currentUser={currentUser} setActiveMenu={setPage} onCancelSale={handleCancelSale} users={users} setSales={setSalesWithSync} showToast={showToast} />
-            <div style={{padding:20, background:"#fcc"}}>
-              <h3 style={{color:"red"}}>Отладка (Скриншот для разраба)</h3>
-              <textarea readOnly value={JSON.stringify(JSON.parse(localStorage.getItem("vb_sync_queue")||"[]"), null, 2)} style={{width:"100%", height: 200, fontSize:10, fontFamily:"monospace"}} />
-            </div>
+
           </>}
           {page==="pos"        && <POS        isMobile={isMobile} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} sales={sales} setSales={setSalesWithSync} currentUser={currentUser} techCards={techCards} currentShift={currentShift} onCloseShift={handleCloseShift} onCancelSale={handleCancelSale} customers={customers} preorders={preorders} setPreorders={setPreordersWithSync} setCustomers={setCustomersWithSync}/>}
           {page==="preorders"  && <Preorders isMobile={isMobile} preorders={preorders} setPreorders={setPreordersWithSync} sales={sales} setSales={setSalesWithSync} semiStock={semiStock} setSemiStock={setSemiStockWithSync} rawStock={rawStock} setRawStock={setRawStockWithSync} currentUser={currentUser} currentShift={currentShift} customers={customers} techCards={techCards} showToast={showToast}/>}
