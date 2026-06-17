@@ -7307,7 +7307,7 @@ const SupportBot = () => {
     setIsLoading(true);
     
     try {
-      const res = await fetch("https://zsplctffdvyzbzlnxuew.supabase.co/functions/v1/support-bot", {
+      const res = await fetch("/api/support-bot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg.content })
