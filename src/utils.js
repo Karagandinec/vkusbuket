@@ -2022,16 +2022,24 @@ export const getPackagingItems =  (productName) => {
   return items;
 };
 
+export const getPricePerUnit = (raw) => {
+  if (!raw) return 0;
+  if (raw.purchase_volume && raw.purchase_price) {
+    return raw.purchase_price / raw.purchase_volume;
+  }
+  return raw.price || 0;
+};
+
 export const calcCost =  (ings, semiStock, rawStock) =>
   (ings||[]).reduce((sum,ing)=>{
     if (ing.rid) {
       const raw = (rawStock||[]).find(r=>r.id===ing.rid);
-      return sum + (ing.qty*(1+(ing.loss||0)/100))*(raw?.price||0);
+      return sum + (ing.qty*(1+(ing.loss||0)/100))*getPricePerUnit(raw);
     } else {
       const semi = (semiStock||[]).find(s=>s.id===ing.sid);
       if(!semi) return sum;
       const raw  = (rawStock||[]).find(r=>r.id===semi.rawId);
-      return sum + (ing.qty*(1+(ing.loss||0)/100))*(raw?.price||0);
+      return sum + (ing.qty*(1+(ing.loss||0)/100))*getPricePerUnit(raw);
     }
   },0);
 
@@ -2041,16 +2049,16 @@ export const calcProductCOGS =  (item, semiStock, rawStock) => {
   const packaging = getPackagingItems(item.product || "");
   const pkgCost = (packaging||[]).reduce((sum, pkg) => {
     const raw = (rawStock||[]).find(r => r.id === pkg.rawId);
-    return sum + pkg.qty * (raw?.price || 0);
+    return sum + pkg.qty * getPricePerUnit(raw);
   }, 0);
   return kitchenCost + pkgCost;
 };
 
 export const calcCartItemCOGS =  (item, semiStock, rawStock) => {
   const baseCOGS = calcProductCOGS(item, semiStock, rawStock);
-  const vanillaPrice = rawStock.find(r=>r.id==="r6")?.price || 0;
-  const chocolateIcePrice = rawStock.find(r=>r.id==="r37")?.price || 0;
-  const milkChocPrice = rawStock.find(r=>r.id==="r2")?.price || 0;
+  const vanillaPrice = getPricePerUnit(rawStock.find(r=>r.id==="r6"));
+  const chocolateIcePrice = getPricePerUnit(rawStock.find(r=>r.id==="r37"));
+  const milkChocPrice = getPricePerUnit(rawStock.find(r=>r.id==="r2"));
   
   const vanillaCost = (item.extras?.s6 || 0) * 50 * vanillaPrice;
   const chocIceCost = (item.extras?.s7 || 0) * 50 * chocolateIcePrice;
