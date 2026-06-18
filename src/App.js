@@ -7294,8 +7294,6 @@ const checkIsPortrait = () => {
 
 
 export default function App(){
-  const [shouldCrash, setShouldCrash] = useState(false);
-  if (shouldCrash) throw new Error("Искусственный сбой для теста ИИ-инженера!");
 
   const [tenantAuth, setTenantAuth] = useState(() => {
     try {
@@ -8715,7 +8713,7 @@ useEffect(()=>{
       )}
 
       {/* Мягкая тестовая кнопка для проверки Хирурга */}
-      <button onClick={() => setShouldCrash(true)} style={{position: "fixed", bottom: 10, left: 10, zIndex: 9999, background: "#000", color: "#f00", border: "1px solid #f00", padding: "5px", fontSize: "10px", cursor: "pointer"}}>
+      <button onClick={() => { throw new Error("Искусственный сбой для теста ИИ-инженера!"); }} style={{position: "fixed", bottom: 10, left: 10, zIndex: 9999, background: "#000", color: "#f00", border: "1px solid #f00", padding: "5px", fontSize: "10px", cursor: "pointer"}}>
         [CRASH APP]
       </button>
       </div>
