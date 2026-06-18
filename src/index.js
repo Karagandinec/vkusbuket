@@ -46,16 +46,18 @@ class GlobalErrorBoundary extends React.Component {
   }
 
   pollForFix = (brokenVersion) => {
+    if (this.interval) clearInterval(this.interval);
     this.interval = setInterval(() => {
       fetch("/api/version")
         .then(r => r.json())
         .then(data => {
           if (data.version && data.version !== brokenVersion) {
             clearInterval(this.interval);
+            this.interval = null;
             this.setState({ isFixed: true });
             setTimeout(() => {
               window.location.reload();
-            }, 3000); // Reload after 3 seconds showing "Fixed!"
+            }, 3000);
           }
         }).catch(console.error);
     }, 5000);

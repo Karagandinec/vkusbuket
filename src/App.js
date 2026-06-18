@@ -7818,8 +7818,9 @@ const setExpensesWithSync = (updater) => {
         } else {
           const errText = await res.text().catch(() => "");
           console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
-          // Prevent data loss: retain item in queue even for 4xx errors (e.g. 401 Unauthorized token expiry)
-          if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          // Drop permanent client errors (poison pills) to avoid infinite retry loops.
+          // Retain 401 (token expiry — will retry after re-auth) and 429 (rate limit).
+          if (res.status === 401) { console.warn(Токен протух! Оставляем данные в очереди и требуем авторизацию.); nextQueue.push(item); localStorage.removeItem(b_tenant_jwt); window.location.reload(); break; } else if (res.status >= 400 && res.status < 500 && res.status !== 429) {
             console.error(`Fatal client error (Poison Pill) ${res.status} on ${item.method} ${item.table}. Dropping from queue.`);
           } else {
             nextQueue.push(item);
@@ -8711,9 +8712,6 @@ useEffect(()=>{
         </>
       )}
 
-      <button onClick={() => { throw new Error("Искусственный сбой для теста ИИ-инженера!"); }} style={{position: "fixed", bottom: 10, left: 10, zIndex: 9999, background: "#000", color: "#f00", border: "1px solid #f00", padding: "5px", fontSize: "10px", cursor: "pointer"}}>
-        [CRASH APP]
-      </button>
       </div>
   );
 }
