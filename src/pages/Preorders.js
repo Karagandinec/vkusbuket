@@ -1,5 +1,9 @@
+import { Toast, useToast } from "../components/Toast";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { C, ROLES, POINTS, POINT_COLORS, ALL_LOCATIONS } from "../constants";
+import {
+  getConvertedQty, INIT_USERS, initRawStock, initSemiStock, INIT_TECH_CARDS, CAT_COLORS, NAV, fmtM, fmtS, fmt, PAY_LABELS, fmtPay, parseQtyObj, parseSemiQtyObj, getQty, parseLocalDate, getPackagingItems, calcCost, calcProductCOGS, calcCartItemCOGS, getIngName, getIngUnit, restoreStockForSale, processSaleStock, LS, generateUUID, getMergedList, isSessionValid, touchSession, RPC_ENABLED, fmtUnit, checkIsMobile, checkIsPortrait, setWarehouseHistoryWithSync, setWriteOffsWithSync, setUsersWithSync, setCustomersWithSync, setRawStockWithSync, setSemiStockWithSync, setTechCardsWithSync, setSalesWithSync, setExpensesWithSync, checkAdminOrManager, isAdmin, isManager, isSurgeon, canWriteOff, canAddShift, supabase, supaFetch
+} from "../utils";
 import SearchableSelect from '../components/SearchableSelect';
 
 export default function Preorders({isMobile,preorders, setPreorders, sales, setSales, semiStock, setSemiStock, rawStock, setRawStock, currentUser, currentShift, customers, techCards, showToast}) {
@@ -429,5 +433,4 @@ export default function Preorders({isMobile,preorders, setPreorders, sales, setS
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = process.env.REACT_APP_SUPABASE_URL||"";
 const SUPA_KEY = process.env.REACT_APP_SUPABASE_KEY||"";
-
-const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : null;
+
