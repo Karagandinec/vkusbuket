@@ -8712,10 +8712,6 @@ useEffect(()=>{
         </>
       )}
 
-      {/* Мягкая тестовая кнопка для проверки Хирурга */}
-      <button onClick={() => { throw new Error("Искусственный сбой для теста ИИ-инженера!"); }} style={{position: "fixed", bottom: 10, left: 10, zIndex: 9999, background: "#000", color: "#f00", border: "1px solid #f00", padding: "5px", fontSize: "10px", cursor: "pointer"}}>
-        [CRASH APP]
-      </button>
       </div>
   );
 }
