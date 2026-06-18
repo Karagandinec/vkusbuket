@@ -1,0 +1,71 @@
+name: Telegram ChatOps AI Developer
+
+on:
+  repository_dispatch:
+    types: [chatops]
+
+jobs:
+  ai-developer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "VkusBuket AI Developer"
+          git config --global user.email "chatops@vkusbuket.local"
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Aider
+        run: pip install aider-chat
+
+      - name: Run Aider AI
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # Run aider in non-interactive mode. It will automatically find files, edit, and commit.
+          aider --message "${{ github.event.client_payload.command }}" --yes --model gpt-4o
+
+      - name: Push Changes
+        run: |
+          git push origin main
+          
+      - name: Notify Telegram (Success)
+        if: success()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE_ID: ${{ github.event.client_payload.message_id }}
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "'"${TELEGRAM_CHAT_ID}"'",
+              "text": "✅ <b>Задача выполнена!</b>\nКод изменен и отправлен в релиз на Vercel.",
+              "parse_mode": "HTML",
+              "reply_to_message_id": '${MESSAGE_ID}'
+            }'
+
+      - name: Notify Telegram (Failure)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE_ID: ${{ github.event.client_payload.message_id }}
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
+            -H "Content-Type: application/json" \
+            -d '{
+              "chat_id": "'"${TELEGRAM_CHAT_ID}"'",
+              "text": "❌ <b>Ошибка!</b>\nИИ-агент не смог выполнить задачу. Проверьте логи GitHub Actions.",
+              "parse_mode": "HTML",
+              "reply_to_message_id": '${MESSAGE_ID}'
+            }'
