@@ -7294,7 +7294,6 @@ const checkIsPortrait = () => {
 
 
 export default function App(){
-  throw new Error("КРИТИЧЕСКИЙ СБОЙ: Краш-тест от ИИ-агента!");
 
   const [tenantAuth, setTenantAuth] = useState(() => {
     try {
