@@ -3,7 +3,7 @@ import { Toast, useToast } from "./components/Toast";
 import { createClient } from "@supabase/supabase-js";
 import { SUPA_URL, SUPA_KEY } from "./utils";
 import {
-  getConvertedQty, INIT_USERS, initRawStock, initSemiStock, INIT_TECH_CARDS, CAT_COLORS, NAV, fmtM, fmtS, fmt, PAY_LABELS, fmtPay, parseQtyObj, parseSemiQtyObj, getQty, parseLocalDate, getPackagingItems, calcCost, calcProductCOGS, calcCartItemCOGS, getIngName, getIngUnit, restoreStockForSale, processSaleStock, LS, generateUUID, getMergedList, isSessionValid, touchSession, RPC_ENABLED, fmtUnit, checkIsMobile, checkIsPortrait, setWarehouseHistoryWithSync, setWriteOffsWithSync, setUsersWithSync, setCustomersWithSync, setRawStockWithSync, setSemiStockWithSync, setTechCardsWithSync, setSalesWithSync, setExpensesWithSync, checkAdminOrManager, isAdmin, isManager, isSurgeon, canWriteOff, canAddShift, supabase, supaFetch
+  getConvertedQty, INIT_USERS, initRawStock, initSemiStock, INIT_TECH_CARDS, CAT_COLORS, NAV, fmtM, fmtS, fmt, PAY_LABELS, fmtPay, parseQtyObj, parseSemiQtyObj, getQty, parseLocalDate, getPackagingItems, calcCost, calcProductCOGS, calcCartItemCOGS, getIngName, getIngUnit, restoreStockForSale, processSaleStock, LS, generateUUID, getMergedList, isSessionValid, touchSession, RPC_ENABLED, fmtUnit, checkIsMobile, checkIsPortrait, setWarehouseHistoryWithSync, setWriteOffsWithSync, setUsersWithSync, setCustomersWithSync, setRawStockWithSync, setSemiStockWithSync, setTechCardsWithSync, setSalesWithSync, setExpensesWithSync, checkAdminOrManager, isAdmin, isManager, isSurgeon, canWriteOff, canAddShift, supabase, supaFetch, setSessionExpiredHandler
 } from "./utils";
 import Settings from './pages/Settings';
 import SearchableSelect from "./components/SearchableSelect";
@@ -23,12 +23,43 @@ import { C, ROLES, POINTS, POINT_COLORS, ALL_LOCATIONS } from "./constants";
 
 export default function App(){
 
-  const [tenantAuth, setTenantAuth] = useState(() => {
-    try {
-      const token = localStorage.getItem("vb_tenant_jwt");
-      return token ? { access_token: token } : null;
-    } catch { return null; }
-  });
+  const [tenantAuth, setTenantAuth] = useState(null);
+
+  // Добавляем хендлер истечения сессии
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      console.warn("Global session expired handler triggered.");
+      setTenantAuth(null);
+      localStorage.removeItem("vb_tenant_jwt");
+      localStorage.removeItem("vb_supabase_session");
+      window.location.reload();
+    });
+  }, []);
+
+  // Восстанавливаем состояние авторизации при загрузке
+  useEffect(() => {
+    if (!supabase) return;
+    
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setTenantAuth({ access_token: session.access_token });
+        localStorage.setItem("vb_tenant_jwt", session.access_token);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setTenantAuth({ access_token: session.access_token });
+        localStorage.setItem("vb_tenant_jwt", session.access_token);
+      } else {
+        setTenantAuth(null);
+        localStorage.removeItem("vb_tenant_jwt");
+      }
+    });
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
   const [tenantEmail, setTenantEmail] = useState("");
   const [tenantPassword, setTenantPassword] = useState("");
   const [tenantAuthenticating, setTenantAuthenticating] = useState(false);

@@ -2201,7 +2201,21 @@ export const EXP_CATS =  [
 export const SUPA_URL =  process.env.REACT_APP_SUPABASE_URL||"";
 export const SUPA_KEY =  process.env.REACT_APP_SUPABASE_KEY||"";
 
-export const supabase =  (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY) : null;
+export const supabase = (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    storageKey: 'vb_supabase_session'
+  }
+}) : null;
+
+let isRefreshing = false;
+let onSessionExpired = null;
+
+export function setSessionExpiredHandler(handler) {
+  onSessionExpired = handler;
+}
 
 
 
@@ -2210,7 +2224,15 @@ export const supabase =  (SUPA_URL && SUPA_KEY) ? createClient(SUPA_URL, SUPA_KE
 
 
 export async function supaFetch(method, table, body=null, params="") {
-  if (!SUPA_URL || !SUPA_KEY) return method === "GET" ? [] : false;
+  if (!SUPA_URL || !SUPA_KEY || !supabase) return method === "GET" ? [] : false;
+
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError || !session) {
+    if (onSessionExpired) onSessionExpired();
+    return method === "GET" ? [] : false;
+  }
+
   const url = `${SUPA_URL}/rest/v1/${table}${params}`;
 
   // Оффлайн-очередь для операций записи (POST, PATCH, DELETE)
@@ -2223,16 +2245,57 @@ export async function supaFetch(method, table, body=null, params="") {
   }
 
   try {
-    const res = await fetch(url,{
+    const res = await fetch(url, {
       method,
-      headers:{
-        "apikey":SUPA_KEY,
-        "Authorization":`Bearer ${SUPA_KEY}`,
-        "Content-Type":"application/json",
-        "Prefer": method === "POST" ? "resolution=merge-duplicates" : "return=minimal",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+        "Prefer": method === "POST" ? "return=representation" : "",
       },
-      body: body?JSON.stringify(body):null,
+      body: body ? JSON.stringify(body) : undefined,
     });
+
+    if (res.status === 401 && !isRefreshing) {
+      isRefreshing = true;
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        isRefreshing = false;
+
+        if (error || !data.session) {
+          console.warn('Session refresh failed, signing out');
+          await supabase.auth.signOut();
+          if (onSessionExpired) onSessionExpired();
+          return method === "GET" ? [] : false;
+        }
+
+        const retryRes = await fetch(url, {
+          method,
+          headers: {
+            "apikey": SUPA_KEY,
+            "Authorization": `Bearer ${data.session.access_token}`,
+            "Content-Type": "application/json",
+            "Prefer": method === "POST" ? "return=representation" : "",
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+
+        if (!retryRes.ok) throw new Error(`Retry failed: ${retryRes.status}`);
+        
+        if (method === "GET") {
+          const resData = await retryRes.json().catch(() => []);
+          return Array.isArray(resData) ? resData : [];
+        }
+        return true;
+
+      } catch (refreshErr) {
+        isRefreshing = false;
+        console.error('Token refresh error:', refreshErr);
+        if (onSessionExpired) onSessionExpired();
+        return method === "GET" ? [] : false;
+      }
+    }
+
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
@@ -2245,6 +2308,7 @@ export async function supaFetch(method, table, body=null, params="") {
       }
       return method === "GET" ? [] : false;
     }
+    
     if (method === "GET") {
       const data = await res.json().catch(() => []);
       return Array.isArray(data) ? data : [];
