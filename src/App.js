@@ -7228,6 +7228,13 @@ async function supaFetch(method, table, body=null, params="") {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       console.warn(`supaFetch ${method} ${table} failed with status ${res.status}: ${errText}`);
+      if (res.status === 401) {
+        if (typeof window !== 'undefined') {
+          console.warn("Global 401 token expiry. Logging out.");
+          localStorage.removeItem("vb_tenant_jwt");
+          window.location.reload();
+        }
+      }
       if (method !== "GET") {
         if (!(res.status === 404 && method === "DELETE")) {
           enqueueOp();
