@@ -7819,7 +7819,7 @@ const setExpensesWithSync = (updater) => {
           const errText = await res.text().catch(() => "");
           console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
           // Prevent data loss: retain item in queue even for 4xx errors (e.g. 401 Unauthorized token expiry)
-          if (res.status >= 400 && res.status < 500 && res.status !== 401 && res.status !== 429) {
+          if (res.status >= 400 && res.status < 500 && res.status !== 429) {
             console.error(`Fatal client error (Poison Pill) ${res.status} on ${item.method} ${item.table}. Dropping from queue.`);
           } else {
             nextQueue.push(item);
