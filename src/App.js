@@ -7822,7 +7822,7 @@ const setExpensesWithSync = (updater) => {
           console.warn(`Ошибка фоновой синхронизации ${item.method} ${item.table}: status ${res.status}: ${errText}`);
           // Drop permanent client errors (poison pills) to avoid infinite retry loops.
           // Retain 401 (token expiry — will retry after re-auth) and 429 (rate limit).
-          if (res.status === 401) { console.warn(Токен протух! Оставляем данные в очереди и требуем авторизацию.); nextQueue.push(item); localStorage.removeItem(b_tenant_jwt); window.location.reload(); break; } else if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          if (res.status === 401) { console.warn("JWT expired. Retaining queue."); nextQueue.push(item); localStorage.removeItem("vb_tenant_jwt"); window.location.reload(); break; } else if (res.status >= 400 && res.status < 500 && res.status !== 429) {
             console.error(`Fatal client error (Poison Pill) ${res.status} on ${item.method} ${item.table}. Dropping from queue.`);
           } else {
             nextQueue.push(item);
