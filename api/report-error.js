@@ -48,6 +48,26 @@ export default async function handler(req, res) {
       });
     }
 
+    const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    if (GITHUB_TOKEN) {
+      await fetch("https://api.github.com/repos/Karagandinec/vkusbuket/dispatches", {
+        method: "POST",
+        headers: {
+          "Accept": "application/vnd.github.v3+json",
+          "Authorization": `token ${GITHUB_TOKEN}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          event_type: "crash_report",
+          client_payload: {
+            error_message: error_message || 'Unknown error',
+            error_stack: error_stack || '',
+            url: url || ''
+          }
+        })
+      }).catch(err => console.error("Failed to trigger GH Action:", err));
+    }
+
     res.status(200).json({ success: true, message: "Error reported to AI Engineer team." });
   } catch (error) {
     console.error("Failed to report error:", error);

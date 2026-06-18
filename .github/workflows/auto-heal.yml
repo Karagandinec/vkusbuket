@@ -1,0 +1,33 @@
+name: Autonomous AI Healer
+
+on:
+  repository_dispatch:
+    types: [crash_report]
+
+jobs:
+  auto-heal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          
+      - name: Run AI Auto-Heal Script
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CRASH_REPORT: ${{ github.event.client_payload.error_message }}
+        run: node scripts/auto-heal.js
+        
+      - name: Commit and Push Fix
+        run: |
+          git config --global user.name "Antigravity AI (Auto-Heal)"
+          git config --global user.email "bot@antigravity.ai"
+          git add src/App.js
+          # Only commit if there are changes
+          git diff --quiet && git diff --staged --quiet || (git commit -m "fix: autonomous AI auto-healing patch" && git push)
