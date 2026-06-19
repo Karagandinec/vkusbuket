@@ -47,13 +47,9 @@ export default async function handler(req, res) {
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-    if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
-      console.error('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID');
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.error('Missing TELEGRAM_BOT_TOKEN');
       return res.status(500).end();
-    }
-
-    if (chatId !== TELEGRAM_CHAT_ID) {
-      return res.status(200).json({ status: 'unauthorized' });
     }
 
     if (text.length > MAX_COMMAND_LENGTH) {
@@ -63,6 +59,9 @@ export default async function handler(req, res) {
 
     // Если команда начинается с /ai, то это ChatOps команда для GitHub Actions
     if (text.startsWith('/ai ') || text === '/ai') {
+      if (chatId !== TELEGRAM_CHAT_ID) {
+        return res.status(200).json({ status: 'unauthorized' });
+      }
       const command = text.substring(4).trim();
 
       if (!command) {
