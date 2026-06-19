@@ -235,31 +235,36 @@ async function logoutProgrammatically(page: any) {
   await expect(page.locator('text=Выберите профиль сотрудника')).toBeVisible();
 }
 
-// Combined programmatic login and navigation to Settings -> Employees tab to prevent multi-navigation lockups in Safari/WebKit
 async function loginAndGoToSettings(page: any, user: any) {
-  await page.evaluate((u) => {
-    window.localStorage.setItem('vb_session_user', JSON.stringify(u));
-    window.localStorage.setItem('vb_session_ts', String(Date.now()));
-    window.localStorage.setItem('vb_session_page', JSON.stringify('settings'));
-  }, user);
+  // Clear session to ensure we start at the login screen
+  await page.evaluate(() => {
+    window.localStorage.removeItem('vb_session_user');
+    window.localStorage.removeItem('vb_session_page');
+    window.localStorage.removeItem('vb_session_ts');
+  });
   await page.goto('/');
 
-  // Wait for the Settings UI to be attached to DOM (meaning loading is complete)
-  const settingsTab = page.locator('button:has-text("Сотрудники")').first();
-  await settingsTab.waitFor({ state: 'attached' });
-
-  // If we are on mobile viewport, close the default-open sidebar menu overlay to uncover Settings tab buttons
-  const backdrop = page.locator('div[style*="rgba(0,0,0,0.6)"], div[style*="rgba(0, 0, 0, 0.6)"]');
-  try {
-    // Check if backdrop is currently visible without long timeout
-    if (await backdrop.count() > 0 && await backdrop.first().isVisible()) {
-      await backdrop.first().click();
-    }
-  } catch (e) {
-    // Ignore errors clicking backdrop
+  // Log in
+  await page.locator('button', { hasText: user.name }).first().click();
+  if (user.pin) {
+    await enterPin(page, user.pin);
   }
 
-  await page.locator('button:has-text("Сотрудники")').first().click();
+  // Wait for dashboard/pos to render (Sidebar should become visible)
+  const isMobile = await page.evaluate(() => window.innerWidth < 768);
+  
+  if (isMobile) {
+    // Open hamburger menu
+    await page.locator('button', { hasText: 'Меню' }).first().click();
+  }
+
+  // Navigate to Settings
+  await page.locator('button', { hasText: 'Настройки' }).first().click();
+
+  // Wait for Settings to load, then click Сотрудники
+  const settingsTab = page.locator('button:has-text("Сотрудники")').first();
+  await expect(settingsTab).toBeVisible({ timeout: 15000 });
+  await settingsTab.click();
 }
 
 test.describe('PIN Authentication and Management Suite', () => {
