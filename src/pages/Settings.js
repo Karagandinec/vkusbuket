@@ -411,7 +411,7 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>PIN-КОД (4 ЦИФРЫ)</div>
-                  <input value={newUser.pin} onChange={e=>setNewUser(f=>({...f,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))} placeholder="1234" style={inputStyle}/>
+                  <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newUser.pin} onChange={e=>{ const val = e.target.value; if(/^\d*$/.test(val)) setNewUser(f=>({...f,pin:val})); }} placeholder="1234" style={inputStyle}/>
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>РАБОЧАЯ ТОЧКА</div>
@@ -467,7 +467,7 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>PIN-КОД</div>
-                    <input value={editData?.pin || ""} onChange={e=>setEditData(p=>({...p,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))} style={inputStyle}/>
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={editData?.pin || ""} onChange={e=>{ const val = e.target.value; if(/^\d*$/.test(val)) setEditData(p=>({...p,pin:val})); }} style={inputStyle}/>
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ТОЧКА</div>
