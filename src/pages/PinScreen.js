@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ROLES, C } from "../constants";
 import {
   getConvertedQty, INIT_USERS, initRawStock, initSemiStock, INIT_TECH_CARDS, CAT_COLORS, NAV, fmtM, fmtS, fmt, PAY_LABELS, fmtPay, parseQtyObj, parseSemiQtyObj, getQty, parseLocalDate, getPackagingItems, calcCost, calcProductCOGS, calcCartItemCOGS, getIngName, getIngUnit, restoreStockForSale, processSaleStock, LS, generateUUID, getMergedList, isSessionValid, touchSession, RPC_ENABLED, fmtUnit, checkIsMobile, checkIsPortrait, setWarehouseHistoryWithSync, setWriteOffsWithSync, setUsersWithSync, setCustomersWithSync, setRawStockWithSync, setSemiStockWithSync, setTechCardsWithSync, setSalesWithSync, setExpensesWithSync, checkAdminOrManager, isAdmin, isManager, isSurgeon, canWriteOff, canAddShift, supabase, supaFetch
@@ -11,6 +11,20 @@ export default function PinScreen({users, onLogin, onClose}){
   const [locked, setLocked]     = useState(false);
   const [lockSecsLeft, setLockSecsLeft] = useState(0);
 
+  const verificationTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      try {
+        if (verificationTimeoutRef.current) {
+          clearTimeout(verificationTimeoutRef.current);
+        }
+      } catch (e) {
+        console.warn('[unmount cleanup] Error:', e.message || e);
+      }
+    };
+  }, []);
+
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_MS   = 30_000;
 
@@ -22,21 +36,29 @@ export default function PinScreen({users, onLogin, onClose}){
   const clearBFState = (userId) => { try { localStorage.removeItem(`vb_bf_${userId}`); } catch {} };
 
   const handleSelectUser = (u) => {
-    setPin(""); setError("");
-    const { lockedUntil } = getBFState(u.id);
-    const latestUser = users.find(x => x.id === u.id) || u;
-
-    // Пропускаем ПИН если он не задан
-    if (!latestUser.pin || String(latestUser.pin).trim() === "") {
-      if (!lockedUntil || Date.now() > lockedUntil) {
-        clearBFState(u.id);
-        onLogin(latestUser);
-        return;
+    try {
+      if (verificationTimeoutRef.current) {
+        clearTimeout(verificationTimeoutRef.current);
+        verificationTimeoutRef.current = null;
       }
-    }
+      setPin(""); setError("");
+      const { lockedUntil } = getBFState(u.id);
+      const latestUser = users.find(x => x.id === u.id) || u;
 
-    setSelected(u);
-    setLocked(Date.now() < lockedUntil);
+      // Пропускаем ПИН если он не задан
+      if (!latestUser.pin || String(latestUser.pin).trim() === "") {
+        if (!lockedUntil || Date.now() > lockedUntil) {
+          clearBFState(u.id);
+          onLogin(latestUser);
+          return;
+        }
+      }
+
+      setSelected(u);
+      setLocked(Date.now() < lockedUntil);
+    } catch (e) {
+      console.warn('[handleSelectUser] Error:', e.message || e);
+    }
   };
 
   useEffect(() => {
@@ -54,35 +76,78 @@ export default function PinScreen({users, onLogin, onClose}){
   }, [locked, selected]);
 
   const handleDigit = (d) => {
-    if (locked || pin.length >= 4) return;
-    const next = pin + d;
-    setPin(next);
-    setError("");
-    if (next.length === 4) {
-      setTimeout(() => {
-        const latestUser = users.find(u => u.id === selected.id) || selected;
-        if (String(next) === String(latestUser.pin)) {
-          clearBFState(selected.id);
-          onLogin(latestUser);
-          setPin(""); setSelected(null); setLocked(false);
-        } else {
-          const bf = getBFState(selected.id);
-          const newAttempts = bf.attempts + 1;
-          if (newAttempts >= MAX_ATTEMPTS) {
-            setBFState(selected.id, { attempts: 0, lockedUntil: Date.now() + LOCKOUT_MS });
-            setLocked(true);
-            setError(`Слишком много попыток. Блокировка ${LOCKOUT_MS/1000} сек.`);
-          } else {
-            setBFState(selected.id, { attempts: newAttempts, lockedUntil: 0 });
-            setError(`Неверный PIN. Осталось попыток: ${MAX_ATTEMPTS - newAttempts}`);
+    try {
+      if (locked || verificationTimeoutRef.current) return;
+      setPin(prev => {
+        if (prev.length >= 4) return prev;
+        const next = prev + d;
+        if (next.length === 4) {
+          if (!verificationTimeoutRef.current) {
+            const targetUser = selected;
+            if (!targetUser) return next;
+            verificationTimeoutRef.current = setTimeout(() => {
+              try {
+                const latestUser = users.find(u => u.id === targetUser.id) || targetUser;
+                if (String(next) === String(latestUser.pin)) {
+                  clearBFState(targetUser.id);
+                  onLogin(latestUser);
+                  setPin("");
+                  setSelected(null);
+                  setLocked(false);
+                } else {
+                  const bf = getBFState(targetUser.id);
+                  const newAttempts = bf.attempts + 1;
+                  if (newAttempts >= MAX_ATTEMPTS) {
+                    setBFState(targetUser.id, { attempts: 0, lockedUntil: Date.now() + LOCKOUT_MS });
+                    setLocked(true);
+                    setError(`Слишком много попыток. Блокировка ${LOCKOUT_MS/1000} сек.`);
+                  } else {
+                    setBFState(targetUser.id, { attempts: newAttempts, lockedUntil: 0 });
+                    setError(`Неверный PIN. Осталось попыток: ${MAX_ATTEMPTS - newAttempts}`);
+                  }
+                  setPin("");
+                }
+              } catch (timeoutErr) {
+                console.warn('[handleDigit timeout] Error:', timeoutErr.message || timeoutErr);
+              } finally {
+                verificationTimeoutRef.current = null;
+              }
+            }, 200);
           }
-          setPin("");
         }
-      }, 200);
+        return next;
+      });
+      setError("");
+    } catch (e) {
+      console.warn('[handleDigit] Error:', e.message || e);
     }
   };
 
-  const handleBack = () => { if (!locked) { setPin(p=>p.slice(0,-1)); setError(""); } };
+  const handleCancel = () => {
+    try {
+      if (verificationTimeoutRef.current) {
+        clearTimeout(verificationTimeoutRef.current);
+        verificationTimeoutRef.current = null;
+      }
+      setSelected(null);
+      setPin("");
+      setError("");
+      setLocked(false);
+    } catch (e) {
+      console.warn('[handleCancel] Error:', e.message || e);
+    }
+  };
+
+  const handleBack = () => {
+    try {
+      if (!locked && !verificationTimeoutRef.current) {
+        setPin(p => p.slice(0, -1));
+        setError("");
+      }
+    } catch (e) {
+      console.warn('[handleBack] Error:', e.message || e);
+    }
+  };
 
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(15,15,19,0.97)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,flexDirection:"column",gap:24}}>
@@ -127,7 +192,7 @@ export default function PinScreen({users, onLogin, onClose}){
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:20,width:280}}>
-          <button onClick={()=>{setSelected(null);setPin("");setError("");setLocked(false);}} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
+          <button onClick={handleCancel} style={{background:"transparent",border:"none",color:"#7A7A94",cursor:"pointer",fontSize:13,alignSelf:"flex-start"}}>← Назад</button>
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             {(()=>{ const sr = ROLES[selected.role] || { color:C.muted, icon:"👤" }; return (
             <div style={{width:40,height:40,borderRadius:20,background:sr.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{sr.icon}</div>

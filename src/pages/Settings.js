@@ -411,7 +411,7 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>PIN-КОД (4 ЦИФРЫ)</div>
-                  <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newUser.pin} onChange={e=>{ const val = e.target.value; if(/^\d*$/.test(val)) setNewUser(f=>({...f,pin:val})); }} placeholder="1234" style={inputStyle}/>
+                  <input type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={newUser.pin} onChange={e=>{ try { const val = e.target.value; if(/^\d*$/.test(val)) setNewUser(f=>({...f,pin:val})); } catch (err) { console.warn('[AddUserPinChange] Error:', err.message || err); } }} placeholder="1234" style={inputStyle}/>
                 </div>
                 <div>
                   <div style={{fontSize:11,color:C.muted,marginBottom:5}}>РАБОЧАЯ ТОЧКА</div>
@@ -467,7 +467,7 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>PIN-КОД</div>
-                    <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={editData?.pin || ""} onChange={e=>{ const val = e.target.value; if(/^\d*$/.test(val)) setEditData(p=>({...p,pin:val})); }} style={inputStyle}/>
+                    <input type="tel" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={editData?.pin || ""} onChange={e=>{ try { const val = e.target.value; if(/^\d*$/.test(val)) setEditData(p=>({...p,pin:val})); } catch (err) { console.warn('[EditUserPinChange] Error:', err.message || err); } }} style={inputStyle}/>
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ТОЧКА</div>
@@ -478,10 +478,21 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                   </div>
                   <div style={{display:"flex",gap:6}}>
                     <button onClick={()=>{
-                      const updated = { ...editData };
-                      setUsers(p=>p.map(x=>x.id===u.id ? updated : x));
-                      setEditId(null);
-                      showToast("Сохранено!");
+                      try {
+                        const trimmedName = (editData?.name || "").trim();
+                        const isPinValid = /^\d{4}$/.test(editData?.pin || "");
+                        if (!trimmedName || !isPinValid) {
+                          showToast("Введите имя и 4-значный PIN", true);
+                          return;
+                        }
+                        const updated = { ...editData, name: trimmedName };
+                        setUsers(p=>p.map(x=>x.id===u.id ? updated : x));
+                        setEditId(null);
+                        showToast("Сохранено!");
+                      } catch (err) {
+                        console.warn('[EditUserSave] Error:', err.message || err);
+                        showToast("Ошибка при сохранении", true);
+                      }
                     }} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
                     <button onClick={()=>{
                       setUsers(p=>p.filter(x=>x.id!==u.id));
