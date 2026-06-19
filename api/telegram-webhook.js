@@ -1,27 +1,23 @@
 const MAX_COMMAND_LENGTH = 1000;
 const GITHUB_DISPATCH_TIMEOUT_MS = 8000;
 const TELEGRAM_SEND_TIMEOUT_MS = 5000;
+const OPENAI_TIMEOUT_MS = 25000;
 
 // In-memory дедупликация (сбрасывается при cold start).
-// Для продакшена замените на Supabase:
-//   await supabase.from('processed_tg_updates').insert({ update_id: updateId })
-//   .then проверку на conflict
 const processedUpdates = new Set();
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  // ── 1. Проверка секрета (fail-closed) ────────────────────────────────────
   const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!secretToken) {
-    // Если переменная не настроена — блокируем все запросы
-    console.error('TELEGRAM_WEBHOOK_SECRET is not configured');
-    return res.status(500).end();
-  }
   const incomingSecret = req.headers['x-telegram-bot-api-secret-token'];
-  if (incomingSecret !== secretToken) {
+  
+  if (secretToken && incomingSecret !== secretToken) {
     console.warn('Invalid webhook secret');
     return res.status(403).end();
+  }
+  if (!secretToken) {
+    console.warn('TELEGRAM_WEBHOOK_SECRET is not configured, running without validation');
   }
 
   try {
@@ -30,15 +26,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'ignored' });
     }
 
-    // ── 2. Идемпотентность по update_id ──────────────────────────────────
-    // Telegram гарантирует уникальность update_id для каждого события.
+    // 2. Идемпотентность по update_id
     const updateId = update.update_id;
     if (processedUpdates.has(updateId)) {
       console.warn('Duplicate update_id, ignoring:', updateId);
       return res.status(200).json({ status: 'duplicate' });
     }
     processedUpdates.add(updateId);
-    // Чистим старые записи чтобы не раздувать память
     if (processedUpdates.size > 500) {
       const first = processedUpdates.values().next().value;
       processedUpdates.delete(first);
@@ -51,8 +45,8 @@ export default async function handler(req, res) {
     const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
     const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-    // Проверяем обязательные переменные
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
       console.error('Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID');
       return res.status(500).end();
@@ -62,6 +56,12 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'unauthorized' });
     }
 
+    if (text.length > MAX_COMMAND_LENGTH) {
+      await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ Сообщение слишком длинное.', messageId);
+      return res.status(200).json({ status: 'command_too_long' });
+    }
+
+    // Если команда начинается с /ai, то это ChatOps команда для GitHub Actions
     if (text.startsWith('/ai ') || text === '/ai') {
       const command = text.substring(4).trim();
 
@@ -69,11 +69,6 @@ export default async function handler(req, res) {
         await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ Пустая команда.', messageId);
         return res.status(200).json({ status: 'empty_command' });
       }
-      if (command.length > MAX_COMMAND_LENGTH) {
-        await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ Команда слишком длинная.', messageId);
-        return res.status(200).json({ status: 'command_too_long' });
-      }
-      // ── 3. Проверка GITHUB_TOKEN перед использованием ─────────────────
       if (!GITHUB_TOKEN) {
         await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ GITHUB_TOKEN не настроен.', messageId);
         return res.status(200).json({ status: 'no_github_token' });
@@ -85,12 +80,8 @@ export default async function handler(req, res) {
         messageId
       );
 
-      // ── 4. Таймаут на GitHub dispatch ─────────────────────────────────
       const ghController = new AbortController();
-      const ghTimeout = setTimeout(
-        () => ghController.abort(),
-        GITHUB_DISPATCH_TIMEOUT_MS
-      );
+      const ghTimeout = setTimeout(() => ghController.abort(), GITHUB_DISPATCH_TIMEOUT_MS);
 
       try {
         const ghResponse = await fetch(
@@ -113,24 +104,69 @@ export default async function handler(req, res) {
         if (!ghResponse.ok) {
           const errText = await ghResponse.text().catch(() => '');
           console.error('GitHub Dispatch Failed:', ghResponse.status, errText);
-          await sendMessage(
-            TELEGRAM_BOT_TOKEN, chatId,
-            `❌ Не удалось запустить агента (${ghResponse.status}).`,
-            messageId
-          );
+          await sendMessage(TELEGRAM_BOT_TOKEN, chatId, `❌ Не удалось запустить агента (${ghResponse.status}).`, messageId);
         }
       } catch (ghErr) {
         const isTimeout = ghErr.name === 'AbortError';
         console.error(isTimeout ? 'GitHub dispatch timed out' : 'GitHub dispatch error:', ghErr);
         await sendMessage(
           TELEGRAM_BOT_TOKEN, chatId,
-          isTimeout
-            ? '⏱ GitHub не ответил вовремя. Проверьте Actions вручную.'
-            : '❌ Ошибка соединения с GitHub.',
+          isTimeout ? '⏱ GitHub не ответил вовремя. Проверьте Actions вручную.' : '❌ Ошибка соединения с GitHub.',
           messageId
         );
       } finally {
         clearTimeout(ghTimeout);
+      }
+    } 
+    // Иначе это обычный вопрос к Support Bot (OpenAI)
+    else {
+      if (!OPENAI_API_KEY) {
+        await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ OPENAI_API_KEY не настроен.', messageId);
+        return res.status(200).json({ status: 'no_openai_key' });
+      }
+
+      const systemPrompt = `Вы — AI-ассистент VkusBuket/SweetSync (POS + склад для цветочных и клубничных мастерских).
+Отвечай кратко, вежливо и по существу на русском языке. Форматируй текст жирным или курсивом для читаемости.`;
+
+      const aiController = new AbortController();
+      const aiTimeout = setTimeout(() => aiController.abort(), OPENAI_TIMEOUT_MS);
+
+      try {
+        const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          signal: aiController.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: text },
+            ],
+            temperature: 0.3,
+            max_tokens: 1000,
+          }),
+        });
+
+        if (!openAiRes.ok) {
+          console.error('OpenAI API error:', openAiRes.status);
+          await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ Сервис временно недоступен. Попробуйте позже.', messageId);
+        } else {
+          const aiData = await openAiRes.json();
+          const answer = aiData.choices?.[0]?.message?.content || 'Не удалось получить ответ.';
+          await sendMessage(TELEGRAM_BOT_TOKEN, chatId, escapeHtml(answer).replace(/&lt;b&gt;/g, '<b>').replace(/&lt;\/b&gt;/g, '</b>').replace(/&lt;i&gt;/g, '<i>').replace(/&lt;\/i&gt;/g, '</i>'), messageId);
+        }
+      } catch (aiErr) {
+        if (aiErr.name === 'AbortError') {
+          await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '⏱ AI-сервис не ответил вовремя.', messageId);
+        } else {
+          console.error('OpenAI fetch error:', aiErr);
+          await sendMessage(TELEGRAM_BOT_TOKEN, chatId, '❌ Внутренняя ошибка AI.', messageId);
+        }
+      } finally {
+        clearTimeout(aiTimeout);
       }
     }
 

@@ -24,6 +24,17 @@ export default function PinScreen({users, onLogin, onClose}){
   const handleSelectUser = (u) => {
     setPin(""); setError("");
     const { lockedUntil } = getBFState(u.id);
+    const latestUser = users.find(x => x.id === u.id) || u;
+
+    // Пропускаем ПИН если он не задан
+    if (!latestUser.pin || String(latestUser.pin).trim() === "") {
+      if (!lockedUntil || Date.now() > lockedUntil) {
+        clearBFState(u.id);
+        onLogin(latestUser);
+        return;
+      }
+    }
+
     setSelected(u);
     setLocked(Date.now() < lockedUntil);
   };

@@ -737,7 +737,7 @@ useEffect(()=>{
             return merged.map(m => {
               const dbUser = appUsers.find(u => u.id === m.id);
               if (dbUser && dbUser.pin && (!m.pin || m.pin === "")) {
-                return { ...m, pin: dbUser.pin };
+                return { ...m, pin: String(dbUser.pin) };
               }
               return m;
             });
