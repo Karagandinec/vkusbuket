@@ -12,6 +12,7 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
   const [isSemiCollapsed, setIsSemiCollapsed] = useState(false);
   useEffect(()=>{setSearch("");},[tab]);
   const [editId,setEditId]=useState(null);
+  const [editData,setEditData]=useState({});
   const [showAddProduct,setShowAddProduct]=useState(false);
   const [showAddTechCard,setShowAddTechCard]=useState(false);
   const [newProduct,setNewProduct]=useState({product:"",cat:"Наборы",price:""});
@@ -456,28 +457,38 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",gap:10,alignItems:"end"}}>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ИМЯ</div>
-                    <input value={u.name} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,name:e.target.value}:x))} style={inputStyle}/>
+                    <input value={editData?.name || ""} onChange={e=>setEditData(p=>({...p,name:e.target.value}))} style={inputStyle}/>
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>РОЛЬ</div>
-                    <select value={u.role} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,role:e.target.value}:x))} style={inputStyle}>
+                    <select value={editData?.role || "cashier"} onChange={e=>setEditData(p=>({...p,role:e.target.value}))} style={inputStyle}>
                       {Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                     </select>
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>PIN-КОД</div>
-                    <input value={u.pin} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,pin:e.target.value.replace(/\D/g,"").slice(0,4)}:x))} style={inputStyle}/>
+                    <input value={editData?.pin || ""} onChange={e=>setEditData(p=>({...p,pin:e.target.value.replace(/\D/g,"").slice(0,4)}))} style={inputStyle}/>
                   </div>
                   <div>
                     <div style={{fontSize:11,color:C.muted,marginBottom:4}}>ТОЧКА</div>
-                    <select value={u.point || ""} onChange={e=>setUsers(p=>p.map(x=>x.id===u.id?{...x,point:e.target.value || null}:x))} style={inputStyle}>
+                    <select value={editData?.point || ""} onChange={e=>setEditData(p=>({...p,point:e.target.value || null}))} style={inputStyle}>
                       <option value="">Все точки (офис)</option>
                       {POINTS.map(p=><option key={p} value={p}>{p}</option>)}
                     </select>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={()=>{supaFetch("PATCH","app_users",{name:u.name,role:u.role,pin:u.pin,point:u.point},`?id=eq.${u.id}`).catch(()=>{});setEditId(null);showToast("Сохранено!");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
-                    <button onClick={()=>{setUsers(p=>p.filter(x=>x.id!==u.id));supaFetch("PATCH","app_users",{is_active:false},`?id=eq.${u.id}`).catch(()=>{});setEditId(null);showToast("Сотрудник удален");}} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑</button>
+                    <button onClick={()=>{
+                      const updated = { ...editData };
+                      setUsers(p=>p.map(x=>x.id===u.id ? updated : x));
+                      setEditId(null);
+                      showToast("Сохранено!");
+                    }} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.green,color:"#000",fontWeight:700,cursor:"pointer"}}>✓</button>
+                    <button onClick={()=>{
+                      setUsers(p=>p.filter(x=>x.id!==u.id));
+                      supaFetch("PATCH","app_users",{is_active:false},`?id=eq.${u.id}`).catch(()=>{});
+                      setEditId(null);
+                      showToast("Сотрудник удален");
+                    }} style={{padding:"8px 14px",borderRadius:8,border:"none",background:C.redSoft,color:C.red,fontWeight:700,cursor:"pointer"}}>🗑</button>
                   </div>
                 </div>
               ) : (
@@ -489,7 +500,7 @@ export default function Settings({isMobile,techCards,setTechCards,rawStock,setRa
                       <div style={{fontSize:12,color:C.muted}}>{(ROLES[u.role]||{label:u.role||"?"}).label} · {u.point || "Офис"} · PIN: {u.pin}</div>
                     </div>
                   </div>
-                  <button onClick={()=>setEditId(u.id)} style={{background:"transparent",border:"none",color:C.accent,cursor:"pointer",fontSize:13,fontWeight:700}}>✏️ Редактировать</button>
+                  <button onClick={()=>{setEditId(u.id); setEditData({...u});}} style={{background:"transparent",border:"none",color:C.accent,cursor:"pointer",fontSize:13,fontWeight:700}}>Изменить</button>
                 </div>
               )}
             </div>
