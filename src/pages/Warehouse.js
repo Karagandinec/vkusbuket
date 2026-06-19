@@ -218,7 +218,7 @@ export default function Warehouse({isMobile,rawStock,setRawStock,semiStock,setSe
             if (semi) addCons(semi.name, spend, semi.unit);
           }
         });
-        const packaging = getPackagingItems(item);
+        const packaging = getPackagingItems(item.product);
         (packaging || []).forEach(pkg => {
           const raw = (rawStock || []).find(r => r.id === pkg.rawId);
           if (raw) addCons(raw.name, pkg.qty * item.qty, raw.unit);

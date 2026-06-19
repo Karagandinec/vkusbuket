@@ -232,8 +232,8 @@ export default function POS({isMobile,semiStock,setSemiStock,rawStock,setRawStoc
         }
       }
       
-      // 2. Списываем коробки, стаканчики, ленты, шпажки со склада точки
-      const packaging = getPackagingItems(item);
+      // 2. Учет коробок, лент, слюды, и т.д. по имени товара
+      const packaging = getPackagingItems(item.product);
       for(const pkg of packaging){
         const idx = newRaw.findIndex(r=>r.id===pkg.rawId);
         if(idx>=0) {

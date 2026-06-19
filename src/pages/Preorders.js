@@ -141,7 +141,7 @@ export default function Preorders({isMobile,preorders, setPreorders, sales, setS
       }
 
       // Deduct packaging
-      const packaging = getPackagingItems(item);
+      const packaging = getPackagingItems(item.product);
       for (const pkg of packaging) {
         const idx = newRaw.findIndex(r => r.id === pkg.rawId);
         if (idx >= 0) {
